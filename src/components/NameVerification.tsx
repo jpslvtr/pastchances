@@ -108,8 +108,7 @@ const NameVerification: React.FC = () => {
 
                 <div className="verification-content">
                     <h2>To ensure accuracy of matches, which Class of 2025 student are you?</h2>
-                    <p>Please select your name from the list below. This helps us match your Stanford email with the name we have for you.</p>
-
+                    <p>Please select <b>your name</b> from the list below, not your crush's name.</p>
                     <div className="search-section">
                         <input
                             type="text"
@@ -119,7 +118,7 @@ const NameVerification: React.FC = () => {
                             className="search-input"
                         />
                     </div>
-
+                    <br></br>
                     <div className="names-list">
                         <h3>
                             GSB MBA Class of 2025
