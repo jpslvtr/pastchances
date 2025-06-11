@@ -165,18 +165,6 @@ const Home: React.FC = () => {
         setSelectedNames(prev => prev.filter(name => name !== nameToRemove));
     };
 
-    // Get email for a matched person
-    const getMatchEmail = async (matchName: string) => {
-        try {
-            // This would require a Cloud Function to get user emails by verified name
-            // For now, we'll create a simple email from the name
-            return matchName.toLowerCase().replace(' ', '.') + '@stanford.edu';
-        } catch (error) {
-            console.error('Error getting match email:', error);
-            return matchName.toLowerCase().replace(' ', '.') + '@stanford.edu';
-        }
-    };
-
     if (loading) {
         return <div className="loading">Loading...</div>;
     }

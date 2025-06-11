@@ -4,7 +4,7 @@ import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
 const NameVerification: React.FC = () => {
-    const { user, userData, refreshUserData, logout } = useAuth();
+    const { user, refreshUserData, logout } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [allNames, setAllNames] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
