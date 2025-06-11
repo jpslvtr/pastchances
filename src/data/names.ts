@@ -1,4 +1,3 @@
-// GSB Class of 2025 Names
 export const GSB_CLASS_NAMES = [
     "Fake Account",
     "Nicolas Abad",
