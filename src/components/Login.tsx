@@ -15,9 +15,6 @@ const Login: React.FC = () => {
                     Share your crushes anonymously and see if there's a mutual connection 👀
                     <br></br>
                     <br></br>
-                    Select up to 10 classmates you'd like to "connect" with
-                    <br></br>
-                    <br></br>
                     The site will remain active until our Stanford accounts expire in October 2025</p>
                 <div className="login-content">
                     <button
