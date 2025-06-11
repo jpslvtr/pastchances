@@ -865,3 +865,37 @@ body {
    max-height: 30vh;
  }
 }
+
+/* Instructions list styling */
+.instructions {
+  margin-bottom: 15px;
+}
+
+.instructions ol {
+  padding-left: 20px;
+  margin: 0;
+}
+
+.instructions li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+  font-size: 14px;
+  color: #666;
+}
+
+.instructions em {
+  font-style: italic;
+  color: #8C1515;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .instructions ol {
+    padding-left: 16px;
+  }
+  
+  .instructions li {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+}
