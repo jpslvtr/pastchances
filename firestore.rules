@@ -32,7 +32,7 @@ service cloud.firestore {
         && (existingData.submitted == false || existingData.crushes == newData.crushes)
         // Validate crushes array
         && newData.crushes is list
-        && newData.crushes.size() <= 10  // Changed from 25 to 10
+        && newData.crushes.size() <= 10
         && validateCrushes(newData.crushes);
     }
     
@@ -48,7 +48,7 @@ service cloud.firestore {
     }
     
     function validateCrushes(crushes) {
-      return crushes.size() <= 10  // Changed from 25 to 10
+      return crushes.size() <= 10
         && crushes.toSet().size() == crushes.size(); // No duplicates
     }
   }

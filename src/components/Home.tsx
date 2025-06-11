@@ -111,7 +111,7 @@ const Home: React.FC = () => {
         setSelectedNames(prev => {
             if (prev.includes(name)) {
                 return prev.filter(n => n !== name);
-            } else if (prev.length < 10) {  // Changed from 25 to 10
+            } else if (prev.length < 10) {
                 return [...prev, name];
             }
             return prev;
@@ -295,7 +295,7 @@ const Home: React.FC = () => {
                             </h3>
                             <div className="names-simple-list">
                                 {filteredAvailableNames.map(name => {
-                                    const isDisabled = selectedNames.length >= 10;  // Changed from 25 to 10
+                                    const isDisabled = selectedNames.length >= 10;
 
                                     return (
                                         <div
