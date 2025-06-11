@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,12 +9,20 @@ const NameVerification: React.FC = () => {
     const [allNames, setAllNames] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Load the names from the text file
     useEffect(() => {
+        let isMounted = true;
+
         const loadNames = async () => {
             try {
+                setError(null);
+
                 const response = await fetch('/files/names.txt');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const text = await response.text();
                 const names = text
                     .split('\n')
@@ -22,18 +30,28 @@ const NameVerification: React.FC = () => {
                     .filter(line => line && !line.startsWith('Here\'s the list'))
                     .filter(line => line.length > 0);
 
-                setAllNames(names);
+                if (isMounted) {
+                    setAllNames(names);
+                }
             } catch (error) {
                 console.error('Error loading names:', error);
+                if (isMounted) {
+                    setError('Failed to load class names. Please refresh the page.');
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         loadNames();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
-    // Filter names based on search term
     const filteredNames = useMemo(() => {
         if (!searchTerm) return allNames;
 
@@ -42,10 +60,12 @@ const NameVerification: React.FC = () => {
         );
     }, [allNames, searchTerm]);
 
-    const handleNameSelect = async (selectedName: string) => {
-        if (!user) return;
+    const handleNameSelect = useCallback(async (selectedName: string) => {
+        if (!user || saving) return;
 
         setSaving(true);
+        setError(null);
+
         try {
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, {
@@ -53,19 +73,26 @@ const NameVerification: React.FC = () => {
                 updatedAt: new Date()
             });
 
-            // Refresh user data to update the context
             await refreshUserData();
-
         } catch (error) {
             console.error('Error saving verified name:', error);
-            alert('Failed to save your selection. Please try again.');
+            setError('Failed to save your selection. Please try again.');
         } finally {
             setSaving(false);
         }
-    };
+    }, [user, saving, refreshUserData]);
 
     if (loading) {
         return <div className="loading">Loading...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="loading">
+                <p style={{ color: 'red' }}>{error}</p>
+                <button onClick={() => window.location.reload()}>Refresh Page</button>
+            </div>
+        );
     }
 
     return (
