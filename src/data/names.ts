@@ -1,5 +1,5 @@
 export const GSB_CLASS_NAMES = [
-    "Fake Account",
+    // "Fake Account",
     "Nicolas Abad",
     "Khaled Abdulkarim",
     "Kate Kabat (Adams)",
