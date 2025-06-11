@@ -119,15 +119,14 @@ body {
   .login-container {
     min-height: 100vh;
     padding: 20px 15px;
-    /* Position card towards top instead of center */
+    /* Slight shift up from center - not too high, not too low */
     align-items: flex-start;
-    padding-top: 60px;
+    padding-top: 15vh; /* 15% of viewport height from top */
   }
   
   .login-card {
     padding: 30px 25px;
     max-width: 380px;
-    /* Remove any margin that might push it down */
     margin: 0 auto;
   }
   
@@ -161,8 +160,8 @@ body {
 @media (max-width: 480px) {
   .login-container {
     padding: 15px 10px;
-    /* Move card even higher on small screens */
-    padding-top: 40px;
+    /* Slightly higher positioning for small phones */
+    padding-top: 12vh; /* 12% of viewport height from top */
   }
   
   .login-card {
@@ -190,17 +189,16 @@ body {
   }
 }
 
-/* Very small screens - move card to very top */
+/* Very short screens - move up a bit more */
 @media (max-height: 600px) {
   .login-container {
-    align-items: flex-start;
-    padding-top: 30px;
+    padding-top: 8vh; /* 8% of viewport height from top */
   }
 }
 
 @media (max-height: 500px) {
   .login-container {
-    padding-top: 20px;
+    padding-top: 5vh; /* 5% of viewport height from top */
   }
 }
 
