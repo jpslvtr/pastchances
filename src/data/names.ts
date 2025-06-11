@@ -63,7 +63,6 @@ export const GSB_CLASS_NAMES = [
     "Cyrus Buckman",
     "Sabrina B Namato",
     "Sabrina Bukenya",
-    "Katie Bureau",
     "Courtney Burton",
     "Holly Burwick",
     "Jesse Cai",
