@@ -118,16 +118,17 @@ body {
 @media (max-width: 768px) {
   .login-container {
     min-height: 100vh;
-    padding: 15px;
-    /* Ensure it takes full height but centers content better */
-    justify-content: center;
+    padding: 20px 15px;
+    /* Position card towards top instead of center */
+    align-items: flex-start;
+    padding-top: 60px;
   }
   
   .login-card {
     padding: 30px 25px;
-    margin: auto;
-    /* Remove max-height constraints that might cause scrolling */
     max-width: 380px;
+    /* Remove any margin that might push it down */
+    margin: 0 auto;
   }
   
   .login-card h1 {
@@ -159,7 +160,9 @@ body {
 
 @media (max-width: 480px) {
   .login-container {
-    padding: 10px;
+    padding: 15px 10px;
+    /* Move card even higher on small screens */
+    padding-top: 40px;
   }
   
   .login-card {
@@ -187,19 +190,17 @@ body {
   }
 }
 
-/* Very small screens - compact layout */
-@media (max-height: 600px) and (max-width: 480px) {
+/* Very small screens - move card to very top */
+@media (max-height: 600px) {
   .login-container {
     align-items: flex-start;
+    padding-top: 30px;
+  }
+}
+
+@media (max-height: 500px) {
+  .login-container {
     padding-top: 20px;
-  }
-  
-  .login-card {
-    margin-top: 0;
-  }
-  
-  .login-card > p {
-    margin-bottom: 15px;
   }
 }
 
