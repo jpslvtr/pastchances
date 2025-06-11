@@ -176,7 +176,7 @@ const Home: React.FC = () => {
         <div className="dashboard-container">
             <div className="dashboard-card">
                 <div className="dashboard-header">
-                    <h1>GSB Class of 2025 - Find Your Matches!
+                    <h1>GSB Class of 2025
                     </h1>
                     <div className="user-info">
                         <div className="user-details">
