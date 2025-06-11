@@ -9,7 +9,7 @@ const Login: React.FC = () => {
             <div className="login-card">
                 <h1>Stanford Last Chances</h1>
                 <h2>GSB Class of 2025</h2>
-                <p>Inspired by Dartmouth College's famous Last Chances tradition for graduating seniors
+                <p>Inspired by Dartmouth's famous Last Chances tradition for graduating seniors
                 <br></br>
                 <br></br>
                 Share your crushes anonymously and see if there's a mutual connection 👀
