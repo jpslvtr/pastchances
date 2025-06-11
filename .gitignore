@@ -1,5 +1,8 @@
+.gitignore
 node_modules
-repopack-output.txt
+public
 repomix.config.json
+repopack-output.txt
 firebase.json
-files/names.txt
+firestore.indexes.json
+firestore.rules
