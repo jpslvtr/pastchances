@@ -299,9 +299,6 @@ const Home: React.FC = () => {
                     <div className="action-section">
                         {isSubmitted ? (
                             <div className="submitted-message">
-                                <h3>Your list has been submitted!</h3>
-                                <p>You selected {selectedNames.length} classmate{selectedNames.length !== 1 ? 's' : ''}.
-                                    {hasMatches ? ' Check your matches above!' : ' You\'ll be notified if there are any matches.'}</p>
                             </div>
                         ) : (
                             <div className="action-buttons">
