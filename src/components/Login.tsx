@@ -9,14 +9,13 @@ const Login: React.FC = () => {
             <div className="login-card">
                 <h1>Stanford Last Chances</h1>
                 <h2>GSB Class of 2025</h2>
-                <p>Inspired by Dartmouth College's famous Last Chances tradition for graduating seniors, this is our version. 
+                <p>Inspired by Dartmouth College's famous Last Chances tradition for graduating seniors.
                 <br></br>
                 <br></br>
-                Share your crushes anonymously and see if there's a mutual connection - you never know, you might just find love! 
+                Share your crushes anonymously and see if there's a mutual connection 👀
                 <br></br>
                 <br></br>
                 The site will remain active until our Stanford accounts expire in October 2025.</p>
-
                 <div className="login-content">
                     <button
                         className="google-signin-btn"
@@ -28,7 +27,7 @@ const Login: React.FC = () => {
                             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                         </svg>
-                        Sign in with your Stanford email
+                        Sign in with your @stanford.edu
                     </button>
                 </div>
             </div>
