@@ -1,6 +1,3 @@
-Here's the list with first names first, sorted by last name:
-
-Fake Account
 Nicolas Abad
 Khaled Abdulkarim
 Kate Kabat (Adams)
