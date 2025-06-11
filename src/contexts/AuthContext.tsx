@@ -15,10 +15,10 @@ interface UserData {
     email: string;
     displayName: string;
     photoURL: string;
-    verifiedName: string; // The actual GSB student name they selected
-    crushes: string[]; // Made required, will always be initialized as empty array
-    submitted: boolean; // Whether they've submitted their final list
-    matches: MatchInfo[]; // Array of matched names and emails
+    verifiedName: string;
+    crushes: string[];
+    submitted: boolean;
+    matches: MatchInfo[];
     createdAt: any;
     updatedAt: any;
     lastLogin: any;
@@ -53,26 +53,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [userData, setUserData] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isCreatingUser, setIsCreatingUser] = useState(false);
 
-    // Helper function to normalize matches to the new format
     const normalizeMatches = (matches: any[]): MatchInfo[] => {
         if (!matches || !Array.isArray(matches)) return [];
 
         return matches.map(match => {
             if (typeof match === 'string') {
-                // Convert old string format to new object format
                 return {
                     name: match,
                     email: match.toLowerCase().replace(/\s+/g, '.') + '@stanford.edu'
                 };
             } else if (match && typeof match === 'object' && match.name && match.email) {
-                // Already in correct format
                 return {
                     name: match.name,
                     email: match.email
                 };
             } else {
-                // Fallback for invalid data
                 return {
                     name: 'Unknown',
                     email: 'unknown@stanford.edu'
@@ -81,9 +78,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
     };
 
-    // Function to refresh user data from Firestore
     const refreshUserData = async () => {
-        if (!user?.uid) return;
+        if (!user?.uid) {
+            console.warn('refreshUserData called without user');
+            return;
+        }
 
         try {
             const userRef = doc(db, 'users', user.uid);
@@ -91,48 +90,49 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             if (userDoc.exists()) {
                 const data = userDoc.data();
-                // Ensure crushes and matches are always arrays
                 const userData: UserData = {
                     uid: data.uid,
                     email: data.email,
                     displayName: data.displayName,
                     photoURL: data.photoURL,
-                    verifiedName: data.verifiedName || '', // Empty string if not verified yet
-                    crushes: data.crushes || [], // Fallback to empty array
-                    submitted: data.submitted || false, // Default to false if not set
-                    matches: normalizeMatches(data.matches), // Normalize matches to consistent format
+                    verifiedName: data.verifiedName || '',
+                    crushes: data.crushes || [],
+                    submitted: data.submitted || false,
+                    matches: normalizeMatches(data.matches),
                     createdAt: data.createdAt,
                     updatedAt: data.updatedAt,
                     lastLogin: data.lastLogin
                 };
                 setUserData(userData);
+            } else {
+                console.error('User document does not exist after creation');
+                setUserData(null);
             }
         } catch (error) {
             console.error('Error refreshing user data:', error);
+            setUserData(null);
         }
     };
 
-    // Function to create or update user document
     const createOrUpdateUserDocument = async (user: User) => {
-        if (!user.uid) return null;
+        if (!user.uid || isCreatingUser) return null;
 
+        setIsCreatingUser(true);
         const userRef = doc(db, 'users', user.uid);
 
         try {
-            // Check if user document already exists
             const userDoc = await getDoc(userRef);
 
             if (!userDoc.exists()) {
-                // Create new user document
                 const newUserData: UserData = {
                     uid: user.uid,
                     email: user.email || '',
                     displayName: user.displayName || user.email?.split('@')[0] || '',
                     photoURL: user.photoURL || DEFAULT_PROFILE_URL,
-                    verifiedName: '', // Empty until they verify their name
-                    crushes: [], // Always initialize as empty array
-                    submitted: false, // Default to false for new users
-                    matches: [], // Initialize as empty array
+                    verifiedName: '',
+                    crushes: [],
+                    submitted: false,
+                    matches: [],
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                     lastLogin: serverTimestamp()
@@ -143,17 +143,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setUserData(newUserData);
                 return newUserData;
             } else {
-                // Update existing user's last login
                 const existingData = userDoc.data();
                 const updatedData: UserData = {
                     uid: existingData.uid,
                     email: existingData.email,
                     displayName: user.displayName || existingData.displayName,
                     photoURL: user.photoURL || existingData.photoURL || DEFAULT_PROFILE_URL,
-                    verifiedName: existingData.verifiedName || '', // Preserve existing verification
-                    crushes: existingData.crushes || [], // Ensure crushes is always an array
-                    submitted: existingData.submitted || false, // Preserve submission status
-                    matches: normalizeMatches(existingData.matches), // Normalize matches to consistent format
+                    verifiedName: existingData.verifiedName || '',
+                    crushes: existingData.crushes || [],
+                    submitted: existingData.submitted || false,
+                    matches: normalizeMatches(existingData.matches),
                     createdAt: existingData.createdAt,
                     updatedAt: serverTimestamp(),
                     lastLogin: serverTimestamp()
@@ -167,6 +166,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error) {
             console.error('Error creating/updating user document:', error);
             return null;
+        } finally {
+            setIsCreatingUser(false);
         }
     };
 
@@ -175,7 +176,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.log('Auth state changed:', user?.email);
 
             if (user) {
-                // Verify user has stanford.edu email
                 if (!user.email?.endsWith('@stanford.edu')) {
                     console.log('Invalid email domain:', user.email);
                     await signOut(auth);
@@ -184,7 +184,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     alert('Only @stanford.edu email addresses are allowed. Please sign in with your Stanford account.');
                 } else {
                     setUser(user);
-                    // Create or update user document in Firestore
                     await createOrUpdateUserDocument(user);
                 }
             } else {
@@ -209,19 +208,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 throw new Error('Only @stanford.edu email addresses are allowed');
             }
 
-            // The user document will be created/updated in the onAuthStateChanged listener
-
         } catch (error: any) {
             console.error('Login error:', error);
 
-            // Handle specific Firebase errors
             if (error.code === 'auth/configuration-not-found') {
                 alert('Authentication is not properly configured. Please contact the administrator.');
             } else if (error.code === 'auth/popup-closed-by-user') {
-                // User closed the popup, don't show error
                 console.log('Sign-in popup was closed by user');
             } else if (error.code === 'auth/cancelled-popup-request') {
-                // Another popup is already open
                 console.log('Another sign-in popup is already open');
             } else {
                 alert('Login failed. Please make sure you\'re using a @stanford.edu email address.');
