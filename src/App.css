@@ -67,6 +67,7 @@ body {
   color: #777;
   margin-bottom: 30px;
   font-size: 16px;
+  line-height: 1.5;
 }
 
 .login-content p {
@@ -111,6 +112,95 @@ body {
 .login-footer p {
   color: #666;
   font-size: 12px;
+}
+
+/* Mobile-specific login improvements */
+@media (max-width: 768px) {
+  .login-container {
+    min-height: 100vh;
+    padding: 15px;
+    /* Ensure it takes full height but centers content better */
+    justify-content: center;
+  }
+  
+  .login-card {
+    padding: 30px 25px;
+    margin: auto;
+    /* Remove max-height constraints that might cause scrolling */
+    max-width: 380px;
+  }
+  
+  .login-card h1 {
+    font-size: 24px;
+    margin-bottom: 6px;
+  }
+  
+  .login-card h2 {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  
+  .login-card > p {
+    font-size: 14px;
+    margin-bottom: 25px;
+    line-height: 1.4;
+  }
+  
+  .google-signin-btn {
+    padding: 12px 18px;
+    font-size: 14px;
+  }
+  
+  .google-icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-container {
+    padding: 10px;
+  }
+  
+  .login-card {
+    padding: 25px 20px;
+    border-radius: 8px;
+  }
+  
+  .login-card h1 {
+    font-size: 22px;
+  }
+  
+  .login-card h2 {
+    font-size: 15px;
+  }
+  
+  .login-card > p {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  
+  .google-signin-btn {
+    padding: 11px 16px;
+    font-size: 13px;
+    gap: 10px;
+  }
+}
+
+/* Very small screens - compact layout */
+@media (max-height: 600px) and (max-width: 480px) {
+  .login-container {
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+  
+  .login-card {
+    margin-top: 0;
+  }
+  
+  .login-card > p {
+    margin-bottom: 15px;
+  }
 }
 
 /* Name Verification styles */
