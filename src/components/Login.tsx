@@ -9,13 +9,13 @@ const Login: React.FC = () => {
             <div className="login-card">
                 <h1>Stanford Last Chances</h1>
                 <h2>GSB Class of 2025</h2>
-                <p>Inspired by Dartmouth College's famous Last Chances tradition for graduating seniors.
+                <p>Inspired by Dartmouth College's famous Last Chances tradition for graduating seniors
                 <br></br>
                 <br></br>
                 Share your crushes anonymously and see if there's a mutual connection 👀
                 <br></br>
                 <br></br>
-                The site will remain active until our Stanford accounts expire in October 2025.</p>
+                The site will remain active until our Stanford accounts expire in October 2025</p>
                 <div className="login-content">
                     <button
                         className="google-signin-btn"
