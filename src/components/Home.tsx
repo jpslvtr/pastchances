@@ -176,8 +176,7 @@ const Home: React.FC = () => {
         <div className="dashboard-container">
             <div className="dashboard-card">
                 <div className="dashboard-header">
-                    <h1>GSB Class of 2025
-                    </h1>
+                    <h1>GSB Class of 2025</h1>
                     <div className="user-info">
                         <div className="user-details">
                             <img
@@ -202,10 +201,10 @@ const Home: React.FC = () => {
                         <div className="matches-section">
                             <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
                             <div className="matches-list">
-                                {userData.matches.map((matchName, index) => (
+                                {userData.matches.map((match, index) => (
                                     <div key={index} className="match-item">
-                                        <div className="match-name">{matchName}</div>
-                                        <div className="match-email">{matchName.toLowerCase().replace(' ', '.') + '@stanford.edu'}</div>
+                                        <div className="match-name">{match.name}</div>
+                                        <div className="match-email">{match.email}</div>
                                     </div>
                                 ))}
                             </div>
@@ -219,8 +218,7 @@ const Home: React.FC = () => {
                                 {!hasMatches && <div className="no-matches">No matches yet - check back later!</div>}
                             </div>
                         ) : (
-                            <p>Select up to 25 classmates you'd like to "connect" with. Your selections are kept private and only visible to you unless there's a mutual match.
-                            </p>
+                            <p>Select up to 25 classmates you'd like to "connect" with. Your selections are kept private and only visible to you unless there's a mutual match.</p>
                         )}
                     </div>
 

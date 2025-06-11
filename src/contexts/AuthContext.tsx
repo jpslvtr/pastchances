@@ -54,6 +54,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
 
+    // Helper function to normalize matches to the new format
+    const normalizeMatches = (matches: any[]): MatchInfo[] => {
+        if (!matches || !Array.isArray(matches)) return [];
+
+        return matches.map(match => {
+            if (typeof match === 'string') {
+                // Convert old string format to new object format
+                return {
+                    name: match,
+                    email: match.toLowerCase().replace(/\s+/g, '.') + '@stanford.edu'
+                };
+            } else if (match && typeof match === 'object' && match.name && match.email) {
+                // Already in correct format
+                return {
+                    name: match.name,
+                    email: match.email
+                };
+            } else {
+                // Fallback for invalid data
+                return {
+                    name: 'Unknown',
+                    email: 'unknown@stanford.edu'
+                };
+            }
+        });
+    };
+
     // Function to refresh user data from Firestore
     const refreshUserData = async () => {
         if (!user?.uid) return;
@@ -73,7 +100,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     verifiedName: data.verifiedName || '', // Empty string if not verified yet
                     crushes: data.crushes || [], // Fallback to empty array
                     submitted: data.submitted || false, // Default to false if not set
-                    matches: data.matches || [], // Fallback to empty array
+                    matches: normalizeMatches(data.matches), // Normalize matches to consistent format
                     createdAt: data.createdAt,
                     updatedAt: data.updatedAt,
                     lastLogin: data.lastLogin
@@ -126,7 +153,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     verifiedName: existingData.verifiedName || '', // Preserve existing verification
                     crushes: existingData.crushes || [], // Ensure crushes is always an array
                     submitted: existingData.submitted || false, // Preserve submission status
-                    matches: existingData.matches || [], // Ensure matches is always an array
+                    matches: normalizeMatches(existingData.matches), // Normalize matches to consistent format
                     createdAt: existingData.createdAt,
                     updatedAt: serverTimestamp(),
                     lastLogin: serverTimestamp()
