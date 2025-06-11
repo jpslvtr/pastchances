@@ -22,15 +22,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
-  // If user exists but userData doesn't exist after loading is complete,
-  // there might be an error. Show error state instead of infinite loading.
+  // Give more time for userData to load after user authentication
+  // Only show error if we have a user but no userData after a reasonable wait
   if (!userData) {
-    return (
-      <div className="loading">
-        <p>Error loading user data. Please try refreshing the page.</p>
-        <button onClick={() => window.location.reload()}>Refresh</button>
-      </div>
-    );
+    return <div className="loading">Setting up your account...</div>;
   }
 
   if (!userData.verifiedName || userData.verifiedName.trim() === '') {

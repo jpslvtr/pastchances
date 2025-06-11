@@ -53,7 +53,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [userData, setUserData] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [isCreatingUser, setIsCreatingUser] = useState(false);
 
     const normalizeMatches = (matches: any[]): MatchInfo[] => {
         if (!matches || !Array.isArray(matches)) return [];
@@ -115,9 +114,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const createOrUpdateUserDocument = async (user: User) => {
-        if (!user.uid || isCreatingUser) return null;
+        if (!user.uid) return null;
 
-        setIsCreatingUser(true);
         const userRef = doc(db, 'users', user.uid);
 
         try {
@@ -166,8 +164,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error) {
             console.error('Error creating/updating user document:', error);
             return null;
-        } finally {
-            setIsCreatingUser(false);
         }
     };
 
@@ -181,17 +177,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     await signOut(auth);
                     setUser(null);
                     setUserData(null);
+                    setLoading(false);
                     alert('Only @stanford.edu email addresses are allowed. Please sign in with your Stanford account.');
                 } else {
                     setUser(user);
+                    // Create/update user document and set loading to false after completion
                     await createOrUpdateUserDocument(user);
+                    setLoading(false);
                 }
             } else {
                 setUser(null);
                 setUserData(null);
+                setLoading(false);
             }
-
-            setLoading(false);
         });
 
         return unsubscribe;
