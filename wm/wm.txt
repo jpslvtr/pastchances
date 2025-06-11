@@ -1,0 +1,11 @@
+Inside stanford-lastchances subdirectory
+
+repopack --ignore “node_modules/“
+
+npm run dev
+http://localhost:5173
+
+npm run build
+
+Inside stanford-lastchances subdirectory
+firebase deploy --only functions
