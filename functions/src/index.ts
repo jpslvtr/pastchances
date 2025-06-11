@@ -63,7 +63,9 @@ export const findMatches = functions.firestore
                 const otherUserVerifiedName = otherUserData.verifiedName;
                 const otherUserEmail = otherUserData.email;
 
-                // Check if there's a mutual match
+                // Check if there's a mutual match:
+                // 1. Current user has other user's verified name in their crushes
+                // 2. Other user has current user's verified name in their crushes
                 if (userCrushes.includes(otherUserVerifiedName) &&
                     otherUserCrushes.includes(userVerifiedName)) {
                     matches.push({
@@ -91,13 +93,20 @@ export const findMatches = functions.firestore
                 }
             }
 
-            // Update user's matches
+            // Update current user's matches
             if (matches.length > 0) {
                 await db.collection('users').doc(userId).update({
                     matches: matches,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
                 console.log(`Updated ${userId} with ${matches.length} matches`);
+            } else {
+                // Ensure matches field exists even if empty
+                await db.collection('users').doc(userId).update({
+                    matches: [],
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                console.log(`Updated ${userId} with 0 matches`);
             }
         }
     });
@@ -142,13 +151,11 @@ export const checkAllMatches = functions.https.onRequest(async (req, res) => {
             }
 
             // Update user's matches
-            if (matches.length > 0) {
-                await db.collection('users').doc(user.id).update({
-                    matches: matches,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-                totalMatches += matches.length;
-            }
+            await db.collection('users').doc(user.id).update({
+                matches: matches,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            totalMatches += matches.length;
         }
 
         res.json({

@@ -149,7 +149,7 @@ const Home: React.FC = () => {
             // Refresh user data in context
             await refreshUserData();
 
-            alert('Your list has been submitted! You can no longer make changes.');
+            alert('Your list has been submitted! Check back for matches.');
         } catch (error) {
             console.error('Error submitting list:', error);
             alert('Failed to submit list. Please try again.');
