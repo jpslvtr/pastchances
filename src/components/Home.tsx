@@ -2,13 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { GSB_CLASS_NAMES } from '../data/names';
 
 const Home: React.FC = () => {
     const { user, userData, logout, refreshUserData } = useAuth();
     const [imageError, setImageError] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
-    const [allNames, setAllNames] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -29,7 +29,7 @@ const Home: React.FC = () => {
             }
         } catch (error) {
             console.error('Error loading user selections:', error);
-            setError('Failed to load your previous selections. Please refresh the page.');
+            setError('Failed to load your previous selections.');
         }
     }, [user]);
 
@@ -40,29 +40,13 @@ const Home: React.FC = () => {
             try {
                 setError(null);
 
-                const response = await fetch('/files/names.txt');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const text = await response.text();
-                const names = text
-                    .split('\n')
-                    .map(line => line.trim())
-                    .filter(line => line && !line.startsWith('Here\'s the list'))
-                    .filter(line => line.length > 0);
-
-                if (isMounted) {
-                    setAllNames(names);
-
-                    if (user) {
-                        await loadUserSelections();
-                    }
+                if (isMounted && user) {
+                    await loadUserSelections();
                 }
             } catch (error) {
-                console.error('Error loading names:', error);
+                console.error('Error loading data:', error);
                 if (isMounted) {
-                    setError('Failed to load class names. Please refresh the page.');
+                    setError('Failed to load your data. Please refresh the page.');
                 }
             } finally {
                 if (isMounted) {
@@ -85,14 +69,14 @@ const Home: React.FC = () => {
             excludedNames.push(userData.verifiedName);
         }
 
-        const availableNames = allNames.filter(name => !excludedNames.includes(name));
+        const availableNames = GSB_CLASS_NAMES.filter(name => !excludedNames.includes(name));
 
         if (!searchTerm) return availableNames;
 
         return availableNames.filter(name =>
             name.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }, [allNames, selectedNames, searchTerm, userData?.verifiedName]);
+    }, [selectedNames, searchTerm, userData?.verifiedName]);
 
     const handleImageError = useCallback(() => {
         setImageError(true);
@@ -132,7 +116,7 @@ const Home: React.FC = () => {
             });
 
             await refreshUserData();
-            alert('Your draft has been saved!');
+            alert('Draft saved successfully!');
         } catch (error) {
             console.error('Error saving draft:', error);
             setError('Failed to save draft. Please try again.');
@@ -145,7 +129,7 @@ const Home: React.FC = () => {
         if (!user || userData?.submitted || submitting) return;
 
         const confirmed = window.confirm(
-            `Are you sure you want to submit your list? You will NOT be able to make changes after submission. You have ${selectedNames.length} names selected.`
+            `Submit your list with ${selectedNames.length} names? You cannot make changes after submission.`
         );
 
         if (!confirmed) return;
@@ -162,7 +146,7 @@ const Home: React.FC = () => {
             });
 
             await refreshUserData();
-            alert('Your list has been submitted! Check back for matches.');
+            alert('List submitted! Check back for matches.');
         } catch (error) {
             console.error('Error submitting list:', error);
             setError('Failed to submit list. Please try again.');
@@ -173,7 +157,6 @@ const Home: React.FC = () => {
 
     const handleRemoveSelected = useCallback((nameToRemove: string) => {
         if (userData?.submitted) return;
-
         setSelectedNames(prev => prev.filter(name => name !== nameToRemove));
     }, [userData?.submitted]);
 
@@ -197,7 +180,7 @@ const Home: React.FC = () => {
         <div className="dashboard-container">
             <div className="dashboard-card">
                 <div className="dashboard-header">
-                    <h1>GSB Class of 2025</h1>
+                    <h1>Stanford Last Chances</h1>
                     <div className="user-info">
                         <div className="user-details">
                             <img
