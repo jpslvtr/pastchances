@@ -14,10 +14,15 @@ interface UserData {
     verifiedName: string;
     crushes: string[];
     submitted: boolean;
-    matches?: string[];
+    matches?: MatchInfo[];
     createdAt: any;
     updatedAt: any;
     lastLogin: any;
+}
+
+interface MatchInfo {
+    name: string;
+    email: string;
 }
 
 export const findMatches = functions.firestore
@@ -40,7 +45,7 @@ export const findMatches = functions.firestore
             }
 
             // Find potential matches
-            const matches: string[] = [];
+            const matches: MatchInfo[] = [];
 
             // Query all other submitted users
             const allUsersSnapshot = await db.collection('users')
@@ -56,12 +61,33 @@ export const findMatches = functions.firestore
 
                 const otherUserCrushes = otherUserData.crushes || [];
                 const otherUserVerifiedName = otherUserData.verifiedName;
+                const otherUserEmail = otherUserData.email;
 
                 // Check if there's a mutual match
                 if (userCrushes.includes(otherUserVerifiedName) &&
                     otherUserCrushes.includes(userVerifiedName)) {
-                    matches.push(otherUserVerifiedName);
+                    matches.push({
+                        name: otherUserVerifiedName,
+                        email: otherUserEmail
+                    });
                     console.log(`Match found: ${userVerifiedName} <-> ${otherUserVerifiedName}`);
+
+                    // Also update the other user's matches if they don't already have this match
+                    const otherUserMatches = otherUserData.matches || [];
+                    const hasExistingMatch = otherUserMatches.some(match => match.name === userVerifiedName);
+
+                    if (!hasExistingMatch) {
+                        const updatedOtherMatches = [...otherUserMatches, {
+                            name: userVerifiedName,
+                            email: afterData.email
+                        }];
+
+                        await db.collection('users').doc(otherUserId).update({
+                            matches: updatedOtherMatches,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        console.log(`Updated ${otherUserId} with match to ${userVerifiedName}`);
+                    }
                 }
             }
 
@@ -93,7 +119,7 @@ export const checkAllMatches = functions.https.onRequest(async (req, res) => {
         for (const user of users) {
             const userCrushes = user.crushes || [];
             const userVerifiedName = user.verifiedName;
-            const matches: string[] = [];
+            const matches: MatchInfo[] = [];
 
             if (!userVerifiedName || userCrushes.length === 0) continue;
 
@@ -103,11 +129,15 @@ export const checkAllMatches = functions.https.onRequest(async (req, res) => {
 
                 const otherUserCrushes = otherUser.crushes || [];
                 const otherUserVerifiedName = otherUser.verifiedName;
+                const otherUserEmail = otherUser.email;
 
                 // Check if there's a mutual match
                 if (userCrushes.includes(otherUserVerifiedName) &&
                     otherUserCrushes.includes(userVerifiedName)) {
-                    matches.push(otherUserVerifiedName);
+                    matches.push({
+                        name: otherUserVerifiedName,
+                        email: otherUserEmail
+                    });
                 }
             }
 

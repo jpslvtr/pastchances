@@ -5,6 +5,11 @@ import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../config/firebase';
 
+interface MatchInfo {
+    name: string;
+    email: string;
+}
+
 interface UserData {
     uid: string;
     email: string;
@@ -13,7 +18,7 @@ interface UserData {
     verifiedName: string; // The actual GSB student name they selected
     crushes: string[]; // Made required, will always be initialized as empty array
     submitted: boolean; // Whether they've submitted their final list
-    matches: string[]; // Array of matched names
+    matches: MatchInfo[]; // Array of matched names and emails
     createdAt: any;
     updatedAt: any;
     lastLogin: any;
