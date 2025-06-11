@@ -238,7 +238,10 @@ const Home: React.FC = () => {
                                 {!hasMatches && <div className="no-matches">No matches yet - check back later!</div>}
                             </div>
                         ) : (
-                            <p>Select up to 10 classmates you'd like to "connect" with. Your selections are kept private and only visible to you unless there's a mutual match.</p>
+                            <p>Select up to 10 classmates you'd like to "connect with. Your selections are kept private and only visible to you unless there's a mutual match.
+                            <br></br><br></br>
+                            Save your progress with <i>Save Draft</i>. Submit your preferences with <i>Submit List</i>. Once you've submitted your preferences, any matches will appear here in real time.
+                            </p>
                         )}
                     </div>
 
