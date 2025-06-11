@@ -117,11 +117,11 @@ body {
 /* Mobile-specific login improvements */
 @media (max-width: 768px) {
   .login-container {
+    /* Remove min-height and use auto height */
+    min-height: auto;
+    /* Ensure it still covers viewport if content is small */
     min-height: 100vh;
-    padding: 20px 15px;
-    /* Slight shift up from center - not too high, not too low */
-    align-items: flex-start;
-    padding-top: 15vh; /* 15% of viewport height from top */
+    padding: 15vh 15px 20px 15px; /* Top padding, sides, small bottom */
   }
   
   .login-card {
@@ -159,9 +159,7 @@ body {
 
 @media (max-width: 480px) {
   .login-container {
-    padding: 15px 10px;
-    /* Slightly higher positioning for small phones */
-    padding-top: 12vh; /* 12% of viewport height from top */
+    padding: 12vh 10px 15px 10px; /* Reduced bottom padding */
   }
   
   .login-card {
@@ -189,16 +187,24 @@ body {
   }
 }
 
-/* Very short screens - move up a bit more */
+/* Very short screens */
 @media (max-height: 600px) {
   .login-container {
-    padding-top: 8vh; /* 8% of viewport height from top */
+    padding: 8vh 15px 15px 15px;
   }
 }
 
 @media (max-height: 500px) {
   .login-container {
-    padding-top: 5vh; /* 5% of viewport height from top */
+    padding: 5vh 10px 10px 10px;
+  }
+}
+
+/* Ensure no excess space on very tall screens */
+@media (min-height: 900px) {
+  .login-container {
+    min-height: auto;
+    padding-bottom: 50px;
   }
 }
 
