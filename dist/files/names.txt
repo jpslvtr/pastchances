@@ -1,6 +1,3 @@
-Here's the list with first names first, sorted by last name:
-
-Fake Account
 Nicolas Abad
 Khaled Abdulkarim
 Kate Kabat (Adams)
@@ -368,7 +365,6 @@ Priscilla Russo
 Shailee Samar
 Payaum Sanatkar
 Sonia Sarda
-Iladro Sauls
 Philipp Schellhaas
 Stefano Schiappacasse
 Sophie Schick
