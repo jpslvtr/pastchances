@@ -1,4 +1,0 @@
-queue:
-- name: hothandler
-  rate: 20/m
-  bucket_size: 1
