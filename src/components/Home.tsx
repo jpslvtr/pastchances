@@ -219,7 +219,8 @@ const Home: React.FC = () => {
                                 {!hasMatches && <div className="no-matches">No matches yet - check back later!</div>}
                             </div>
                         ) : (
-                            <p>Select up to 25 classmates you'd like to "connect" with. Your picks are kept private unless you match.</p>
+                            <p>Select up to 25 classmates you'd like to "connect" with. Your selections are kept private and only visible to you unless there's a mutual match.
+                            </p>
                         )}
                     </div>
 
