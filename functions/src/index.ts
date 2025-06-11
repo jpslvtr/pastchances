@@ -52,7 +52,7 @@ async function processNewSubmission(userId: string, userData: UserData): Promise
 
     try {
         await db.runTransaction(async (transaction) => {
-            // Find all users who have this user in their crushes AND have submitted
+            // Find all users who have submitted
             const allUsersSnapshot = await transaction.get(
                 db.collection('users').where('submitted', '==', true)
             );
@@ -68,10 +68,10 @@ async function processNewSubmission(userId: string, userData: UserData): Promise
             }
 
             const currentUserMatches = currentUserData.matches || [];
-            const newMatches: MatchInfo[] = [...currentUserMatches];
+            let newMatches: MatchInfo[] = [...currentUserMatches];
 
-            // Track updates needed for other users
-            const userUpdates: { [userId: string]: MatchInfo[] } = {};
+            // Track all users that need updates
+            const userUpdates = new Map<string, MatchInfo[]>();
 
             // Check each submitted user for mutual matches
             for (const userDoc of allUsersSnapshot.docs) {
@@ -89,11 +89,12 @@ async function processNewSubmission(userId: string, userData: UserData): Promise
                 // Check for mutual match:
                 // 1. Current user has other user's verified name in their crushes
                 // 2. Other user has current user's verified name in their crushes
-                if (userCrushes.includes(otherUserVerifiedName) &&
-                    otherUserCrushes.includes(userVerifiedName)) {
+                const currentUserLikesOther = userCrushes.includes(otherUserVerifiedName);
+                const otherUserLikesCurrent = otherUserCrushes.includes(userVerifiedName);
 
-                    // Check if this match already exists for current user
-                    const currentUserHasMatch = currentUserMatches.some(
+                if (currentUserLikesOther && otherUserLikesCurrent) {
+                    // Check if current user already has this match
+                    const currentUserHasMatch = newMatches.some(
                         match => match.name === otherUserVerifiedName
                     );
 
@@ -115,7 +116,7 @@ async function processNewSubmission(userId: string, userData: UserData): Promise
                             name: userVerifiedName,
                             email: userData.email
                         }];
-                        userUpdates[otherUserId] = updatedOtherUserMatches;
+                        userUpdates.set(otherUserId, updatedOtherUserMatches);
                         console.log(`Will update ${otherUserId} with match to ${userVerifiedName}`);
                     }
                 }
@@ -128,7 +129,7 @@ async function processNewSubmission(userId: string, userData: UserData): Promise
             });
 
             // Update other users' matches
-            for (const [otherUserId, matches] of Object.entries(userUpdates)) {
+            for (const [otherUserId, matches] of userUpdates.entries()) {
                 const otherUserRef = db.collection('users').doc(otherUserId);
                 transaction.update(otherUserRef, {
                     matches: matches,
@@ -137,7 +138,7 @@ async function processNewSubmission(userId: string, userData: UserData): Promise
             }
 
             console.log(`Updated ${userId} with ${newMatches.length} total matches`);
-            console.log(`Updated ${Object.keys(userUpdates).length} other users with new matches`);
+            console.log(`Updated ${userUpdates.size} other users with new matches`);
         });
 
     } catch (error) {
@@ -159,62 +160,70 @@ export const checkAllMatches = functions.https.onRequest(async (req, res) => {
         }));
 
         let totalMatchPairs = 0;
+        const allMatches = new Map<string, MatchInfo[]>();
 
-        // Use transaction to ensure consistency
-        await db.runTransaction(async (transaction) => {
-            // Clear all existing matches first
-            for (const user of users) {
-                const userRef = db.collection('users').doc(user.id);
-                transaction.update(userRef, {
-                    matches: [],
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
+        // Initialize all users with empty matches
+        for (const user of users) {
+            allMatches.set(user.id, []);
+        }
 
-            // Find all mutual matches
-            const allMatches: { [userId: string]: MatchInfo[] } = {};
+        // Find all mutual matches
+        for (let i = 0; i < users.length; i++) {
+            const user1 = users[i];
+            const user1Crushes = user1.crushes || [];
+            const user1VerifiedName = user1.verifiedName;
 
-            for (const user of users) {
-                allMatches[user.id] = [];
-                const userCrushes = user.crushes || [];
-                const userVerifiedName = user.verifiedName;
+            if (!user1VerifiedName || user1Crushes.length === 0) continue;
 
-                if (!userVerifiedName || userCrushes.length === 0) continue;
+            for (let j = i + 1; j < users.length; j++) {
+                const user2 = users[j];
+                const user2Crushes = user2.crushes || [];
+                const user2VerifiedName = user2.verifiedName;
 
-                // Check against all other users
-                for (const otherUser of users) {
-                    if (otherUser.id === user.id) continue;
+                if (!user2VerifiedName || user2Crushes.length === 0) continue;
 
-                    const otherUserCrushes = otherUser.crushes || [];
-                    const otherUserVerifiedName = otherUser.verifiedName;
-                    const otherUserEmail = otherUser.email;
+                // Check if there's a mutual match
+                const user1LikesUser2 = user1Crushes.includes(user2VerifiedName);
+                const user2LikesUser1 = user2Crushes.includes(user1VerifiedName);
 
-                    // Check if there's a mutual match
-                    if (userCrushes.includes(otherUserVerifiedName) &&
-                        otherUserCrushes.includes(userVerifiedName)) {
+                if (user1LikesUser2 && user2LikesUser1) {
+                    // Add match for user1
+                    const user1Matches = allMatches.get(user1.id) || [];
+                    user1Matches.push({
+                        name: user2VerifiedName,
+                        email: user2.email
+                    });
+                    allMatches.set(user1.id, user1Matches);
 
-                        allMatches[user.id].push({
-                            name: otherUserVerifiedName,
-                            email: otherUserEmail
-                        });
-                    }
+                    // Add match for user2
+                    const user2Matches = allMatches.get(user2.id) || [];
+                    user2Matches.push({
+                        name: user1VerifiedName,
+                        email: user1.email
+                    });
+                    allMatches.set(user2.id, user2Matches);
+
+                    totalMatchPairs += 1;
+                    console.log(`Mutual match: ${user1VerifiedName} <-> ${user2VerifiedName}`);
                 }
             }
+        }
 
-            // Update all users with their matches
-            for (const user of users) {
-                const userRef = db.collection('users').doc(user.id);
-                transaction.update(userRef, {
-                    matches: allMatches[user.id],
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-                totalMatchPairs += allMatches[user.id].length;
-            }
-        });
+        // Update all users with their matches in a batch
+        const batch = db.batch();
+        for (const user of users) {
+            const userRef = db.collection('users').doc(user.id);
+            batch.update(userRef, {
+                matches: allMatches.get(user.id) || [],
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        await batch.commit();
 
         res.json({
             success: true,
-            message: `Processed ${users.length} users, found ${totalMatchPairs} total match connections`
+            message: `Processed ${users.length} users, found ${totalMatchPairs} mutual match pairs (${totalMatchPairs * 2} total match connections)`
         });
     } catch (error) {
         console.error('Error in checkAllMatches:', error);
