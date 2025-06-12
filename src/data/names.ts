@@ -56,7 +56,7 @@ export const GSB_CLASS_NAMES = [
     "Jake Blank",
     "Mira Bodek (Mibo)",
     "Piali Bopanna",
-    "Virginia Brodie",
+    "Sam Braunseis",
     "Caden Broussard",
     "Sarah Brown",
     "Carolyn Bruckmann",
