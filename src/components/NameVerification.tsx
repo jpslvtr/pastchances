@@ -17,7 +17,6 @@ const NameVerification: React.FC = () => {
             try {
                 setLoading(true);
                 setError(null);
-                console.log('Fetching taken names from takenNames collection...');
 
                 // Get all taken names from the takenNames collection
                 const takenNamesRef = collection(db, 'takenNames');
@@ -28,8 +27,8 @@ const NameVerification: React.FC = () => {
                     taken.add(doc.id); // Document ID is the taken name
                 });
 
-                console.log('Taken names:', Array.from(taken));
                 setTakenNames(taken);
+
             } catch (error) {
                 console.error('Error fetching taken names:', error);
                 setError('Failed to load available names. Please refresh the page.');
@@ -38,8 +37,10 @@ const NameVerification: React.FC = () => {
             }
         };
 
-        fetchTakenNames();
-    }, []);
+        if (user) {
+            fetchTakenNames();
+        }
+    }, [user]);
 
     const allNamesWithStatus = useMemo(() => {
         return GSB_CLASS_NAMES.map(name => ({
@@ -104,6 +105,7 @@ const NameVerification: React.FC = () => {
                 <div className="verification-content">
                     <h2>To ensure accuracy of matches, which Class of 2025 student are you?</h2>
                     <p>Please select <b>your name</b> from the list below, not your crush's name.</p>
+
                     <div className="search-section">
                         <input
                             type="text"
@@ -118,11 +120,6 @@ const NameVerification: React.FC = () => {
                         <h3>
                             GSB MBA Class of 2025
                             {searchTerm && ` (${allNamesWithStatus.length} found)`}
-                            {takenNames.size > 0 && (
-                                <span style={{ color: '#666', fontSize: '12px', fontWeight: 'normal' }}>
-                                    {' '}• {takenNames.size} names already taken
-                                </span>
-                            )}
                         </h3>
                         <div className="names-verification-list">
                             {allNamesWithStatus.map(({ name, isTaken }) => (
