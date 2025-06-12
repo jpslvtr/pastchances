@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { GSB_CLASS_NAMES } from '../data/names';
@@ -16,18 +16,19 @@ const NameVerification: React.FC = () => {
         const fetchTakenNames = async () => {
             try {
                 setLoading(true);
-                const usersRef = collection(db, 'users');
-                const q = query(usersRef, where('verifiedName', '!=', ''));
-                const querySnapshot = await getDocs(q);
+                setError(null);
+                console.log('Fetching taken names from takenNames collection...');
+
+                // Get all taken names from the takenNames collection
+                const takenNamesRef = collection(db, 'takenNames');
+                const querySnapshot = await getDocs(takenNamesRef);
 
                 const taken = new Set<string>();
                 querySnapshot.forEach((doc) => {
-                    const userData = doc.data();
-                    if (userData.verifiedName && userData.verifiedName.trim() !== '') {
-                        taken.add(userData.verifiedName);
-                    }
+                    taken.add(doc.id); // Document ID is the taken name
                 });
 
+                console.log('Taken names:', Array.from(taken));
                 setTakenNames(taken);
             } catch (error) {
                 console.error('Error fetching taken names:', error);
@@ -40,38 +41,27 @@ const NameVerification: React.FC = () => {
         fetchTakenNames();
     }, []);
 
-    const filteredNames = useMemo(() => {
-        const availableNames = GSB_CLASS_NAMES.filter(name => !takenNames.has(name));
-
-        if (!searchTerm) return availableNames;
-
-        return availableNames.filter(name =>
-            name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+    const allNamesWithStatus = useMemo(() => {
+        return GSB_CLASS_NAMES.map(name => ({
+            name,
+            isTaken: takenNames.has(name),
+            matchesSearch: !searchTerm || name.toLowerCase().includes(searchTerm.toLowerCase())
+        })).filter(item => item.matchesSearch);
     }, [searchTerm, takenNames]);
 
     const handleNameSelect = useCallback(async (selectedName: string) => {
-        if (!user || saving || takenNames.has(selectedName)) return;
+        if (!user || saving) return;
+
+        // Don't allow selection of taken names
+        if (takenNames.has(selectedName)) {
+            setError('This name has already been taken by another user. Please select a different name.');
+            return;
+        }
 
         setSaving(true);
         setError(null);
 
         try {
-            // Double-check that the name is still available
-            const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('verifiedName', '==', selectedName));
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                setError('This name has already been taken by another user. Please select a different name.');
-                // Refresh the taken names list
-                const taken = new Set(takenNames);
-                taken.add(selectedName);
-                setTakenNames(taken);
-                setSaving(false);
-                return;
-            }
-
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, {
                 verifiedName: selectedName,
@@ -89,6 +79,15 @@ const NameVerification: React.FC = () => {
 
     if (loading) {
         return <div className="loading">Loading available names...</div>;
+    }
+
+    if (error && takenNames.size === 0) {
+        return (
+            <div className="loading">
+                <p style={{ color: 'red' }}>{error}</p>
+                <button onClick={() => window.location.reload()}>Refresh Page</button>
+            </div>
+        );
     }
 
     return (
@@ -118,7 +117,7 @@ const NameVerification: React.FC = () => {
                     <div className="names-list">
                         <h3>
                             GSB MBA Class of 2025
-                            {searchTerm && ` (${filteredNames.length} found)`}
+                            {searchTerm && ` (${allNamesWithStatus.length} found)`}
                             {takenNames.size > 0 && (
                                 <span style={{ color: '#666', fontSize: '12px', fontWeight: 'normal' }}>
                                     {' '}• {takenNames.size} names already taken
@@ -126,22 +125,19 @@ const NameVerification: React.FC = () => {
                             )}
                         </h3>
                         <div className="names-verification-list">
-                            {filteredNames.map(name => {
-                                const isTaken = takenNames.has(name);
-                                return (
-                                    <div
-                                        key={name}
-                                        onClick={() => !saving && !isTaken && handleNameSelect(name)}
-                                        className={`name-verification-item ${saving || isTaken ? 'disabled' : ''}`}
-                                    >
-                                        <span className="name-text">{name}</span>
-                                        <span className={`select-btn ${isTaken ? 'taken' : ''}`}>
-                                            {isTaken ? 'Taken' : 'Select'}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                            {filteredNames.length === 0 && (
+                            {allNamesWithStatus.map(({ name, isTaken }) => (
+                                <div
+                                    key={name}
+                                    onClick={() => !saving && !isTaken && handleNameSelect(name)}
+                                    className={`name-verification-item ${saving || isTaken ? 'disabled' : ''}`}
+                                >
+                                    <span className="name-text">{name}</span>
+                                    <span className={`select-btn ${isTaken ? 'taken' : ''}`}>
+                                        {isTaken ? 'Taken' : 'Select'}
+                                    </span>
+                                </div>
+                            ))}
+                            {allNamesWithStatus.length === 0 && (
                                 <div className="no-results">
                                     {searchTerm ? 'No available names found matching your search.' : 'No names available.'}
                                 </div>

@@ -25,6 +25,44 @@ interface MatchInfo {
     email: string;
 }
 
+// Function to manage taken names when a user updates their verifiedName
+export const manageTakenNames = functions.firestore
+    .document('users/{userId}')
+    .onUpdate(async (change, context) => {
+        const beforeData = change.before.data() as UserData;
+        const afterData = change.after.data() as UserData;
+
+        // Check if verifiedName was added or changed
+        const oldVerifiedName = beforeData?.verifiedName;
+        const newVerifiedName = afterData?.verifiedName;
+
+        if (oldVerifiedName !== newVerifiedName) {
+            try {
+                // If there was an old verified name, remove it from taken names
+                if (oldVerifiedName && oldVerifiedName.trim() !== '') {
+                    const oldNameDoc = db.collection('takenNames').doc(oldVerifiedName);
+                    await oldNameDoc.delete();
+                    console.log(`Removed ${oldVerifiedName} from taken names`);
+                }
+
+                // If there's a new verified name, add it to taken names
+                if (newVerifiedName && newVerifiedName.trim() !== '') {
+                    const newNameDoc = db.collection('takenNames').doc(newVerifiedName);
+                    await newNameDoc.set({
+                        takenBy: afterData.uid,
+                        takenAt: admin.firestore.FieldValue.serverTimestamp(),
+                        email: afterData.email
+                    });
+                    console.log(`Added ${newVerifiedName} to taken names`);
+                }
+            } catch (error) {
+                console.error('Error managing taken names:', error);
+            }
+        }
+
+        return null;
+    });
+
 export const findMatches = functions.firestore
     .document('users/{userId}')
     .onUpdate(async (change, context) => {
@@ -228,5 +266,37 @@ export const checkAllMatches = functions.https.onRequest(async (req, res) => {
     } catch (error) {
         console.error('Error in checkAllMatches:', error);
         res.status(500).json({ error: 'Failed to check matches' });
+    }
+});
+
+// Initialize taken names for existing users (run this once)
+export const initializeTakenNames = functions.https.onRequest(async (req, res) => {
+    try {
+        const allUsersSnapshot = await db.collection('users').get();
+        const batch = db.batch();
+        let count = 0;
+
+        allUsersSnapshot.forEach((doc) => {
+            const userData = doc.data() as UserData;
+            if (userData.verifiedName && userData.verifiedName.trim() !== '') {
+                const nameDoc = db.collection('takenNames').doc(userData.verifiedName);
+                batch.set(nameDoc, {
+                    takenBy: userData.uid,
+                    takenAt: admin.firestore.FieldValue.serverTimestamp(),
+                    email: userData.email
+                });
+                count++;
+            }
+        });
+
+        await batch.commit();
+
+        res.json({
+            success: true,
+            message: `Initialized ${count} taken names`
+        });
+    } catch (error) {
+        console.error('Error initializing taken names:', error);
+        res.status(500).json({ error: 'Failed to initialize taken names' });
     }
 });
