@@ -428,6 +428,7 @@ export const GSB_CLASS_NAMES = [
     "Shievani Upadhyay",
     "Christian Antonio Urrutia",
     "Isabel Vallina Garcia",
+    "Jessica Garcia",
     "Katie Van Dyk",
     "Mahek Vara",
     "Dhananjay (DJ) Varma",
