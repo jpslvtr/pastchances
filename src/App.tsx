@@ -22,8 +22,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
-  // Give more time for userData to load after user authentication
-  // Only show error if we have a user but no userData after a reasonable wait
   if (!userData) {
     return <div className="loading">Setting up your account...</div>;
   }
