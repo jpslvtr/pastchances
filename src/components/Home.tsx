@@ -102,23 +102,44 @@ const Home: React.FC = () => {
 
     const handleRemoveSelected = useCallback((nameToRemove: string) => {
         if (updating) return;
+
+        // Check if this name is locked (user has matched with this person)
+        const lockedCrushes = userData?.lockedCrushes || [];
+        if (lockedCrushes.includes(nameToRemove)) {
+            // Silently prevent removal - don't show alert
+            return;
+        }
+
         setSelectedNames(prev => prev.filter(name => name !== nameToRemove));
-    }, [updating]);
+    }, [updating, userData?.lockedCrushes]);
 
     const handleUpdatePreferences = useCallback(async () => {
         if (!user || updating) return;
+
+        // Validate that locked crushes are still present
+        const lockedCrushes = userData?.lockedCrushes || [];
+        const missingLockedCrushes = lockedCrushes.filter(locked => !selectedNames.includes(locked));
+
+        if (missingLockedCrushes.length > 0) {
+            // Add back the missing locked crushes silently
+            const restoredNames = [...new Set([...selectedNames, ...lockedCrushes])];
+            setSelectedNames(restoredNames);
+        }
 
         setUpdating(true);
         setError(null);
 
         try {
             const userRef = doc(db, 'users', user.uid);
+            const finalCrushes = [...new Set([...selectedNames, ...lockedCrushes])];
+
             await updateDoc(userRef, {
-                crushes: selectedNames,
+                crushes: finalCrushes,
                 updatedAt: new Date()
             });
 
-            setSavedNames(selectedNames);
+            setSelectedNames(finalCrushes);
+            setSavedNames(finalCrushes);
             await refreshUserData();
 
             // Show success message briefly
@@ -150,7 +171,7 @@ const Home: React.FC = () => {
         } finally {
             setUpdating(false);
         }
-    }, [user, updating, selectedNames, refreshUserData]);
+    }, [user, updating, selectedNames, userData?.lockedCrushes, refreshUserData]);
 
     if (loading) {
         return <div className="loading">Loading...</div>;
@@ -167,6 +188,7 @@ const Home: React.FC = () => {
 
     const hasMatches = userData?.matches && userData.matches.length > 0;
     const crushCount = userData?.crushCount || 0;
+    const lockedCrushes = userData?.lockedCrushes || [];
     const hasUnsavedChanges = JSON.stringify(selectedNames.sort()) !== JSON.stringify(savedNames.sort());
 
     return (
@@ -219,6 +241,7 @@ const Home: React.FC = () => {
                                 <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
                                 <li>Click "Update Preferences" to save your changes. Matches appear automatically when someone you've selected also selects you. Matches are completely private.</li>
                                 <li>You can add or remove names anytime. There's no limit on how many people you can select, and you can change your preferences as often as you want.</li>
+                                <li><strong>Important:</strong> Once you match with someone, you cannot remove them from your list. This prevents gaming the system.</li>
                             </ol>
                         </div>
                     </div>
@@ -232,19 +255,26 @@ const Home: React.FC = () => {
                         <div className="selected-names">
                             <h3>Your Selections ({selectedNames.length})</h3>
                             <div className="name-chips">
-                                {selectedNames.map(name => (
-                                    <div key={name} className="name-chip selected">
-                                        <span>{name}</span>
-                                        <button
-                                            onClick={() => handleRemoveSelected(name)}
-                                            className="remove-btn"
-                                            aria-label={`Remove ${name}`}
-                                            disabled={updating}
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
-                                ))}
+                                {selectedNames.map(name => {
+                                    const isLocked = lockedCrushes.includes(name);
+                                    return (
+                                        <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>
+                                            <span>{name}</span>
+                                            {isLocked ? (
+                                                <span className="lock-icon" title="Locked - you have matched with this person">🔒</span>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleRemoveSelected(name)}
+                                                    className="remove-btn"
+                                                    aria-label={`Remove ${name}`}
+                                                    disabled={updating}
+                                                >
+                                                    ×
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

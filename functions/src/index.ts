@@ -13,6 +13,7 @@ interface UserData {
     photoURL: string;
     verifiedName: string;
     crushes: string[];
+    lockedCrushes?: string[]; // New field for locked matches
     matches?: MatchInfo[];
     crushCount?: number;
     createdAt: any;
@@ -90,6 +91,25 @@ export const findMatches = functions.firestore
         if (JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter)) {
             console.log(`✅ Crushes changed for user ${userId} (${afterData.verifiedName}), processing...`);
 
+            // Validate that locked crushes are still present
+            const lockedCrushes = beforeData?.lockedCrushes || [];
+            const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
+
+            if (missingLockedCrushes.length > 0) {
+                console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
+                // Restore the locked crushes
+                const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
+
+                const userRef = db.collection('users').doc(userId);
+                await userRef.update({
+                    crushes: restoredCrushes,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                console.log(`✅ Restored locked crushes for user ${userId}`);
+                return null; // Don't process further as we've restored the crushes
+            }
+
             // Add a small delay to prevent race conditions
             await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -138,11 +158,13 @@ async function processUpdatedCrushes(): Promise<void> {
 
             console.log('💕 Crush counts calculated:', Object.fromEntries(crushCounts));
 
-            // Calculate matches for all users
+            // Calculate matches and locked crushes for all users
             const allMatches = new Map<string, MatchInfo[]>();
+            const allLockedCrushes = new Map<string, string[]>();
 
             for (const user of allUsers) {
                 const userMatches: MatchInfo[] = [];
+                const userLockedCrushes: string[] = [...(user.lockedCrushes || [])];
                 const userCrushes = user.crushes || [];
                 const userVerifiedName = user.verifiedName;
 
@@ -175,17 +197,24 @@ async function processUpdatedCrushes(): Promise<void> {
                             name: crushedUser.verifiedName,
                             email: crushedUser.email
                         });
+
+                        // Lock this crush - user cannot remove it anymore
+                        if (!userLockedCrushes.includes(crushName)) {
+                            userLockedCrushes.push(crushName);
+                        }
                     }
                 }
 
                 allMatches.set(user.id, userMatches);
+                allLockedCrushes.set(user.id, userLockedCrushes);
             }
 
-            // Update all users with their matches and crush counts
+            // Update all users with their matches, crush counts, and locked crushes
             for (const user of allUsers) {
                 const userRef = db.collection('users').doc(user.id);
                 const updateData = {
                     matches: allMatches.get(user.id) || [],
+                    lockedCrushes: allLockedCrushes.get(user.id) || [],
                     crushCount: crushCounts.get(user.verifiedName) || 0,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 };
@@ -193,7 +222,7 @@ async function processUpdatedCrushes(): Promise<void> {
                 transaction.update(userRef, updateData);
             }
 
-            console.log(`✅ Updated all ${allUsers.length} users with new matches and crush counts`);
+            console.log(`✅ Updated all ${allUsers.length} users with new matches, locked crushes, and crush counts`);
         });
 
     } catch (error) {
@@ -276,6 +305,11 @@ export const resetSubmittedStatus = functions.https.onRequest(async (req, res) =
                 updateData.crushCount = 0;
             }
 
+            // Initialize lockedCrushes if it doesn't exist
+            if (userData.lockedCrushes === undefined) {
+                updateData.lockedCrushes = [];
+            }
+
             currentBatch.update(userRef, updateData);
             operationCount++;
 
@@ -296,10 +330,43 @@ export const resetSubmittedStatus = functions.https.onRequest(async (req, res) =
 
         res.json({
             success: true,
-            message: `Reset submitted status for ${allUsersSnapshot.size} users and initialized crush counts`
+            message: `Reset submitted status for ${allUsersSnapshot.size} users and initialized crush counts and locked crushes`
         });
     } catch (error) {
         console.error('Error resetting submitted status:', error);
         res.status(500).json({ error: 'Failed to reset submitted status' });
+    }
+});
+
+// New function to initialize locked crushes for existing users
+export const initializeLockedCrushes = functions.https.onRequest(async (req, res) => {
+    try {
+        const allUsersSnapshot = await db.collection('users').get();
+        const batch = db.batch();
+        let count = 0;
+
+        allUsersSnapshot.forEach((doc) => {
+            const userData = doc.data() as UserData;
+            const userRef = db.collection('users').doc(doc.id);
+
+            // Initialize lockedCrushes if it doesn't exist
+            if (userData.lockedCrushes === undefined) {
+                batch.update(userRef, {
+                    lockedCrushes: [],
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                count++;
+            }
+        });
+
+        await batch.commit();
+
+        res.json({
+            success: true,
+            message: `Initialized lockedCrushes for ${count} users`
+        });
+    } catch (error) {
+        console.error('Error initializing locked crushes:', error);
+        res.status(500).json({ error: 'Failed to initialize locked crushes' });
     }
 });
