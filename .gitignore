@@ -2,7 +2,7 @@
 node_modules
 public
 repomix.config.json
-repopack-output.txt
+repomix-output.txt
 firebase.json
 firestore.indexes.json
 firestore.rules
