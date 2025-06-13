@@ -49,11 +49,6 @@ async function getTopCrushCounts() {
         console.log(`- Total crushes across all users: ${totalCrushes}`);
         console.log(`- Average crushes per person: ${avgCrushes.toFixed(2)}`);
 
-        if (top20.length > 0) {
-            console.log(`- Highest crush count: ${top20[0].crushCount}`);
-            console.log(`- Top 5 crush counts: ${top20.slice(0, 5).map(p => p.crushCount).join(', ')}`);
-        }
-
     } catch (error) {
         console.error('Error getting crush counts:', error);
     }
