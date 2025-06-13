@@ -108,7 +108,6 @@ export const GSB_CLASS_NAMES = [
     "Nico deLuna",
     "Batu Demir",
     "Lydia Deneen",
-    "devikac",
     "Gabriela Diaz",
     "Catherine Didier",
     "Marcos Diehl",
