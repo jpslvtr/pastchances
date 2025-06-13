@@ -432,21 +432,41 @@ body {
   font-size: 14px;
 }
 
+/* Crush count section */
+.crush-count-section {
+  padding: 15px;
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  border-radius: 8px;
+  border-left: 4px solid #f39c12;
+  text-align: left;
+  flex-shrink: 0;
+  margin-bottom: 20px;
+}
+
+.crush-count-section h2 {
+  color: #d68910;
+  margin: 0;
+  font-size: 18px;
+  font-weight: normal;
+  font-style: italic;
+}
+
 /* Matches section */
 .matches-section {
-  padding: 20px;
+  padding: 15px;
   background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-  border-radius: 12px;
-  border-left: 5px solid #28a745;
-  text-align: center;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+  text-align: left;
   flex-shrink: 0;
 }
 
 .matches-section h2 {
   color: #155724;
   margin-bottom: 15px;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: normal;
+  font-style: italic;
 }
 
 .matches-list {
@@ -508,6 +528,34 @@ body {
   border-radius: 12px;
   font-size: 10px;
   font-weight: 700;
+}
+
+.updating-badge {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  animation: pulse 1.5s ease-in-out infinite alternate;
+}
+
+.unsaved-badge {
+  background: #dc3545;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  animation: pulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Selected names section */
@@ -580,6 +628,11 @@ body {
   background: rgba(255, 255, 255, 0.5);
 }
 
+.remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Search section */
 .search-section {
   flex-shrink: 0;
@@ -644,7 +697,7 @@ body {
 }
 
 .name-list-item.disabled {
- opacity: 0.5;
+ opacity: 0.6;
  cursor: not-allowed;
  background: #f9f9f9;
 }
@@ -690,7 +743,7 @@ body {
  flex-wrap: wrap;
 }
 
-.save-draft-btn, .submit-btn {
+.save-draft-btn, .submit-btn, .update-btn {
  padding: 12px 20px;
  border-radius: 8px;
  font-size: 14px;
@@ -712,21 +765,23 @@ body {
  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
 }
 
-.submit-btn {
+.submit-btn, .update-btn {
  background: #8C1515;
  color: white;
+ min-width: 160px;
 }
 
-.submit-btn:hover:not(:disabled) {
+.submit-btn:hover:not(:disabled), .update-btn:hover:not(:disabled) {
  background: #a01a1a;
  transform: translateY(-1px);
  box-shadow: 0 4px 12px rgba(140, 21, 21, 0.3);
 }
 
-.save-draft-btn:disabled, .submit-btn:disabled {
+.save-draft-btn:disabled, .submit-btn:disabled, .update-btn:disabled {
  opacity: 0.6;
  cursor: not-allowed;
  transform: none;
+ background: #6c757d;
 }
 
 .submitted-message {
@@ -768,6 +823,29 @@ body {
 .user-email {
  font-size: 10px;
  opacity: 0.8;
+}
+
+/* Instructions list styling */
+.instructions {
+ margin-bottom: 15px;
+}
+
+.instructions ol {
+ padding-left: 20px;
+ margin: 0;
+}
+
+.instructions li {
+ margin-bottom: 8px;
+ line-height: 1.5;
+ font-size: 14px;
+ color: #666;
+}
+
+.instructions em {
+ font-style: italic;
+ color: #8C1515;
+ font-weight: 600;
 }
 
 /* Mobile responsiveness */
@@ -839,7 +917,7 @@ body {
    gap: 8px;
  }
 
- .save-draft-btn, .submit-btn {
+ .save-draft-btn, .submit-btn, .update-btn {
    width: 100%;
    max-width: 250px;
    padding: 10px 16px;
@@ -850,11 +928,11 @@ body {
  }
 
  .matches-section {
-   padding: 15px;
+   padding: 12px;
  }
 
  .matches-section h2 {
-   font-size: 18px;
+   font-size: 16px;
  }
 
  .matches-list {
@@ -872,6 +950,24 @@ body {
 
  .selected-names {
    padding: 12px;
+ }
+
+ .crush-count-section {
+   padding: 12px;
+   margin-bottom: 15px;
+ }
+ 
+ .crush-count-section h2 {
+   font-size: 16px;
+ }
+
+ .instructions ol {
+   padding-left: 16px;
+ }
+ 
+ .instructions li {
+   font-size: 13px;
+   margin-bottom: 6px;
  }
 }
 
@@ -938,7 +1034,7 @@ body {
   gap: 6px;
 }
 
-.save-draft-btn, .submit-btn {
+.save-draft-btn, .submit-btn, .update-btn {
   padding: 10px 16px;
   font-size: 13px;
 }
@@ -952,44 +1048,14 @@ body {
 }
 
 .matches-section h2 {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .names-simple-list, .names-verification-list {
   max-height: 30vh;
 }
-}
 
-/* Instructions list styling */
-.instructions {
- margin-bottom: 15px;
+.crush-count-section h2 {
+  font-size: 15px;
 }
-
-.instructions ol {
- padding-left: 20px;
- margin: 0;
-}
-
-.instructions li {
- margin-bottom: 8px;
- line-height: 1.5;
- font-size: 14px;
- color: #666;
-}
-
-.instructions em {
- font-style: italic;
- color: #8C1515;
- font-weight: 600;
-}
-
-@media (max-width: 768px) {
- .instructions ol {
-   padding-left: 16px;
- }
- 
- .instructions li {
-   font-size: 13px;
-   margin-bottom: 6px;
- }
 }

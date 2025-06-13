@@ -13,8 +13,8 @@ interface UserData {
     photoURL: string;
     verifiedName: string;
     crushes: string[];
-    submitted: boolean;
     matches?: MatchInfo[];
+    crushCount?: number;
     createdAt: any;
     updatedAt: any;
     lastLogin: any;
@@ -23,6 +23,11 @@ interface UserData {
 interface MatchInfo {
     name: string;
     email: string;
+}
+
+// Helper function to normalize names for case-insensitive comparison
+function normalizeName(name: string): string {
+    return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 // Function to manage taken names when a user updates their verifiedName
@@ -63,6 +68,7 @@ export const manageTakenNames = functions.firestore
         return null;
     });
 
+// Function to find matches and update crush counts whenever crushes are updated
 export const findMatches = functions.firestore
     .document('users/{userId}')
     .onUpdate(async (change, context) => {
@@ -70,202 +76,143 @@ export const findMatches = functions.firestore
         const beforeData = change.before.data() as UserData;
         const afterData = change.after.data() as UserData;
 
-        // Only process if user just submitted (submitted changed from false to true)
-        if (!beforeData?.submitted && afterData?.submitted) {
-            console.log(`User ${userId} just submitted their list. Checking for matches...`);
-            await processNewSubmission(userId, afterData);
+        // Check if crushes were updated
+        const beforeCrushes = beforeData?.crushes || [];
+        const afterCrushes = afterData?.crushes || [];
+
+        // Normalize arrays for comparison
+        const normalizedBefore = beforeCrushes.map(normalizeName).sort();
+        const normalizedAfter = afterCrushes.map(normalizeName).sort();
+
+        console.log(`Checking crushes update for user ${userId} (${afterData.verifiedName})`);
+
+        // Only process if crushes actually changed
+        if (JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter)) {
+            console.log(`✅ Crushes changed for user ${userId} (${afterData.verifiedName}), processing...`);
+
+            // Add a small delay to prevent race conditions
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            await processUpdatedCrushes();
+        } else {
+            console.log(`❌ No crushes change detected for user ${userId} (${afterData.verifiedName}), skipping`);
         }
 
         return null;
     });
 
-async function processNewSubmission(userId: string, userData: UserData): Promise<void> {
-    const userCrushes = userData.crushes || [];
-    const userVerifiedName = userData.verifiedName;
-
-    if (!userVerifiedName || userCrushes.length === 0) {
-        console.log(`User ${userId} has no verified name or crushes`);
-        return;
-    }
+// Consolidated function to recalculate all matches and crush counts
+async function processUpdatedCrushes(): Promise<void> {
+    console.log('🔄 Starting complete recalculation of all matches and crush counts...');
 
     try {
+        // Use a transaction to ensure consistency
         await db.runTransaction(async (transaction) => {
-            // Find all users who have submitted
-            const allUsersSnapshot = await transaction.get(
-                db.collection('users').where('submitted', '==', true)
-            );
+            // Get all users
+            const allUsersSnapshot = await transaction.get(db.collection('users'));
 
-            // Get current user's data to ensure we have the latest version
-            const currentUserRef = db.collection('users').doc(userId);
-            const currentUserDoc = await transaction.get(currentUserRef);
-            const currentUserData = currentUserDoc.data() as UserData;
+            const allUsers = allUsersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as UserData
+            }));
 
-            if (!currentUserData) {
-                console.error(`Could not find user data for ${userId}`);
-                return;
-            }
+            console.log(`📊 Processing ${allUsers.length} users`);
 
-            const currentUserMatches = currentUserData.matches || [];
-            let newMatches: MatchInfo[] = [...currentUserMatches];
-
-            // Track all users that need updates
-            const userUpdates = new Map<string, MatchInfo[]>();
-
-            // Check each submitted user for mutual matches
-            for (const userDoc of allUsersSnapshot.docs) {
-                const otherUserId = userDoc.id;
-                const otherUserData = userDoc.data() as UserData;
-
-                // Skip self
-                if (otherUserId === userId) continue;
-
-                const otherUserVerifiedName = otherUserData.verifiedName;
-                const otherUserEmail = otherUserData.email;
-                const otherUserCrushes = otherUserData.crushes || [];
-                const otherUserMatches = otherUserData.matches || [];
-
-                // Check for mutual match:
-                // 1. Current user has other user's verified name in their crushes
-                // 2. Other user has current user's verified name in their crushes
-                const currentUserLikesOther = userCrushes.includes(otherUserVerifiedName);
-                const otherUserLikesCurrent = otherUserCrushes.includes(userVerifiedName);
-
-                if (currentUserLikesOther && otherUserLikesCurrent) {
-                    // Check if current user already has this match
-                    const currentUserHasMatch = newMatches.some(
-                        match => match.name === otherUserVerifiedName
+            // Calculate crush counts for all users
+            const crushCounts = new Map<string, number>();
+            for (const user of allUsers) {
+                const userCrushes = user.crushes || [];
+                for (const crushName of userCrushes) {
+                    // Find the user with this verified name (case-insensitive)
+                    const targetUser = allUsers.find(u =>
+                        u.verifiedName &&
+                        normalizeName(u.verifiedName) === normalizeName(crushName)
                     );
 
-                    if (!currentUserHasMatch) {
-                        newMatches.push({
-                            name: otherUserVerifiedName,
-                            email: otherUserEmail
-                        });
-                        console.log(`New match found: ${userVerifiedName} <-> ${otherUserVerifiedName}`);
-                    }
-
-                    // Check if other user already has this match
-                    const otherUserHasMatch = otherUserMatches.some(
-                        match => match.name === userVerifiedName
-                    );
-
-                    if (!otherUserHasMatch) {
-                        const updatedOtherUserMatches = [...otherUserMatches, {
-                            name: userVerifiedName,
-                            email: userData.email
-                        }];
-                        userUpdates.set(otherUserId, updatedOtherUserMatches);
-                        console.log(`Will update ${otherUserId} with match to ${userVerifiedName}`);
+                    if (targetUser) {
+                        const actualVerifiedName = targetUser.verifiedName;
+                        crushCounts.set(actualVerifiedName, (crushCounts.get(actualVerifiedName) || 0) + 1);
                     }
                 }
             }
 
-            // Update current user's matches
-            transaction.update(currentUserRef, {
-                matches: newMatches,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            console.log('💕 Crush counts calculated:', Object.fromEntries(crushCounts));
 
-            // Update other users' matches
-            for (const [otherUserId, matches] of userUpdates.entries()) {
-                const otherUserRef = db.collection('users').doc(otherUserId);
-                transaction.update(otherUserRef, {
-                    matches: matches,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
+            // Calculate matches for all users
+            const allMatches = new Map<string, MatchInfo[]>();
+
+            for (const user of allUsers) {
+                const userMatches: MatchInfo[] = [];
+                const userCrushes = user.crushes || [];
+                const userVerifiedName = user.verifiedName;
+
+                if (!userVerifiedName) {
+                    console.log(`⏭️ Skipping user ${user.id} - no verified name`);
+                    continue;
+                }
+
+                // Find mutual matches for this user
+                for (const crushName of userCrushes) {
+                    // Find the user with this verified name (case-insensitive)
+                    const crushedUser = allUsers.find(u =>
+                        u.verifiedName &&
+                        normalizeName(u.verifiedName) === normalizeName(crushName)
+                    );
+
+                    if (!crushedUser) {
+                        continue;
+                    }
+
+                    const crushedUserCrushes = crushedUser.crushes || [];
+
+                    // Check if it's a mutual match (case-insensitive)
+                    const hasMutualCrush = crushedUserCrushes.some(crush =>
+                        normalizeName(crush) === normalizeName(userVerifiedName)
+                    );
+
+                    if (hasMutualCrush) {
+                        userMatches.push({
+                            name: crushedUser.verifiedName,
+                            email: crushedUser.email
+                        });
+                    }
+                }
+
+                allMatches.set(user.id, userMatches);
             }
 
-            console.log(`Updated ${userId} with ${newMatches.length} total matches`);
-            console.log(`Updated ${userUpdates.size} other users with new matches`);
+            // Update all users with their matches and crush counts
+            for (const user of allUsers) {
+                const userRef = db.collection('users').doc(user.id);
+                const updateData = {
+                    matches: allMatches.get(user.id) || [],
+                    crushCount: crushCounts.get(user.verifiedName) || 0,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+
+                transaction.update(userRef, updateData);
+            }
+
+            console.log(`✅ Updated all ${allUsers.length} users with new matches and crush counts`);
         });
 
     } catch (error) {
-        console.error('Error in transaction:', error);
+        console.error('❌ Error in processUpdatedCrushes:', error);
         throw error;
     }
 }
 
-// Function to check for matches for all users (can be called manually)
-export const checkAllMatches = functions.https.onRequest(async (req, res) => {
+// Manual function to trigger complete recalculation
+export const recalculateAllMatches = functions.https.onRequest(async (req, res) => {
     try {
-        const allUsersSnapshot = await db.collection('users')
-            .where('submitted', '==', true)
-            .get();
-
-        const users = allUsersSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...(doc.data() as UserData)
-        }));
-
-        let totalMatchPairs = 0;
-        const allMatches = new Map<string, MatchInfo[]>();
-
-        // Initialize all users with empty matches
-        for (const user of users) {
-            allMatches.set(user.id, []);
-        }
-
-        // Find all mutual matches
-        for (let i = 0; i < users.length; i++) {
-            const user1 = users[i];
-            const user1Crushes = user1.crushes || [];
-            const user1VerifiedName = user1.verifiedName;
-
-            if (!user1VerifiedName || user1Crushes.length === 0) continue;
-
-            for (let j = i + 1; j < users.length; j++) {
-                const user2 = users[j];
-                const user2Crushes = user2.crushes || [];
-                const user2VerifiedName = user2.verifiedName;
-
-                if (!user2VerifiedName || user2Crushes.length === 0) continue;
-
-                // Check if there's a mutual match
-                const user1LikesUser2 = user1Crushes.includes(user2VerifiedName);
-                const user2LikesUser1 = user2Crushes.includes(user1VerifiedName);
-
-                if (user1LikesUser2 && user2LikesUser1) {
-                    // Add match for user1
-                    const user1Matches = allMatches.get(user1.id) || [];
-                    user1Matches.push({
-                        name: user2VerifiedName,
-                        email: user2.email
-                    });
-                    allMatches.set(user1.id, user1Matches);
-
-                    // Add match for user2
-                    const user2Matches = allMatches.get(user2.id) || [];
-                    user2Matches.push({
-                        name: user1VerifiedName,
-                        email: user1.email
-                    });
-                    allMatches.set(user2.id, user2Matches);
-
-                    totalMatchPairs += 1;
-                    console.log(`Mutual match: ${user1VerifiedName} <-> ${user2VerifiedName}`);
-                }
-            }
-        }
-
-        // Update all users with their matches in a batch
-        const batch = db.batch();
-        for (const user of users) {
-            const userRef = db.collection('users').doc(user.id);
-            batch.update(userRef, {
-                matches: allMatches.get(user.id) || [],
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-        }
-
-        await batch.commit();
-
+        await processUpdatedCrushes();
         res.json({
             success: true,
-            message: `Processed ${users.length} users, found ${totalMatchPairs} mutual match pairs (${totalMatchPairs * 2} total match connections)`
+            message: 'Successfully recalculated all matches and crush counts'
         });
     } catch (error) {
-        console.error('Error in checkAllMatches:', error);
-        res.status(500).json({ error: 'Failed to check matches' });
+        console.error('Error in recalculateAllMatches:', error);
+        res.status(500).json({ error: 'Failed to recalculate matches and crush counts' });
     }
 });
 
@@ -298,5 +245,61 @@ export const initializeTakenNames = functions.https.onRequest(async (req, res) =
     } catch (error) {
         console.error('Error initializing taken names:', error);
         res.status(500).json({ error: 'Failed to initialize taken names' });
+    }
+});
+
+// Reset all users to remove submitted status
+export const resetSubmittedStatus = functions.https.onRequest(async (req, res) => {
+    try {
+        const allUsersSnapshot = await db.collection('users').get();
+
+        // Process in batches to avoid hitting Firestore limits
+        const batchSize = 500;
+        const batches = [];
+        let currentBatch = db.batch();
+        let operationCount = 0;
+
+        allUsersSnapshot.forEach((doc) => {
+            const userRef = db.collection('users').doc(doc.id);
+            const userData = doc.data();
+            const updateData: any = {
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+
+            // Remove submitted field if it exists
+            if (userData.submitted !== undefined) {
+                updateData.submitted = admin.firestore.FieldValue.delete();
+            }
+
+            // Initialize crushCount if it doesn't exist
+            if (userData.crushCount === undefined) {
+                updateData.crushCount = 0;
+            }
+
+            currentBatch.update(userRef, updateData);
+            operationCount++;
+
+            if (operationCount === batchSize) {
+                batches.push(currentBatch);
+                currentBatch = db.batch();
+                operationCount = 0;
+            }
+        });
+
+        // Add the last batch if it has operations
+        if (operationCount > 0) {
+            batches.push(currentBatch);
+        }
+
+        // Execute all batches
+        await Promise.all(batches.map(batch => batch.commit()));
+
+        res.json({
+            success: true,
+            message: `Reset submitted status for ${allUsersSnapshot.size} users and initialized crush counts`
+        });
+    } catch (error) {
+        console.error('Error resetting submitted status:', error);
+        res.status(500).json({ error: 'Failed to reset submitted status' });
     }
 });
