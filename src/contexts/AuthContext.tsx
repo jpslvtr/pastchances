@@ -17,6 +17,7 @@ interface UserData {
     photoURL: string;
     verifiedName: string;
     crushes: string[];
+    lockedCrushes: string[];
     matches: MatchInfo[];
     crushCount: number;
     createdAt: any;
@@ -96,6 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     photoURL: data.photoURL,
                     verifiedName: data.verifiedName || '',
                     crushes: data.crushes || [],
+                    lockedCrushes: data.lockedCrushes || [],
                     matches: normalizeMatches(data.matches),
                     crushCount: data.crushCount || 0,
                     createdAt: data.createdAt,
@@ -129,6 +131,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     photoURL: user.photoURL || DEFAULT_PROFILE_URL,
                     verifiedName: '',
                     crushes: [],
+                    lockedCrushes: [],
                     matches: [],
                     crushCount: 0,
                     createdAt: serverTimestamp(),
@@ -149,6 +152,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     photoURL: user.photoURL || existingData.photoURL || DEFAULT_PROFILE_URL,
                     verifiedName: existingData.verifiedName || '',
                     crushes: existingData.crushes || [],
+                    lockedCrushes: existingData.lockedCrushes || [],
                     matches: normalizeMatches(existingData.matches),
                     crushCount: existingData.crushCount || 0,
                     createdAt: existingData.createdAt,
