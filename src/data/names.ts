@@ -1,6 +1,7 @@
 export const GSB_CLASS_NAMES = [
     "Nicolas Abad",
     "Khaled Abdulkarim",
+    "Layla Aboukhater",
     "Kate Kabat (Adams)",
     "Max Adams",
     "Krupa Adusumilli",
