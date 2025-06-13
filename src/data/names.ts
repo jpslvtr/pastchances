@@ -461,5 +461,6 @@ export const GSB_CLASS_NAMES = [
     "Ruoyao Zhang",
     "Max Zhou",
     "Will Zhou",
-    "Bastiaan Zwanenburg"
+    "Bastiaan Zwanenburg",
+    "Test Account"
 ];
