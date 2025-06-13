@@ -549,6 +549,16 @@ body {
   animation: pulse 1.5s ease-in-out infinite alternate;
 }
 
+/* Locked crush styles */
+.locked-badge {
+  background: #dc3545;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+}
+
 @keyframes pulse {
   from {
     opacity: 0.6;
@@ -592,6 +602,8 @@ body {
   font-weight: 500;
   min-height: 32px;
   width: 100%;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .name-chip.readonly {
@@ -599,12 +611,18 @@ body {
   opacity: 0.8;
 }
 
+.name-chip.locked {
+  background: #8C1515; /* Keep the same red background */
+  opacity: 1; /* Full opacity */
+  border: 2px solid transparent; /* No special border */
+}
+
 .name-chip span {
   flex: 1;
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* white-space: nowrap; */
+  /* overflow: hidden; */
+  /* text-overflow: ellipsis; */
   margin-right: 6px;
 }
 
@@ -631,6 +649,17 @@ body {
 .remove-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.lock-icon {
+  font-size: 12px;
+  opacity: 0.8;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: right;
+  justify-content: right;
+  flex-shrink: 0;
 }
 
 /* Search section */
@@ -969,6 +998,15 @@ body {
    font-size: 13px;
    margin-bottom: 6px;
  }
+
+ .locked-badge {
+   font-size: 9px;
+   padding: 1px 4px;
+ }
+ 
+ .lock-icon {
+   font-size: 10px;
+ }
 }
 
 @media (max-width: 480px) {
@@ -1057,5 +1095,13 @@ body {
 
 .crush-count-section h2 {
   font-size: 15px;
+}
+
+.locked-badge {
+  font-size: 8px;
+}
+
+.lock-icon {
+  font-size: 9px;
 }
 }
