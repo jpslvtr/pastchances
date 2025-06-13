@@ -130,6 +130,78 @@ export const manageTakenNames = functions.firestore
         return null;
     });
 
+// Add this new function after manageTakenNames
+export const autoCleanupOrphanedCrushes = functions.firestore
+    .document('users/{userId}')
+    .onUpdate(async (change, context) => {
+        const beforeData = change.before.data() as UserData;
+        const afterData = change.after.data() as UserData;
+
+        // Only run if verifiedName changed
+        const oldVerifiedName = beforeData?.verifiedName;
+        const newVerifiedName = afterData?.verifiedName;
+
+        if (oldVerifiedName !== newVerifiedName && oldVerifiedName && newVerifiedName) {
+            console.log(`🔄 User changed name from "${oldVerifiedName}" to "${newVerifiedName}", cleaning up orphaned crushes...`);
+
+            try {
+                // Get all users to find who has the old name in their crushes
+                const allUsersSnapshot = await db.collection('users').get();
+                const usersToUpdate: { id: string; crushes: string[]; lockedCrushes: string[] }[] = [];
+
+                allUsersSnapshot.forEach(doc => {
+                    const userData = doc.data() as UserData;
+                    const userCrushes = userData.crushes || [];
+                    const userLockedCrushes = userData.lockedCrushes || [];
+
+                    // Check if this user has the old name in their crushes
+                    if (userCrushes.includes(oldVerifiedName) || userLockedCrushes.includes(oldVerifiedName)) {
+                        // Update the crushes to use the new name
+                        const updatedCrushes = userCrushes.map(crush =>
+                            crush === oldVerifiedName ? newVerifiedName : crush
+                        );
+                        const updatedLockedCrushes = userLockedCrushes.map(crush =>
+                            crush === oldVerifiedName ? newVerifiedName : crush
+                        );
+
+                        usersToUpdate.push({
+                            id: doc.id,
+                            crushes: updatedCrushes,
+                            lockedCrushes: updatedLockedCrushes
+                        });
+                    }
+                });
+
+                // Update all affected users
+                if (usersToUpdate.length > 0) {
+                    const batch = db.batch();
+
+                    usersToUpdate.forEach(({ id, crushes, lockedCrushes }) => {
+                        const userRef = db.collection('users').doc(id);
+                        batch.update(userRef, {
+                            crushes,
+                            lockedCrushes,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    });
+
+                    await batch.commit();
+                    console.log(`✅ Updated ${usersToUpdate.length} users who had "${oldVerifiedName}" in their crushes`);
+
+                    // Trigger a recalculation after a short delay
+                    setTimeout(async () => {
+                        await processUpdatedCrushes();
+                    }, 2000);
+                }
+
+            } catch (error) {
+                console.error('❌ Error in autoCleanupOrphanedCrushes:', error);
+            }
+        }
+
+        return null;
+    });
+
 // Enhanced function to find matches and update crush counts
 export const findMatches = functions.firestore
     .document('users/{userId}')
@@ -435,3 +507,4 @@ export const initializeLockedCrushes = functions.https.onRequest(async (req, res
         res.status(500).json({ error: 'Failed to initialize locked crushes' });
     }
 });
+
