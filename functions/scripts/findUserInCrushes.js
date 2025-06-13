@@ -7,7 +7,7 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-const targetNames = ["James Park"];
+const targetNames = ["Layla Aboukhater"];
 
 async function findCrushes() {
     const snapshot = await db.collection('users').get();

@@ -13,7 +13,7 @@ interface UserData {
     photoURL: string;
     verifiedName: string;
     crushes: string[];
-    lockedCrushes?: string[]; // New field for locked matches
+    lockedCrushes?: string[];
     matches?: MatchInfo[];
     crushCount?: number;
     createdAt: any;
@@ -21,14 +21,75 @@ interface UserData {
     lastLogin: any;
 }
 
+interface UserWithId extends UserData {
+    id: string;
+}
+
 interface MatchInfo {
     name: string;
     email: string;
 }
 
-// Helper function to normalize names for case-insensitive comparison
+// Enhanced helper function to normalize names for case-insensitive comparison
 function normalizeName(name: string): string {
+    if (!name || typeof name !== 'string') return '';
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// Function to find the best matching user for a crush name
+function findUserByName(crushName: string, allUsers: UserWithId[]): UserWithId | null {
+    if (!crushName || !crushName.trim()) return null;
+
+    const normalizedCrush = normalizeName(crushName);
+
+    // First try exact match on verifiedName
+    let match = allUsers.find(user =>
+        user.verifiedName &&
+        normalizeName(user.verifiedName) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try exact match on displayName as fallback
+    match = allUsers.find(user =>
+        user.displayName &&
+        normalizeName(user.displayName) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try partial match (first and last name only) for cases with middle names
+    const crushParts = normalizedCrush.split(' ');
+    if (crushParts.length >= 2) {
+        const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
+
+        match = allUsers.find(user => {
+            if (user.verifiedName) {
+                const nameParts = normalizeName(user.verifiedName).split(' ');
+                if (nameParts.length >= 2) {
+                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                    return nameFirstLast === crushFirstLast;
+                }
+            }
+            return false;
+        });
+
+        if (match) return match;
+
+        // Try same with displayName
+        match = allUsers.find(user => {
+            if (user.displayName) {
+                const nameParts = normalizeName(user.displayName).split(' ');
+                if (nameParts.length >= 2) {
+                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                    return nameFirstLast === crushFirstLast;
+                }
+            }
+            return false;
+        });
+    }
+
+    return match || null;
 }
 
 // Function to manage taken names when a user updates their verifiedName
@@ -69,7 +130,7 @@ export const manageTakenNames = functions.firestore
         return null;
     });
 
-// Function to find matches and update crush counts whenever crushes are updated
+// Enhanced function to find matches and update crush counts
 export const findMatches = functions.firestore
     .document('users/{userId}')
     .onUpdate(async (change, context) => {
@@ -107,7 +168,7 @@ export const findMatches = functions.firestore
                 });
 
                 console.log(`✅ Restored locked crushes for user ${userId}`);
-                return null; // Don't process further as we've restored the crushes
+                return null;
             }
 
             // Add a small delay to prevent race conditions
@@ -121,44 +182,44 @@ export const findMatches = functions.firestore
         return null;
     });
 
-// Consolidated function to recalculate all matches and crush counts
+// Enhanced function to recalculate all matches and crush counts with better name matching
 async function processUpdatedCrushes(): Promise<void> {
-    console.log('🔄 Starting complete recalculation of all matches and crush counts...');
+    console.log('🔄 Starting enhanced recalculation of all matches and crush counts...');
 
     try {
-        // Use a transaction to ensure consistency
         await db.runTransaction(async (transaction) => {
             // Get all users
             const allUsersSnapshot = await transaction.get(db.collection('users'));
 
-            const allUsers = allUsersSnapshot.docs.map(doc => ({
+            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data() as UserData
             }));
 
             console.log(`📊 Processing ${allUsers.length} users`);
 
-            // Calculate crush counts for all users
+            // Enhanced crush count calculation with better name matching
             const crushCounts = new Map<string, number>();
+
             for (const user of allUsers) {
                 const userCrushes = user.crushes || [];
                 for (const crushName of userCrushes) {
-                    // Find the user with this verified name (case-insensitive)
-                    const targetUser = allUsers.find(u =>
-                        u.verifiedName &&
-                        normalizeName(u.verifiedName) === normalizeName(crushName)
-                    );
+                    // Find the actual user that matches this crush name
+                    const targetUser = findUserByName(crushName, allUsers);
 
                     if (targetUser) {
-                        const actualVerifiedName = targetUser.verifiedName;
-                        crushCounts.set(actualVerifiedName, (crushCounts.get(actualVerifiedName) || 0) + 1);
+                        // Use verifiedName if available, otherwise displayName
+                        const actualName = targetUser.verifiedName || targetUser.displayName;
+                        if (actualName) {
+                            crushCounts.set(actualName, (crushCounts.get(actualName) || 0) + 1);
+                        }
                     }
                 }
             }
 
-            console.log('💕 Crush counts calculated:', Object.fromEntries(crushCounts));
+            console.log('💕 Enhanced crush counts calculated:', Object.fromEntries(crushCounts));
 
-            // Calculate matches and locked crushes for all users
+            // Calculate matches and locked crushes with enhanced matching
             const allMatches = new Map<string, MatchInfo[]>();
             const allLockedCrushes = new Map<string, string[]>();
 
@@ -166,42 +227,45 @@ async function processUpdatedCrushes(): Promise<void> {
                 const userMatches: MatchInfo[] = [];
                 const userLockedCrushes: string[] = [...(user.lockedCrushes || [])];
                 const userCrushes = user.crushes || [];
-                const userVerifiedName = user.verifiedName;
+                const userIdentityName = user.verifiedName || user.displayName;
 
-                if (!userVerifiedName) {
-                    console.log(`⏭️ Skipping user ${user.id} - no verified name`);
+                if (!userIdentityName || !userIdentityName.trim()) {
+                    console.log(`⏭️ Skipping user ${user.id} - no identity name`);
+                    allMatches.set(user.id, userMatches);
+                    allLockedCrushes.set(user.id, userLockedCrushes);
                     continue;
                 }
 
-                // Find mutual matches for this user
+                // Find mutual matches with enhanced name matching
                 for (const crushName of userCrushes) {
-                    // Find the user with this verified name (case-insensitive)
-                    const crushedUser = allUsers.find(u =>
-                        u.verifiedName &&
-                        normalizeName(u.verifiedName) === normalizeName(crushName)
-                    );
+                    const crushedUser = findUserByName(crushName, allUsers);
 
                     if (!crushedUser) {
+                        console.log(`⚠️ No user found for crush name: "${crushName}"`);
                         continue;
                     }
 
                     const crushedUserCrushes = crushedUser.crushes || [];
 
-                    // Check if it's a mutual match (case-insensitive)
-                    const hasMutualCrush = crushedUserCrushes.some(crush =>
-                        normalizeName(crush) === normalizeName(userVerifiedName)
-                    );
+                    // Check if it's a mutual match using enhanced matching
+                    const hasMutualCrush = crushedUserCrushes.some(crush => {
+                        const matchedUser = findUserByName(crush, allUsers);
+                        return matchedUser && matchedUser.id === user.id;
+                    });
 
                     if (hasMutualCrush) {
+                        const crushedUserIdentityName = crushedUser.verifiedName || crushedUser.displayName;
                         userMatches.push({
-                            name: crushedUser.verifiedName,
+                            name: crushedUserIdentityName,
                             email: crushedUser.email
                         });
 
-                        // Lock this crush - user cannot remove it anymore
+                        // Lock this crush
                         if (!userLockedCrushes.includes(crushName)) {
                             userLockedCrushes.push(crushName);
                         }
+
+                        console.log(`💕 Match found: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
                     }
                 }
 
@@ -212,21 +276,22 @@ async function processUpdatedCrushes(): Promise<void> {
             // Update all users with their matches, crush counts, and locked crushes
             for (const user of allUsers) {
                 const userRef = db.collection('users').doc(user.id);
+                const userIdentityName = user.verifiedName || user.displayName;
                 const updateData = {
                     matches: allMatches.get(user.id) || [],
                     lockedCrushes: allLockedCrushes.get(user.id) || [],
-                    crushCount: crushCounts.get(user.verifiedName) || 0,
+                    crushCount: crushCounts.get(userIdentityName) || 0,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 };
 
                 transaction.update(userRef, updateData);
             }
 
-            console.log(`✅ Updated all ${allUsers.length} users with new matches, locked crushes, and crush counts`);
+            console.log(`✅ Updated all ${allUsers.length} users with enhanced matches and crush counts`);
         });
 
     } catch (error) {
-        console.error('❌ Error in processUpdatedCrushes:', error);
+        console.error('❌ Error in enhanced processUpdatedCrushes:', error);
         throw error;
     }
 }
@@ -237,7 +302,7 @@ export const recalculateAllMatches = functions.https.onRequest(async (req, res) 
         await processUpdatedCrushes();
         res.json({
             success: true,
-            message: 'Successfully recalculated all matches and crush counts'
+            message: 'Successfully recalculated all matches and crush counts with enhanced name matching'
         });
     } catch (error) {
         console.error('Error in recalculateAllMatches:', error);
