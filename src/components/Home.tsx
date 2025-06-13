@@ -9,9 +9,9 @@ const Home: React.FC = () => {
     const [imageError, setImageError] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
+    const [savedNames, setSavedNames] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
+    const [updating, setUpdating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const loadUserSelections = useCallback(async () => {
@@ -25,6 +25,7 @@ const Home: React.FC = () => {
                 const userData = userDoc.data();
                 if (userData.crushes && Array.isArray(userData.crushes)) {
                     setSelectedNames(userData.crushes);
+                    setSavedNames(userData.crushes);
                 }
             }
         } catch (error) {
@@ -90,75 +91,66 @@ const Home: React.FC = () => {
     }, [imageError, userData?.photoURL]);
 
     const handleNameToggle = useCallback((name: string) => {
-        if (userData?.submitted) return;
+        if (updating) return;
 
-        setSelectedNames(prev => {
-            if (prev.includes(name)) {
-                return prev.filter(n => n !== name);
-            } else if (prev.length < 10) {
-                return [...prev, name];
-            }
-            return prev;
-        });
-    }, [userData?.submitted]);
-
-    const handleSaveDraft = useCallback(async () => {
-        if (!user || userData?.submitted || saving) return;
-
-        setSaving(true);
-        setError(null);
-
-        try {
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
-                crushes: selectedNames,
-                updatedAt: new Date()
-            });
-
-            await refreshUserData();
-            alert('Draft saved successfully!');
-        } catch (error) {
-            console.error('Error saving draft:', error);
-            setError('Failed to save draft. Please try again.');
-        } finally {
-            setSaving(false);
-        }
-    }, [user, userData?.submitted, saving, selectedNames, refreshUserData]);
-
-    const handleSubmitList = useCallback(async () => {
-        if (!user || userData?.submitted || submitting) return;
-
-        const confirmed = window.confirm(
-            `Submit your list with ${selectedNames.length} names? You cannot make changes after submission.`
+        setSelectedNames(prev =>
+            prev.includes(name)
+                ? prev.filter(n => n !== name)
+                : [...prev, name]
         );
-
-        if (!confirmed) return;
-
-        setSubmitting(true);
-        setError(null);
-
-        try {
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
-                crushes: selectedNames,
-                submitted: true,
-                updatedAt: new Date()
-            });
-
-            await refreshUserData();
-            alert('List submitted! Check back for matches.');
-        } catch (error) {
-            console.error('Error submitting list:', error);
-            setError('Failed to submit list. Please try again.');
-        } finally {
-            setSubmitting(false);
-        }
-    }, [user, userData?.submitted, submitting, selectedNames, refreshUserData]);
+    }, [updating]);
 
     const handleRemoveSelected = useCallback((nameToRemove: string) => {
-        if (userData?.submitted) return;
+        if (updating) return;
         setSelectedNames(prev => prev.filter(name => name !== nameToRemove));
-    }, [userData?.submitted]);
+    }, [updating]);
+
+    const handleUpdatePreferences = useCallback(async () => {
+        if (!user || updating) return;
+
+        setUpdating(true);
+        setError(null);
+
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+                crushes: selectedNames,
+                updatedAt: new Date()
+            });
+
+            setSavedNames(selectedNames);
+            await refreshUserData();
+
+            // Show success message briefly
+            const successDiv = document.createElement('div');
+            successDiv.textContent = 'Preferences updated successfully!';
+            successDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                font-weight: 500;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            document.body.appendChild(successDiv);
+
+            setTimeout(() => {
+                if (document.body.contains(successDiv)) {
+                    document.body.removeChild(successDiv);
+                }
+            }, 3000);
+
+        } catch (error) {
+            console.error('Error updating preferences:', error);
+            setError('Failed to update preferences. Please try again.');
+        } finally {
+            setUpdating(false);
+        }
+    }, [user, updating, selectedNames, refreshUserData]);
 
     if (loading) {
         return <div className="loading">Loading...</div>;
@@ -173,8 +165,9 @@ const Home: React.FC = () => {
         );
     }
 
-    const isSubmitted = userData?.submitted || false;
     const hasMatches = userData?.matches && userData.matches.length > 0;
+    const crushCount = userData?.crushCount || 0;
+    const hasUnsavedChanges = JSON.stringify(selectedNames.sort()) !== JSON.stringify(savedNames.sort());
 
     return (
         <div className="dashboard-container">
@@ -200,7 +193,13 @@ const Home: React.FC = () => {
                 </div>
 
                 <div className="dashboard-content">
-                    {isSubmitted && hasMatches && (
+                    {crushCount > 0 && (
+                        <div className="crush-count-section">
+                            <h2>{crushCount} {crushCount === 1 ? 'person is' : 'people are'} crushing on you!</h2>
+                        </div>
+                    )}
+
+                    {hasMatches && (
                         <div className="matches-section">
                             <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
                             <div className="matches-list">
@@ -215,25 +214,18 @@ const Home: React.FC = () => {
                     )}
 
                     <div className="header-section">
-                        {isSubmitted ? (
-                            <div className="submitted-notice">
-                                Your list has been submitted and can no longer be edited.
-                                {!hasMatches && <div className="no-matches">No matches yet - check back later!</div>}
-                            </div>
-                        ) : (
-                            <div className="instructions">
-                                <ol>
-                                    <li>Select up to 10 classmates you'd like to connect with. Your selections are kept private and only visible to you unless there's a mutual match.</li>
-                                    <li>Save your progress with <em>Save Draft</em>. Submit your preferences with <em>Submit List</em>. Once you've submitted your preferences, any matches will appear here in real time.</li>
-                                    <li>You can only submit a set of names once. After that, no more changes.</li>
-                                </ol>
-                            </div>
-                        )}
+                        <div className="instructions">
+                            <ol>
+                                <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
+                                <li>Click "Update Preferences" to save your changes. Matches appear automatically when someone you've selected also selects you. Matches are completely private.</li>
+                                <li>You can add or remove names anytime. There's no limit on how many people you can select, and you can change your preferences as often as you want.</li>
+                            </ol>
+                        </div>
                     </div>
 
                     <div className="selection-counter">
-                        {selectedNames.length} / 10 selected
-                        {isSubmitted && <span className="submitted-badge">SUBMITTED</span>}
+                        {selectedNames.length} selected
+                        {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
                     </div>
 
                     {selectedNames.length > 0 && (
@@ -241,88 +233,73 @@ const Home: React.FC = () => {
                             <h3>Your Selections ({selectedNames.length})</h3>
                             <div className="name-chips">
                                 {selectedNames.map(name => (
-                                    <div key={name} className={`name-chip selected ${isSubmitted ? 'readonly' : ''}`}>
+                                    <div key={name} className="name-chip selected">
                                         <span>{name}</span>
-                                        {!isSubmitted && (
-                                            <button
-                                                onClick={() => handleRemoveSelected(name)}
-                                                className="remove-btn"
-                                                aria-label={`Remove ${name}`}
-                                            >
-                                                ×
-                                            </button>
-                                        )}
+                                        <button
+                                            onClick={() => handleRemoveSelected(name)}
+                                            className="remove-btn"
+                                            aria-label={`Remove ${name}`}
+                                            disabled={updating}
+                                        >
+                                            ×
+                                        </button>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
 
-                    {!isSubmitted && (
-                        <div className="search-section">
-                            <input
-                                type="text"
-                                placeholder="Search names..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="search-input"
-                            />
-                        </div>
-                    )}
+                    <div className="search-section">
+                        <input
+                            type="text"
+                            placeholder="Search names..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="search-input"
+                        />
+                    </div>
 
-                    {!isSubmitted && (
-                        <div className="available-names">
-                            <h3>
-                                Available Classmates
-                                {searchTerm && ` (${filteredAvailableNames.length} found)`}
-                            </h3>
-                            <div className="names-simple-list">
-                                {filteredAvailableNames.map(name => {
-                                    const isDisabled = selectedNames.length >= 10;
-
-                                    return (
-                                        <div
-                                            key={name}
-                                            onClick={() => !isDisabled && handleNameToggle(name)}
-                                            className={`name-list-item ${isDisabled ? 'disabled' : ''}`}
-                                        >
-                                            <span className="name-text">{name}</span>
-                                            <span className="add-btn">+</span>
-                                        </div>
-                                    );
-                                })}
-                                {filteredAvailableNames.length === 0 && (
-                                    <div className="no-results">
-                                        {searchTerm ? 'No names found matching your search.' : 'All classmates have been selected!'}
-                                    </div>
-                                )}
-                            </div>
+                    <div className="available-names">
+                        <h3>
+                            Available Classmates
+                            {searchTerm && ` (${filteredAvailableNames.length} found)`}
+                        </h3>
+                        <div className="names-simple-list">
+                            {filteredAvailableNames.map(name => (
+                                <div
+                                    key={name}
+                                    onClick={() => !updating && handleNameToggle(name)}
+                                    className={`name-list-item ${updating ? 'disabled' : ''}`}
+                                >
+                                    <span className="name-text">{name}</span>
+                                    <span className="add-btn">+</span>
+                                </div>
+                            ))}
+                            {filteredAvailableNames.length === 0 && (
+                                <div className="no-results">
+                                    {searchTerm ? 'No names found matching your search.' : 'All classmates have been selected!'}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
 
                     <div className="action-section">
-                        {isSubmitted ? (
-                            <div className="submitted-message">
-                            </div>
-                        ) : (
-                            <div className="action-buttons">
-                                <button
-                                    onClick={handleSaveDraft}
-                                    disabled={saving || submitting}
-                                    className="save-draft-btn"
-                                >
-                                    {saving ? 'Saving...' : 'Save Draft'}
-                                </button>
-                                <button
-                                    onClick={handleSubmitList}
-                                    disabled={saving || submitting || selectedNames.length === 0}
-                                    className="submit-btn"
-                                >
-                                    {submitting ? 'Submitting...' : 'Submit List'}
-                                </button>
-                            </div>
-                        )}
+                        <div className="action-buttons">
+                            <button
+                                onClick={handleUpdatePreferences}
+                                disabled={updating || !hasUnsavedChanges}
+                                className="update-btn"
+                            >
+                                {updating ? 'Updating...' : 'Update Preferences'}
+                            </button>
+                        </div>
                     </div>
+
+                    {error && (
+                        <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
+                            {error}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
