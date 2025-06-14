@@ -284,7 +284,6 @@ export const GSB_CLASS_NAMES = [
     "Matt Murphy",
     "Harshi Murthy",
     "Carson Muscat",
-    "Gabriela Tafur Nader",
     "Marin Nagase Tominaga",
     "Karn Nahata",
     "Joe Nail",
