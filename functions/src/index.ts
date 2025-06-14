@@ -316,7 +316,7 @@ async function processUpdatedCrushes(): Promise<void> {
 
             for (const user of allUsers) {
                 const userMatches: MatchInfo[] = [];
-                const userLockedCrushes: string[] = [...(user.lockedCrushes || [])];
+                const userLockedCrushes: string[] = [];
                 const userCrushes = user.crushes || [];
                 const userIdentityName = user.verifiedName || user.displayName;
 
@@ -351,7 +351,7 @@ async function processUpdatedCrushes(): Promise<void> {
                             email: crushedUser.email
                         });
 
-                        // Lock this crush
+                        // Lock this crush ONLY if there's a mutual match
                         if (!userLockedCrushes.includes(crushName)) {
                             userLockedCrushes.push(crushName);
                         }
@@ -524,5 +524,86 @@ export const initializeLockedCrushes = functions.https.onRequest(async (req, res
     } catch (error) {
         console.error('Error initializing locked crushes:', error);
         res.status(500).json({ error: 'Failed to initialize locked crushes' });
+    }
+});
+
+// One-time cleanup function to fix inconsistent locked crushes
+export const cleanupInconsistentLockedCrushes = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting cleanup of inconsistent locked crushes...');
+
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const allUsersSnapshot = await transaction.get(db.collection('users'));
+
+            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as UserData
+            }));
+
+            console.log(`📊 Processing ${allUsers.length} users for cleanup`);
+
+            let fixedUsers = 0;
+
+            for (const user of allUsers) {
+                const userCrushes = user.crushes || [];
+                const userLockedCrushes = user.lockedCrushes || [];
+                const userIdentityName = user.verifiedName || user.displayName;
+
+                if (!userIdentityName || !userIdentityName.trim()) {
+                    continue;
+                }
+
+                // Find actual mutual matches
+                const validLockedCrushes: string[] = [];
+
+                for (const crushName of userCrushes) {
+                    const crushedUser = findUserByName(crushName, allUsers);
+
+                    if (!crushedUser) {
+                        continue;
+                    }
+
+                    const crushedUserCrushes = crushedUser.crushes || [];
+
+                    // Check if it's a mutual match
+                    const hasMutualCrush = crushedUserCrushes.some(crush => {
+                        const matchedUser = findUserByName(crush, allUsers);
+                        return matchedUser && matchedUser.id === user.id;
+                    });
+
+                    // Only lock if there's a mutual match
+                    if (hasMutualCrush) {
+                        validLockedCrushes.push(crushName);
+                    }
+                }
+
+                // Check if we need to update this user
+                const currentLocked = userLockedCrushes.sort();
+                const validLocked = validLockedCrushes.sort();
+
+                if (JSON.stringify(currentLocked) !== JSON.stringify(validLocked)) {
+                    console.log(`🔧 Fixing user ${userIdentityName}: ${currentLocked.length} -> ${validLocked.length} locked crushes`);
+
+                    const userRef = db.collection('users').doc(user.id);
+                    transaction.update(userRef, {
+                        lockedCrushes: validLockedCrushes,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    fixedUsers++;
+                }
+            }
+
+            console.log(`✅ Fixed ${fixedUsers} users with inconsistent locked crushes`);
+        });
+
+        res.json({
+            success: true,
+            message: 'Successfully cleaned up inconsistent locked crushes'
+        });
+    } catch (error) {
+        console.error('❌ Error in cleanupInconsistentLockedCrushes:', error);
+        res.status(500).json({ error: 'Failed to cleanup inconsistent locked crushes' });
     }
 });
