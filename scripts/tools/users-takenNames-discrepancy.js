@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { createRequire } from 'module';
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -19,9 +20,72 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+// Dynamic import to load the TypeScript file
+let GSB_CLASS_NAMES;
+try {
+    // Try to import the TS file directly (works with some Node.js setups)
+    const namesModule = await import('../../src/data/names.ts');
+    GSB_CLASS_NAMES = namesModule.GSB_CLASS_NAMES;
+} catch (error) {
+    // Fallback: read and eval the file content
+    console.log('Direct TS import failed, trying file read approach...');
+    try {
+        const namesContent = readFileSync(join(__dirname, '../../src/data/names.ts'), 'utf8');
+        // Extract the array from the TypeScript file
+        const arrayMatch = namesContent.match(/export\s+const\s+GSB_CLASS_NAMES\s*=\s*(\[[\s\S]*?\]);/);
+        if (arrayMatch) {
+            GSB_CLASS_NAMES = eval(arrayMatch[1]);
+        } else {
+            throw new Error('Could not parse GSB_CLASS_NAMES from names.ts');
+        }
+    } catch (fileError) {
+        console.error('Failed to load names from names.ts:', fileError);
+        console.log('Please ensure src/data/names.ts exists and exports GSB_CLASS_NAMES');
+        process.exit(1);
+    }
+}
+
+// Helper function to normalize names for matching
+function normalizeName(name) {
+    if (!name || typeof name !== 'string') return '';
+    return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// Function to find best match in class names list
+function findMatchingClassName(displayName, availableNames) {
+    if (!displayName || !displayName.trim()) return null;
+
+    const normalizedDisplay = normalizeName(displayName);
+
+    // Try exact match first
+    let match = availableNames.find(name =>
+        normalizeName(name) === normalizedDisplay
+    );
+
+    if (match) return match;
+
+    // Try partial match (first and last name only)
+    const displayParts = normalizedDisplay.split(' ');
+    if (displayParts.length >= 2) {
+        const displayFirstLast = `${displayParts[0]} ${displayParts[displayParts.length - 1]}`;
+
+        match = availableNames.find(name => {
+            const nameParts = normalizeName(name).split(' ');
+            if (nameParts.length >= 2) {
+                const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                return nameFirstLast === displayFirstLast;
+            }
+            return false;
+        });
+    }
+
+    return match || null;
+}
+
 async function comprehensiveFix() {
     try {
         console.log('🔧 Starting comprehensive fix for users/takenNames discrepancies...\n');
+        console.log(`📋 Loaded ${GSB_CLASS_NAMES.length} names from class list\n`);
 
         // Get all data
         const usersSnapshot = await db.collection('users').get();
@@ -62,7 +126,7 @@ async function comprehensiveFix() {
             takenByUidMap.set(data.takenBy, nameId);
         });
 
-        // ISSUE 1: Users without verifiedName
+        // ISSUE 1: Users without verifiedName - NOW WITH AUTO-FIX
         console.log('1️⃣ Checking users without verifiedName...');
         const usersWithoutVerifiedName = [];
         for (const [uid, user] of allUsers) {
@@ -71,12 +135,109 @@ async function comprehensiveFix() {
             }
         }
         console.log(`   Found ${usersWithoutVerifiedName.length} users without verifiedName`);
-        usersWithoutVerifiedName.forEach(user => {
-            console.log(`   - ${user.email} (${user.uid})`);
-        });
+
+        // Auto-fix users without verifiedName by matching displayName to class list
+        const autoFixedUsers = [];
+        if (usersWithoutVerifiedName.length > 0 && GSB_CLASS_NAMES.length > 0) {
+            console.log('   Attempting to auto-fix by matching displayNames to class list...');
+
+            // Get currently available names (not taken)
+            const takenNames = new Set(takenNamesMap.keys());
+            const availableNames = GSB_CLASS_NAMES.filter(name => !takenNames.has(name));
+
+            console.log(`   Available names for auto-assignment: ${availableNames.length}`);
+
+            const batch0 = db.batch();
+
+            for (const user of usersWithoutVerifiedName) {
+                const matchedName = findMatchingClassName(user.displayName, availableNames);
+
+                if (matchedName) {
+                    console.log(`   - Auto-fixing: "${user.displayName}" -> "${matchedName}" (${user.email})`);
+
+                    // Update user document
+                    const userRef = db.collection('users').doc(user.uid);
+                    batch0.update(userRef, {
+                        verifiedName: matchedName,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        autoFixed: true,
+                        autoFixedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    // Create takenName document
+                    const takenNameRef = db.collection('takenNames').doc(matchedName);
+                    batch0.set(takenNameRef, {
+                        takenBy: user.uid,
+                        takenAt: admin.firestore.FieldValue.serverTimestamp(),
+                        email: user.email,
+                        autoAssigned: true
+                    });
+
+                    autoFixedUsers.push({ user, matchedName });
+
+                    // Remove from available names so it's not assigned twice
+                    const index = availableNames.indexOf(matchedName);
+                    if (index > -1) {
+                        availableNames.splice(index, 1);
+                    }
+                } else {
+                    console.log(`   - No match found for: "${user.displayName}" (${user.email})`);
+                }
+            }
+
+            if (autoFixedUsers.length > 0) {
+                await batch0.commit();
+                console.log(`   ✅ Auto-fixed ${autoFixedUsers.length} users by matching displayName to class list`);
+            }
+        }
+
+        // Log remaining users that couldn't be auto-fixed
+        const remainingUnfixed = usersWithoutVerifiedName.filter(user =>
+            !autoFixedUsers.some(fixed => fixed.user.uid === user.uid)
+        );
+
+        if (remainingUnfixed.length > 0) {
+            console.log(`   Remaining users without verifiedName (couldn't auto-fix):`);
+            remainingUnfixed.forEach(user => {
+                console.log(`   - ${user.email} (displayName: "${user.displayName}") (${user.uid})`);
+            });
+        }
 
         // ISSUE 2: Users with verifiedName but no takenName document
         console.log('\n2️⃣ Checking users missing takenName documents...');
+
+        // Refresh data after auto-fixes
+        const updatedUsersSnapshot = await db.collection('users').get();
+        const updatedTakenNamesSnapshot = await db.collection('takenNames').get();
+
+        // Rebuild maps with fresh data
+        allUsers.clear();
+        takenNamesMap.clear();
+
+        updatedUsersSnapshot.forEach(doc => {
+            const userData = doc.data();
+            allUsers.set(doc.id, {
+                uid: doc.id,
+                email: userData.email,
+                displayName: userData.displayName,
+                verifiedName: userData.verifiedName,
+                crushes: userData.crushes || [],
+                lockedCrushes: userData.lockedCrushes || [],
+                matches: userData.matches || [],
+                crushCount: userData.crushCount || 0
+            });
+        });
+
+        updatedTakenNamesSnapshot.forEach(doc => {
+            const data = doc.data();
+            const nameId = doc.id;
+            takenNamesMap.set(nameId, {
+                takenBy: data.takenBy,
+                email: data.email,
+                takenAt: data.takenAt
+            });
+        });
+
         const usersMissingTakenNames = [];
         for (const [uid, user] of allUsers) {
             if (user.verifiedName && user.verifiedName.trim() !== '') {
@@ -254,18 +415,26 @@ async function comprehensiveFix() {
         console.log(`Final counts - Users: ${finalUsersSnapshot.size}, TakenNames: ${finalTakenNamesSnapshot.size}`);
         console.log(`Final discrepancy: ${finalUsersSnapshot.size - finalTakenNamesSnapshot.size}`);
 
-        // Calculate expected discrepancy (users without verifiedName)
-        const expectedDiscrepancy = usersWithoutVerifiedName.length;
+        // Calculate expected discrepancy (users without verifiedName after all fixes)
+        let finalUsersWithoutVerifiedName = 0;
+        finalUsersSnapshot.forEach(doc => {
+            const userData = doc.data();
+            if (!userData.verifiedName || userData.verifiedName.trim() === '') {
+                finalUsersWithoutVerifiedName++;
+            }
+        });
+
         const actualDiscrepancy = finalUsersSnapshot.size - finalTakenNamesSnapshot.size;
 
-        if (actualDiscrepancy === expectedDiscrepancy) {
-            console.log(`✅ SUCCESS! Discrepancy matches expected value (${expectedDiscrepancy} users without verifiedName)`);
+        if (actualDiscrepancy === finalUsersWithoutVerifiedName) {
+            console.log(`✅ SUCCESS! Discrepancy matches expected value (${finalUsersWithoutVerifiedName} users without verifiedName)`);
         } else {
-            console.log(`⚠️  Unexpected discrepancy: Expected ${expectedDiscrepancy}, Got ${actualDiscrepancy}`);
+            console.log(`⚠️  Unexpected discrepancy: Expected ${finalUsersWithoutVerifiedName}, Got ${actualDiscrepancy}`);
         }
 
         console.log('\n📊 SUMMARY:');
-        console.log(`   Users without verifiedName: ${usersWithoutVerifiedName.length} (expected)`);
+        console.log(`   Users auto-fixed by displayName matching: ${autoFixedUsers.length}`);
+        console.log(`   Users still without verifiedName: ${finalUsersWithoutVerifiedName} (expected)`);
         console.log(`   Missing takenNames created: ${usersMissingTakenNames.length}`);
         console.log(`   Wrong UID pointers fixed: ${wrongUidPointers.length}`);
         console.log(`   Duplicate names found: ${duplicateNames.length} (manual intervention needed)`);
@@ -277,6 +446,13 @@ async function comprehensiveFix() {
             console.log('   Some users have selected the same verifiedName.');
             console.log('   You need to manually determine which user should keep each name');
             console.log('   and clear the verifiedName for the others so they can re-select.');
+        }
+
+        if (autoFixedUsers.length > 0) {
+            console.log('\n✅ AUTO-FIXED USERS:');
+            autoFixedUsers.forEach(({ user, matchedName }) => {
+                console.log(`   "${user.displayName}" -> "${matchedName}" (${user.email})`);
+            });
         }
 
         console.log('\n🎉 Comprehensive fix completed!');
