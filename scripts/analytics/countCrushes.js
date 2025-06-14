@@ -1,7 +1,19 @@
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load service account key - corrected path
+const serviceAccount = JSON.parse(
+    readFileSync(join(__dirname, '../../functions/src/serviceAccountKey.json'), 'utf8')
+);
 
 admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
+    credential: admin.credential.cert(serviceAccount),
     projectId: 'stanford-lastchances',
 });
 
@@ -28,7 +40,7 @@ async function getTopCrushCounts() {
 
         const top20 = crushCounts.slice(0, 50);
 
-        console.log(`Top 20 People with Most Crushes (out of ${crushCounts.length} total users):`);
+        console.log(`Top People with Most Crushes (out of ${crushCounts.length} total users):`);
         console.log('='.repeat(60));
 
         top20.forEach((person, index) => {
@@ -41,12 +53,6 @@ async function getTopCrushCounts() {
         const totalCrushes = crushCounts.reduce((sum, person) => sum + person.crushCount, 0);
         const avgCrushes = totalCrushes / crushCounts.length;
         const peopleWithCrushes = crushCounts.filter(person => person.crushCount > 0).length;
-
-        console.log('\n' + '='.repeat(60));
-        console.log(`Stats:`);
-        console.log(`- Total people being crushed on: ${peopleWithCrushes}`);
-        console.log(`- Total crushes across all users: ${totalCrushes}`);
-        console.log(`- Average crushes per person: ${avgCrushes.toFixed(2)}`);
 
     } catch (error) {
         console.error('Error getting crush counts:', error);

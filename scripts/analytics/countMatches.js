@@ -1,7 +1,19 @@
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load service account key - corrected path
+const serviceAccount = JSON.parse(
+    readFileSync(join(__dirname, '../../functions/src/serviceAccountKey.json'), 'utf8')
+);
 
 admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
+    credential: admin.credential.cert(serviceAccount),
     projectId: 'stanford-lastchances',
 });
 

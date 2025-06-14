@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
 
 admin.initializeApp();
 
