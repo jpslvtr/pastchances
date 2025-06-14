@@ -7,11 +7,16 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "count-docs": "node scripts/countDocs.js",
+    "count-matches": "node scripts/countMatches.js",
+    "top-crushes": "node scripts/topCrushCounts.js",
+    "find-user": "node scripts/findUserInCrushes.js"
   },
   "dependencies": {
     "@types/react-router-dom": "^5.3.3",
     "firebase": "^11.2.0",
+    "firebase-admin": "^12.7.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2"
