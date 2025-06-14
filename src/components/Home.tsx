@@ -291,7 +291,7 @@ const Home: React.FC = () => {
 
                     <div className="available-names">
                         <h3>
-                            Available Classmates
+                            Classmates
                             {searchTerm && ` (${filteredAvailableNames.length} found)`}
                         </h3>
                         <div className="names-simple-list">
