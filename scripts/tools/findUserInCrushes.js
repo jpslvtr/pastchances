@@ -9,7 +9,7 @@ const __dirname = dirname(__filename);
 
 // Load service account key
 const serviceAccount = JSON.parse(
-    readFileSync(join(__dirname, '../functions/src/serviceAccountKey.json'), 'utf8')
+    readFileSync(join(__dirname, '../../functions/src/serviceAccountKey.json'), 'utf8')
 );
 
 admin.initializeApp({
@@ -19,7 +19,7 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-const targetNames = ["Gabriela Tafur Nader"];
+const targetNames = ["Dru Nkansah"];
 
 async function findCrushes() {
     const snapshot = await db.collection('users').get();
