@@ -26,8 +26,7 @@ async function getTopCrushCounts() {
         // Sort by crush count in descending order (highest first)
         crushCounts.sort((a, b) => b.crushCount - a.crushCount);
 
-        // Get top 20
-        const top20 = crushCounts.slice(0, 20);
+        const top20 = crushCounts.slice(0, 50);
 
         console.log(`Top 20 People with Most Crushes (out of ${crushCounts.length} total users):`);
         console.log('='.repeat(60));

@@ -122,6 +122,16 @@ export const manageTakenNames = functions.firestore
                     });
                     console.log(`Added ${newVerifiedName} to taken names`);
                 }
+
+                // IMPORTANT: Trigger recalculation when verifiedName changes
+                // This ensures crush counts get updated when someone's identity changes
+                if (newVerifiedName && newVerifiedName.trim() !== '') {
+                    console.log(`🔄 VerifiedName changed for user ${afterData.uid}, triggering recalculation...`);
+                    // Add a small delay to ensure the taken name is updated first
+                    setTimeout(async () => {
+                        await processUpdatedCrushes();
+                    }, 2000);
+                }
             } catch (error) {
                 console.error('Error managing taken names:', error);
             }
@@ -210,37 +220,45 @@ export const findMatches = functions.firestore
         const beforeData = change.before.data() as UserData;
         const afterData = change.after.data() as UserData;
 
-        // Check if crushes were updated
+        // Check if crushes were updated OR if verifiedName was updated
         const beforeCrushes = beforeData?.crushes || [];
         const afterCrushes = afterData?.crushes || [];
+        const beforeVerifiedName = beforeData?.verifiedName;
+        const afterVerifiedName = afterData?.verifiedName;
 
         // Normalize arrays for comparison
         const normalizedBefore = beforeCrushes.map(normalizeName).sort();
         const normalizedAfter = afterCrushes.map(normalizeName).sort();
 
-        console.log(`Checking crushes update for user ${userId} (${afterData.verifiedName})`);
+        const crushesChanged = JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter);
+        const verifiedNameChanged = beforeVerifiedName !== afterVerifiedName;
 
-        // Only process if crushes actually changed
-        if (JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter)) {
-            console.log(`✅ Crushes changed for user ${userId} (${afterData.verifiedName}), processing...`);
+        console.log(`Checking update for user ${userId} (${afterData.verifiedName})`);
+        console.log(`Crushes changed: ${crushesChanged}, VerifiedName changed: ${verifiedNameChanged}`);
 
-            // Validate that locked crushes are still present
-            const lockedCrushes = beforeData?.lockedCrushes || [];
-            const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
+        // Process if crushes changed OR if verifiedName changed (which affects how others' crushes map to this user)
+        if (crushesChanged || verifiedNameChanged) {
+            console.log(`✅ Processing update for user ${userId} (${afterData.verifiedName})`);
 
-            if (missingLockedCrushes.length > 0) {
-                console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
-                // Restore the locked crushes
-                const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
+            // Validate that locked crushes are still present (only for crush changes)
+            if (crushesChanged) {
+                const lockedCrushes = beforeData?.lockedCrushes || [];
+                const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
 
-                const userRef = db.collection('users').doc(userId);
-                await userRef.update({
-                    crushes: restoredCrushes,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
+                if (missingLockedCrushes.length > 0) {
+                    console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
+                    // Restore the locked crushes
+                    const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
 
-                console.log(`✅ Restored locked crushes for user ${userId}`);
-                return null;
+                    const userRef = db.collection('users').doc(userId);
+                    await userRef.update({
+                        crushes: restoredCrushes,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    console.log(`✅ Restored locked crushes for user ${userId}`);
+                    return null;
+                }
             }
 
             // Add a small delay to prevent race conditions
@@ -248,7 +266,7 @@ export const findMatches = functions.firestore
 
             await processUpdatedCrushes();
         } else {
-            console.log(`❌ No crushes change detected for user ${userId} (${afterData.verifiedName}), skipping`);
+            console.log(`❌ No relevant changes detected for user ${userId} (${afterData.verifiedName}), skipping`);
         }
 
         return null;
@@ -507,4 +525,3 @@ export const initializeLockedCrushes = functions.https.onRequest(async (req, res
         res.status(500).json({ error: 'Failed to initialize locked crushes' });
     }
 });
-
