@@ -463,6 +463,35 @@ const Home: React.FC = () => {
                         <div className="admin-section">
                             <h3>Admin View - User Data</h3>
 
+                            {/* User Type Definitions */}
+                            <div className="admin-definitions">
+                                <div className="admin-definition-grid">
+                                    <div className="admin-definition-card active-definition">
+                                        <div className="admin-definition-header">
+                                            <h4>Active Users</h4>
+                                        </div>
+                                        <p>Those who have created accounts and verified their names. They can send crushes and receive matches.</p>
+                                    </div>
+
+                                    <div className="admin-definition-card ghost-definition">
+                                        <div className="admin-definition-header">
+                                            <br></br>
+                                            <h4>Ghost Users</h4>
+                                        </div>
+                                        <p>Those who haven't signed up yet but are receiving crushes from active users.</p>
+                                    </div>
+
+                                    <div className="admin-definition-card inactive-definition">
+                                        <div className="admin-definition-header">
+                                            <br></br>
+                                            <h4>Inactive Users</h4>
+                                        </div>
+                                        <p>Those who haven't signed up and are not receiving any crushes.</p>
+                                        <br></br>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="admin-stats-summary">
                                 <div className="admin-stat-item">
                                     <span className="admin-stat-number">{userStats.realUsers}</span>
@@ -534,7 +563,7 @@ const Home: React.FC = () => {
                                                             )}
                                                             {isGhost && ghostType === 'no-crushes' && (
                                                                 <span style={{ color: '#6c757d', marginLeft: '8px', fontSize: '11px' }}>
-                                                                    👤 Inactive User
+                                                                    💤 Inactive User
                                                                 </span>
                                                             )}
                                                             {!isGhost && !hasVerifiedName && (
