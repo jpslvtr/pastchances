@@ -82,6 +82,63 @@ function findMatchingClassName(displayName, availableNames) {
     return match || null;
 }
 
+// Enhanced function to find user by name (similar to backend logic)
+function findUserByName(crushName, allUsers) {
+    if (!crushName || !crushName.trim()) return null;
+
+    const normalizedCrush = normalizeName(crushName);
+
+    // First try exact match on verifiedName
+    let match = allUsers.find(user =>
+        user.verifiedName &&
+        normalizeName(user.verifiedName) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try exact match on displayName as fallback
+    match = allUsers.find(user =>
+        user.displayName &&
+        normalizeName(user.displayName) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try partial match (first and last name only)
+    const crushParts = normalizedCrush.split(' ');
+    if (crushParts.length >= 2) {
+        const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
+
+        // Try partial match with verifiedName
+        match = allUsers.find(user => {
+            if (user.verifiedName) {
+                const nameParts = normalizeName(user.verifiedName).split(' ');
+                if (nameParts.length >= 2) {
+                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                    return nameFirstLast === crushFirstLast;
+                }
+            }
+            return false;
+        });
+
+        if (match) return match;
+
+        // Try partial match with displayName
+        match = allUsers.find(user => {
+            if (user.displayName) {
+                const nameParts = normalizeName(user.displayName).split(' ');
+                if (nameParts.length >= 2) {
+                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                    return nameFirstLast === crushFirstLast;
+                }
+            }
+            return false;
+        });
+    }
+
+    return match || null;
+}
+
 async function comprehensiveFix() {
     try {
         console.log('🔧 Starting comprehensive fix for users/takenNames discrepancies...\n');
@@ -174,6 +231,10 @@ async function comprehensiveFix() {
                     });
 
                     autoFixedUsers.push({ user, matchedName });
+
+                    // Update local data structure
+                    user.verifiedName = matchedName;
+                    allUsers.set(user.uid, user);
 
                     // Remove from available names so it's not assigned twice
                     const index = availableNames.indexOf(matchedName);
@@ -407,6 +468,118 @@ async function comprehensiveFix() {
             console.log('   ✅ No users with multiple takenNames found');
         }
 
+        // NEW ISSUE 7: Orphaned Crushes (crushes pointing to people who signed up later)
+        console.log('\n7️⃣ Checking for orphaned crushes and fixing historical crush counts...');
+
+        // Convert allUsers Map to Array for easier processing
+        const allUsersArray = Array.from(allUsers.values());
+
+        // Find all unique crush names across all users
+        const allCrushNames = new Set();
+        allUsersArray.forEach(user => {
+            const userCrushes = user.crushes || [];
+            userCrushes.forEach(crushName => {
+                allCrushNames.add(crushName);
+            });
+        });
+
+        console.log(`   Found ${allCrushNames.size} unique crush names across all users`);
+
+        // Check which crush names don't have corresponding users
+        const orphanedCrushNames = [];
+        const matchedCrushNames = [];
+
+        allCrushNames.forEach(crushName => {
+            const matchedUser = findUserByName(crushName, allUsersArray);
+            if (matchedUser) {
+                matchedCrushNames.push({
+                    crushName,
+                    matchedUser: matchedUser.verifiedName || matchedUser.displayName,
+                    uid: matchedUser.uid
+                });
+            } else {
+                orphanedCrushNames.push(crushName);
+            }
+        });
+
+        console.log(`   - ${matchedCrushNames.length} crush names have corresponding users`);
+        console.log(`   - ${orphanedCrushNames.length} crush names are orphaned (no user found)`);
+
+        if (orphanedCrushNames.length > 0) {
+            console.log('   Orphaned crush names:');
+            orphanedCrushNames.forEach(name => {
+                console.log(`     * "${name}"`);
+            });
+        }
+
+        // Recalculate crush counts properly
+        console.log('\n   Recalculating crush counts with enhanced matching...');
+        const crushCounts = new Map();
+
+        allUsersArray.forEach(user => {
+            const userCrushes = user.crushes || [];
+            userCrushes.forEach(crushName => {
+                const targetUser = findUserByName(crushName, allUsersArray);
+
+                if (targetUser) {
+                    // Found a matching user - count under their actual identity
+                    const actualName = targetUser.verifiedName || targetUser.displayName;
+                    if (actualName) {
+                        crushCounts.set(actualName, (crushCounts.get(actualName) || 0) + 1);
+                        crushCounts.set(targetUser.uid, (crushCounts.get(targetUser.uid) || 0) + 1);
+                    }
+                } else {
+                    // No user found - this is an orphaned crush
+                    crushCounts.set(crushName, (crushCounts.get(crushName) || 0) + 1);
+                }
+            });
+        });
+
+        // Update users with corrected crush counts
+        const usersNeedingCrushCountUpdate = [];
+        allUsersArray.forEach(user => {
+            const userIdentityName = user.verifiedName || user.displayName;
+            let correctCrushCount = 0;
+
+            if (userIdentityName) {
+                correctCrushCount = crushCounts.get(userIdentityName) || 0;
+
+                // Also check UID-based count (in case of name mismatches)
+                const uidCount = crushCounts.get(user.uid) || 0;
+                correctCrushCount = Math.max(correctCrushCount, uidCount);
+            }
+
+            if (user.crushCount !== correctCrushCount) {
+                usersNeedingCrushCountUpdate.push({
+                    uid: user.uid,
+                    email: user.email,
+                    name: userIdentityName,
+                    oldCount: user.crushCount,
+                    newCount: correctCrushCount
+                });
+            }
+        });
+
+        if (usersNeedingCrushCountUpdate.length > 0) {
+            console.log(`   Found ${usersNeedingCrushCountUpdate.length} users with incorrect crush counts:`);
+
+            const batch5 = db.batch();
+            usersNeedingCrushCountUpdate.forEach(({ uid, email, name, oldCount, newCount }) => {
+                console.log(`   - ${name} (${email}): ${oldCount} -> ${newCount} crushes`);
+                const userRef = db.collection('users').doc(uid);
+                batch5.update(userRef, {
+                    crushCount: newCount,
+                    crushCountFixedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            });
+
+            await batch5.commit();
+            console.log(`   ✅ Updated crush counts for ${usersNeedingCrushCountUpdate.length} users`);
+        } else {
+            console.log('   ✅ All crush counts are already correct');
+        }
+
         // Final verification
         console.log('\n🔍 Final verification...');
         const finalUsersSnapshot = await db.collection('users').get();
@@ -440,6 +613,8 @@ async function comprehensiveFix() {
         console.log(`   Duplicate names found: ${duplicateNames.length} (manual intervention needed)`);
         console.log(`   Orphaned takenNames removed: ${orphanedTakenNames.length}`);
         console.log(`   Multiple takenNames cleaned: ${usersWithMultipleTakenNames.length}`);
+        console.log(`   Orphaned crush names found: ${orphanedCrushNames.length}`);
+        console.log(`   Users with corrected crush counts: ${usersNeedingCrushCountUpdate.length}`);
 
         if (duplicateNames.length > 0) {
             console.log('\n⚠️  MANUAL ACTION REQUIRED:');
@@ -453,6 +628,16 @@ async function comprehensiveFix() {
             autoFixedUsers.forEach(({ user, matchedName }) => {
                 console.log(`   "${user.displayName}" -> "${matchedName}" (${user.email})`);
             });
+        }
+
+        if (orphanedCrushNames.length > 0) {
+            console.log('\n⚠️  ORPHANED CRUSHES:');
+            console.log('   The following names have crushes but no corresponding users:');
+            orphanedCrushNames.forEach(name => {
+                const count = crushCounts.get(name) || 0;
+                console.log(`   - "${name}" (${count} crushes)`);
+            });
+            console.log('   These will automatically resolve when those people sign up and verify their names.');
         }
 
         console.log('\n🎉 Comprehensive fix completed!');

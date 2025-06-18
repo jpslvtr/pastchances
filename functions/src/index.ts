@@ -37,7 +37,7 @@ function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-// Function to find the best matching user for a crush name
+// Enhanced function to find the best matching user for a crush name
 function findUserByName(crushName: string, allUsers: UserWithId[]): UserWithId | null {
     if (!crushName || !crushName.trim()) return null;
 
@@ -64,6 +64,7 @@ function findUserByName(crushName: string, allUsers: UserWithId[]): UserWithId |
     if (crushParts.length >= 2) {
         const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
 
+        // Try partial match with verifiedName
         match = allUsers.find(user => {
             if (user.verifiedName) {
                 const nameParts = normalizeName(user.verifiedName).split(' ');
@@ -77,7 +78,7 @@ function findUserByName(crushName: string, allUsers: UserWithId[]): UserWithId |
 
         if (match) return match;
 
-        // Try same with displayName
+        // Try partial match with displayName
         match = allUsers.find(user => {
             if (user.displayName) {
                 const nameParts = normalizeName(user.displayName).split(' ');
@@ -304,6 +305,11 @@ async function processUpdatedCrushes(): Promise<void> {
                         if (actualName) {
                             crushCounts.set(actualName, (crushCounts.get(actualName) || 0) + 1);
                         }
+                    } else {
+                        // If no user found, still count it but use the crush name directly
+                        // This handles cases where someone hasn't signed up yet or name doesn't match
+                        console.log(`⚠️ No user found for crush name: "${crushName}" - counting anyway`);
+                        crushCounts.set(crushName, (crushCounts.get(crushName) || 0) + 1);
                     }
                 }
             }
@@ -368,10 +374,24 @@ async function processUpdatedCrushes(): Promise<void> {
             for (const user of allUsers) {
                 const userRef = db.collection('users').doc(user.id);
                 const userIdentityName = user.verifiedName || user.displayName;
+
+                // For crush count, we need to check both verifiedName and displayName
+                // because someone might be crushing on "Ludwig Neumann" but he only has displayName
+                let userCrushCount = 0;
+                if (userIdentityName) {
+                    userCrushCount = crushCounts.get(userIdentityName) || 0;
+
+                    // Also check if anyone is crushing on their alternate name
+                    const alternateName = user.verifiedName ? user.displayName : user.verifiedName;
+                    if (alternateName && alternateName !== userIdentityName) {
+                        userCrushCount += crushCounts.get(alternateName) || 0;
+                    }
+                }
+
                 const updateData = {
                     matches: allMatches.get(user.id) || [],
                     lockedCrushes: allLockedCrushes.get(user.id) || [],
-                    crushCount: crushCounts.get(userIdentityName) || 0,
+                    crushCount: userCrushCount,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 };
 

@@ -80,15 +80,20 @@ const Home: React.FC = () => {
 
             usersSnapshot.forEach(doc => {
                 const data = doc.data() as UserData;
-                if (data.verifiedName) {
-                    users.push({
-                        ...data,
-                        uid: doc.id
-                    });
-                }
+                // Load ALL users, not just those with verifiedName
+                users.push({
+                    ...data,
+                    uid: doc.id
+                });
             });
 
-            users.sort((a, b) => (a.verifiedName || '').localeCompare(b.verifiedName || ''));
+            // Sort by verifiedName if available, otherwise by displayName or email
+            users.sort((a, b) => {
+                const nameA = a.verifiedName || a.displayName || a.email || '';
+                const nameB = b.verifiedName || b.displayName || b.email || '';
+                return nameA.localeCompare(nameB);
+            });
+
             setAllUsers(users);
         } catch (error) {
             console.error('Error loading all users:', error);
@@ -101,10 +106,15 @@ const Home: React.FC = () => {
         if (!adminSearchTerm.trim()) return allUsers;
 
         const searchLower = adminSearchTerm.toLowerCase();
-        return allUsers.filter(u =>
-            u.verifiedName.toLowerCase().includes(searchLower) ||
-            u.email.toLowerCase().includes(searchLower)
-        );
+        return allUsers.filter(u => {
+            const verifiedName = (u.verifiedName || '').toLowerCase();
+            const displayName = (u.displayName || '').toLowerCase();
+            const email = (u.email || '').toLowerCase();
+
+            return verifiedName.includes(searchLower) ||
+                displayName.includes(searchLower) ||
+                email.includes(searchLower);
+        });
     }, [allUsers, adminSearchTerm]);
 
     const loadUserSelections = useCallback(async () => {
@@ -336,11 +346,22 @@ const Home: React.FC = () => {
                                         const actualCrushCount = u.crushCount || 0;
                                         const crushers = findCrushersForUser(u);
 
+                                        // Display name priority: verifiedName > displayName > email
+                                        const displayName = u.verifiedName || u.displayName || u.email;
+                                        const hasVerifiedName = !!(u.verifiedName && u.verifiedName.trim());
+
                                         return (
                                             <div key={u.uid} className="admin-user-item">
                                                 <div className="admin-user-header">
                                                     <div className="admin-user-info">
-                                                        <div className="admin-user-name">{u.verifiedName}</div>
+                                                        <div className="admin-user-name">
+                                                            {displayName}
+                                                            {!hasVerifiedName && (
+                                                                <span style={{ color: '#dc3545', marginLeft: '8px', fontSize: '11px' }}>
+                                                                    (Not verified)
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="admin-user-email">{u.email}</div>
                                                         <div className="admin-user-stats">
                                                             {actualCrushCount} crushing • {u.matches?.length || 0} matches • {u.crushes?.length || 0} selected
@@ -362,7 +383,7 @@ const Home: React.FC = () => {
                                                 {isViewing && (
                                                     <div className="admin-user-expanded">
                                                         <div className="admin-view-header">
-                                                            <h4>Data for {u.verifiedName}:</h4>
+                                                            <h4>Data for {displayName}:</h4>
                                                         </div>
 
                                                         <div className="admin-data-grid">
