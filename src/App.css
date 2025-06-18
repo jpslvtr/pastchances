@@ -1405,3 +1405,225 @@ body {
     padding: 4px 8px;
   }
 }
+
+/* Ghost user styles */
+.admin-user-ghost {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-left: 4px solid #6c757d;
+  opacity: 0.9;
+}
+
+.admin-user-ghost .admin-user-header {
+  background: linear-gradient(135deg, #f1f3f4 0%, #e8eaed 100%);
+}
+
+.admin-user-ghost .admin-user-name {
+  font-style: italic;
+}
+
+.admin-user-ghost .admin-data-card {
+  background: #f8f9fa;
+  border-left-color: #6c757d;
+}
+
+.admin-user-ghost .admin-data-number {
+  color: #6c757d;
+}
+
+.admin-user-ghost .admin-data-label {
+  color: #495057;
+}
+
+.admin-user-ghost .admin-no-activity {
+  background: #f1f3f4;
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* Mobile responsiveness for ghost users */
+@media (max-width: 768px) {
+  .admin-user-ghost {
+    border-left-width: 3px;
+  }
+}
+
+/* Admin stats summary */
+.admin-stats-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #8C1515;
+}
+
+.admin-stat-item {
+  text-align: center;
+  padding: 10px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.admin-stat-number {
+  display: block;
+  font-size: 24px;
+  font-weight: bold;
+  color: #8C1515;
+  margin-bottom: 4px;
+}
+
+.admin-stat-label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Admin controls */
+.admin-controls {
+  margin-bottom: 20px;
+}
+
+.admin-filter-section {
+  margin-top: 10px;
+}
+
+.admin-filter-dropdown {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.admin-filter-dropdown:focus {
+  outline: none;
+  border-color: #8C1515;
+}
+
+.admin-filter-dropdown:hover {
+  border-color: #999;
+}
+
+/* Enhanced ghost user styles */
+.admin-user-ghost {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-left: 4px solid #6c757d;
+  opacity: 0.9;
+}
+
+.admin-user-ghost-with-crushes {
+  border-left-color: #ffc107;
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+}
+
+.admin-user-ghost-no-crushes {
+  border-left-color: #6c757d;
+  opacity: 0.7;
+}
+
+.admin-user-ghost .admin-user-header {
+  background: linear-gradient(135deg, #f1f3f4 0%, #e8eaed 100%);
+}
+
+.admin-user-ghost-with-crushes .admin-user-header {
+  background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+}
+
+.admin-user-ghost .admin-user-name {
+  font-style: italic;
+}
+
+.admin-user-ghost .admin-data-card {
+  background: #f8f9fa;
+  border-left-color: #6c757d;
+}
+
+.admin-user-ghost-with-crushes .admin-data-card {
+  background: #fff8e1;
+  border-left-color: #ffc107;
+}
+
+.admin-user-ghost .admin-data-number {
+  color: #6c757d;
+}
+
+.admin-user-ghost-with-crushes .admin-data-number {
+  color: #f57c00;
+}
+
+.admin-user-ghost .admin-data-label {
+  color: #495057;
+}
+
+.admin-user-ghost .admin-no-activity {
+  background: #f1f3f4;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.admin-view-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #6c757d;
+}
+
+/* Mobile responsiveness for new elements */
+@media (max-width: 768px) {
+  .admin-stats-summary {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .admin-stat-item {
+    padding: 8px;
+  }
+
+  .admin-stat-number {
+    font-size: 20px;
+  }
+
+  .admin-stat-label {
+    font-size: 11px;
+  }
+
+  .admin-filter-dropdown {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .admin-user-ghost {
+    border-left-width: 3px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-stats-summary {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .admin-stat-number {
+    font-size: 18px;
+  }
+
+  .admin-stat-label {
+    font-size: 10px;
+  }
+
+  .admin-filter-dropdown {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+}

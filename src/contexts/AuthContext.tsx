@@ -4,6 +4,7 @@ import type { User } from 'firebase/auth';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../config/firebase';
+import { GSB_CLASS_NAMES } from '../data/names';
 
 interface MatchInfo {
     name: string;
@@ -49,6 +50,49 @@ interface AuthProviderProps {
 }
 
 const DEFAULT_PROFILE_URL = '/files/default-profile.png';
+
+// Helper function to check if user should be allowed to create account
+function isUserAllowedToSignUp(displayName: string, email: string): { allowed: boolean; reason?: string } {
+    if (!displayName || !email) {
+        return { allowed: false, reason: 'Missing display name or email' };
+    }
+
+    // Normalize the display name for comparison
+    const normalizedDisplayName = displayName.trim().toLowerCase().replace(/\s+/g, ' ');
+
+    // Check if display name matches any name in GSB_CLASS_NAMES (case-insensitive)
+    const matchesClassName = GSB_CLASS_NAMES.some(className =>
+        className.toLowerCase().replace(/\s+/g, ' ') === normalizedDisplayName
+    );
+
+    if (matchesClassName) {
+        return { allowed: true };
+    }
+
+    // Check partial matches (first + last name)
+    const displayParts = normalizedDisplayName.split(' ');
+    if (displayParts.length >= 2) {
+        const displayFirstLast = `${displayParts[0]} ${displayParts[displayParts.length - 1]}`;
+
+        const matchesPartialName = GSB_CLASS_NAMES.some(className => {
+            const nameParts = className.toLowerCase().replace(/\s+/g, ' ').split(' ');
+            if (nameParts.length >= 2) {
+                const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                return nameFirstLast === displayFirstLast;
+            }
+            return false;
+        });
+
+        if (matchesPartialName) {
+            return { allowed: true };
+        }
+    }
+
+    return {
+        allowed: false,
+        reason: `Your name "${displayName}" was not found in the GSB Class of 2025 roster. Please contact the administrator if you believe this is an error.`
+    };
+}
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
@@ -124,6 +168,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const userDoc = await getDoc(userRef);
 
             if (!userDoc.exists()) {
+                // Check if new user should be allowed to sign up
+                const allowedCheck = isUserAllowedToSignUp(
+                    user.displayName || user.email?.split('@')[0] || '',
+                    user.email || ''
+                );
+
+                if (!allowedCheck.allowed) {
+                    console.log('User not allowed to sign up:', allowedCheck.reason);
+
+                    // Sign them out immediately
+                    await signOut(auth);
+
+                    // Show error message
+                    alert(allowedCheck.reason || 'You are not authorized to access this application.');
+
+                    return null;
+                }
+
                 const newUserData: UserData = {
                     uid: user.uid,
                     email: user.email || '',
