@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
 
@@ -45,6 +45,18 @@ interface GhostUser {
     lastLogin: any;
 }
 
+interface FirebaseAnalyticsData {
+    totalUsers: number;
+    totalTakenNames: number;
+    totalMatches: number;
+    matchedPairs: string[];
+    totalCrushes: number;
+    peopleWithCrushes: number;
+    avgCrushes: number;
+    activeUsersLast24h: number;
+    createdAt: any;
+}
+
 interface AnalyticsData {
     totalUsers: number;
     totalTakenNames: number;
@@ -61,6 +73,7 @@ interface AnalyticsData {
     topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
     topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
     inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }>;
+    activeUsersLast24h?: number;
 }
 
 type UserFilter = 'all' | 'active' | 'ghost' | 'inactive';
@@ -78,6 +91,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     const [userFilter, setUserFilter] = useState<UserFilter>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('analytics');
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+    const [liveAnalytics, setLiveAnalytics] = useState<FirebaseAnalyticsData | null>(null);
 
     const normalizeName = useCallback((name: string): string => {
         if (!name || typeof name !== 'string') return '';
@@ -160,6 +174,27 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
         return crushers;
     }, [allUsers]);
+
+    // Set up real-time listener for analytics
+    useEffect(() => {
+        const analyticsQuery = query(
+            collection(db, 'analytics'),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+        );
+
+        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                const latestAnalytics = snapshot.docs[0].data() as FirebaseAnalyticsData;
+                setLiveAnalytics(latestAnalytics);
+                console.log('Live analytics updated:', latestAnalytics);
+            }
+        }, (error) => {
+            console.error('Error listening to analytics:', error);
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     const calculateAnalytics = useCallback((): AnalyticsData => {
         const realUsers = allUsers.filter(u => !(u as GhostUser).isGhost) as UserData[];
@@ -312,9 +347,10 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             orphanedCrushes,
             topCrushReceivers,
             topCrushSenders,
-            inactiveReceivers
+            inactiveReceivers,
+            activeUsersLast24h: liveAnalytics?.activeUsersLast24h
         };
-    }, [allUsers, findUserByName, findCrushersForUser]);
+    }, [allUsers, findUserByName, findCrushersForUser, liveAnalytics]);
 
     const loadAllUsers = useCallback(async () => {
         setLoadingUsers(true);
@@ -477,6 +513,9 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                     <p>{analytics?.usersWithCrushes || 0} users have sent crushes</p>
                     <p>{analytics?.usersWithMatches || 0} users have matches</p>
                     <p>{analytics?.avgCrushes || 0} average crushes sent per user</p>
+                    {analytics?.activeUsersLast24h !== undefined && (
+                        <p>{analytics.activeUsersLast24h}% users active in last 24h</p>
+                    )}
                 </div>
             </div>
 
