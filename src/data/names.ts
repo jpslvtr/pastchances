@@ -290,7 +290,6 @@ export const GSB_CLASS_NAMES = [
     "Karn Nahata",
     "Joe Nail",
     "Sasha Nanda",
-    "Ahmad Nasir",
     "Chase Navellier",
     "Elliot Nell",
     "Kyle Nelson",
