@@ -242,6 +242,7 @@ export const GSB_CLASS_NAMES = [
     "Lyn Li",
     "Yue Li",
     "Zhenyan (Jane) Li",
+    "Adam Lifshitz",
     "Lexie Lin",
     "Alice Liu",
     "Michael Liu",
