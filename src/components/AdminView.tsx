@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
@@ -45,7 +45,26 @@ interface GhostUser {
     lastLogin: any;
 }
 
+interface AnalyticsData {
+    totalUsers: number;
+    totalTakenNames: number;
+    totalMatches: number;
+    matchedPairs: string[];
+    totalCrushes: number;
+    peopleWithCrushes: number;
+    avgCrushes: number;
+    usersWithCrushes: number;
+    usersWithMatches: number;
+    participationRate: number;
+    classParticipationRate: number;
+    orphanedCrushes: string[];
+    topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
+    topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
+    inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }>;
+}
+
 type UserFilter = 'all' | 'active' | 'ghost' | 'inactive';
+type ViewMode = 'analytics' | 'users';
 
 interface AdminViewProps {
     user: any;
@@ -57,11 +76,69 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     const [adminSearchTerm, setAdminSearchTerm] = useState('');
     const [viewingUserId, setViewingUserId] = useState<string | null>(null);
     const [userFilter, setUserFilter] = useState<UserFilter>('all');
+    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
+    const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
 
     const normalizeName = useCallback((name: string): string => {
         if (!name || typeof name !== 'string') return '';
         return name.trim().toLowerCase().replace(/\s+/g, ' ');
     }, []);
+
+    const findUserByName = useCallback((crushName: string, users: (UserData | GhostUser)[]): UserData | GhostUser | null => {
+        if (!crushName || !crushName.trim()) return null;
+
+        const normalizedCrush = normalizeName(crushName);
+
+        // First try exact match on verifiedName
+        let match = users.find(user =>
+            user.verifiedName &&
+            normalizeName(user.verifiedName) === normalizedCrush
+        );
+
+        if (match) return match;
+
+        // Try exact match on displayName as fallback
+        match = users.find(user =>
+            user.displayName &&
+            normalizeName(user.displayName) === normalizedCrush
+        );
+
+        if (match) return match;
+
+        // Try partial match (first and last name only)
+        const crushParts = normalizedCrush.split(' ');
+        if (crushParts.length >= 2) {
+            const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
+
+            // Try partial match with verifiedName
+            match = users.find(user => {
+                if (user.verifiedName) {
+                    const nameParts = normalizeName(user.verifiedName).split(' ');
+                    if (nameParts.length >= 2) {
+                        const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                        return nameFirstLast === crushFirstLast;
+                    }
+                }
+                return false;
+            });
+
+            if (match) return match;
+
+            // Try partial match with displayName
+            match = users.find(user => {
+                if (user.displayName) {
+                    const nameParts = normalizeName(user.displayName).split(' ');
+                    if (nameParts.length >= 2) {
+                        const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                        return nameFirstLast === crushFirstLast;
+                    }
+                }
+                return false;
+            });
+        }
+
+        return match || null;
+    }, [normalizeName]);
 
     const findCrushersForUser = useCallback((targetUser: UserData | GhostUser): CrusherInfo[] => {
         const crushers: CrusherInfo[] = [];
@@ -83,6 +160,161 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
         return crushers;
     }, [allUsers]);
+
+    const calculateAnalytics = useCallback((): AnalyticsData => {
+        const realUsers = allUsers.filter(u => !(u as GhostUser).isGhost) as UserData[];
+
+        // Basic stats
+        const totalUsers = realUsers.length;
+        const totalTakenNames = realUsers.filter(u => u.verifiedName && u.verifiedName.trim()).length;
+
+        // Calculate matches
+        const seenPairs = new Set<string>();
+        realUsers.forEach(user => {
+            const matches = user.matches || [];
+            if (Array.isArray(matches) && matches.length > 0) {
+                matches.forEach(match => {
+                    const matchName = match.name || match;
+                    const pair = [user.verifiedName || user.displayName, matchName].sort().join(' ↔ ');
+                    seenPairs.add(pair);
+                });
+            }
+        });
+
+        const totalMatches = seenPairs.size;
+        const matchedPairs = Array.from(seenPairs).sort();
+
+        // Calculate crush statistics
+        const crushCounts = new Map<string, number>();
+        const crushersMap = new Map<string, string[]>();
+        let totalCrushes = 0;
+
+        realUsers.forEach(user => {
+            const userCrushes = user.crushes || [];
+            totalCrushes += userCrushes.length;
+
+            userCrushes.forEach(crushName => {
+                const targetUser = findUserByName(crushName, allUsers);
+
+                if (targetUser) {
+                    const actualName = targetUser.verifiedName || targetUser.displayName;
+                    if (actualName) {
+                        crushCounts.set(actualName, (crushCounts.get(actualName) || 0) + 1);
+                        if (!crushersMap.has(actualName)) {
+                            crushersMap.set(actualName, []);
+                        }
+                        crushersMap.get(actualName)!.push(user.verifiedName || user.displayName);
+                    }
+                } else {
+                    crushCounts.set(crushName, (crushCounts.get(crushName) || 0) + 1);
+                    if (!crushersMap.has(crushName)) {
+                        crushersMap.set(crushName, []);
+                    }
+                    crushersMap.get(crushName)!.push(user.verifiedName || user.displayName);
+                }
+            });
+        });
+
+        const peopleWithCrushes = Array.from(crushCounts.keys()).filter(name => crushCounts.get(name)! > 0).length;
+        const avgCrushes = totalUsers > 0 ? totalCrushes / totalUsers : 0;
+
+        // User activity stats
+        const usersWithCrushes = realUsers.filter(user => user.crushes.length > 0).length;
+        const usersWithMatches = realUsers.filter(user => user.matches.length > 0).length;
+
+        // Participation rates
+        const participationRate = totalUsers > 0 ? (usersWithCrushes / totalUsers * 100) : 0;
+        const classParticipationRate = GSB_CLASS_NAMES.length > 0 ? (usersWithCrushes / GSB_CLASS_NAMES.length * 100) : 0;
+
+        // Find orphaned crushes
+        const orphanedCrushes: string[] = [];
+        const allCrushNames = new Set<string>();
+
+        realUsers.forEach(user => {
+            const userCrushes = user.crushes || [];
+            userCrushes.forEach(crushName => {
+                allCrushNames.add(crushName);
+            });
+        });
+
+        allCrushNames.forEach(crushName => {
+            const matchedUser = findUserByName(crushName, allUsers);
+            if (!matchedUser) {
+                orphanedCrushes.push(crushName);
+            }
+        });
+
+        // Top crush receivers
+        const topCrushReceivers = Array.from(crushCounts.entries())
+            .map(([name, count]) => ({
+                name,
+                count,
+                crushers: crushersMap.get(name) || []
+            }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 20);
+
+        // Top crush senders
+        const topCrushSenders = realUsers
+            .map(user => ({
+                name: user.verifiedName || user.displayName,
+                count: user.crushes.length,
+                crushNames: user.crushes
+            }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 20);
+
+        // Inactive receivers (people with crushes who haven't submitted)
+        const inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }> = [];
+
+        realUsers.forEach(user => {
+            if (user.crushCount > 0) {
+                const hasVerifiedName = !!(user.verifiedName && user.verifiedName.trim());
+                const hasSubmittedCrushes = !!(user.crushes && user.crushes.length > 0);
+
+                if (!hasVerifiedName || !hasSubmittedCrushes) {
+                    const crushers = findCrushersForUser(user);
+
+                    let reason = '';
+                    if (!hasVerifiedName && !hasSubmittedCrushes) {
+                        reason = 'No verified name and no crushes submitted';
+                    } else if (!hasVerifiedName) {
+                        reason = 'No verified name';
+                    } else if (!hasSubmittedCrushes) {
+                        reason = 'No crushes submitted';
+                    }
+
+                    inactiveReceivers.push({
+                        name: user.verifiedName || user.displayName,
+                        email: user.email,
+                        crushCount: user.crushCount,
+                        reason,
+                        crushers
+                    });
+                }
+            }
+        });
+
+        inactiveReceivers.sort((a, b) => b.crushCount - a.crushCount);
+
+        return {
+            totalUsers,
+            totalTakenNames,
+            totalMatches,
+            matchedPairs,
+            totalCrushes,
+            peopleWithCrushes,
+            avgCrushes: Number(avgCrushes.toFixed(2)),
+            usersWithCrushes,
+            usersWithMatches,
+            participationRate: Number(participationRate.toFixed(2)),
+            classParticipationRate: Number(classParticipationRate.toFixed(2)),
+            orphanedCrushes,
+            topCrushReceivers,
+            topCrushSenders,
+            inactiveReceivers
+        };
+    }, [allUsers, findUserByName, findCrushersForUser]);
 
     const loadAllUsers = useCallback(async () => {
         setLoadingUsers(true);
@@ -172,11 +404,17 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         }
     }, [normalizeName]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (user) {
             loadAllUsers();
         }
     }, [user, loadAllUsers]);
+
+    useEffect(() => {
+        if (allUsers.length > 0) {
+            setAnalytics(calculateAnalytics());
+        }
+    }, [allUsers, calculateAnalytics]);
 
     const filteredUsers = useMemo(() => {
         let users = allUsers;
@@ -231,62 +469,93 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         setViewingUserId(viewingUserId === userId ? null : userId);
     };
 
-    return (
-        <div className="admin-section">
-            <h3>Admin View - User Data</h3>
+    const renderAnalytics = () => (
+        <div className="admin-overview">
+            <div className="admin-quick-insights">
+                <div className="admin-insight-card">
+                    <h4>Platform Activity</h4>
+                    <p>{analytics?.usersWithCrushes || 0} users have sent crushes</p>
+                    <p>{analytics?.usersWithMatches || 0} users have matches</p>
+                    <p>{analytics?.avgCrushes || 0} average crushes sent per user</p>
+                </div>
 
-            <div className="admin-definitions">
-                <div className="admin-definition-grid">
-                    <div className="admin-definition-card active-definition">
-                        <div className="admin-definition-header">
-                            <h4>Active Users</h4>
-                        </div>
-                        <p>Those who have created accounts and verified their names. They can send crushes and receive matches.</p>
-                    </div>
-
-                    <div className="admin-definition-card ghost-definition">
-                        <div className="admin-definition-header">
-                            <br></br>
-                            <h4>Ghost Users</h4>
-                        </div>
-                        <p>Those who haven't signed up yet but are receiving crushes from active users.</p>
-                    </div>
-
-                    <div className="admin-definition-card inactive-definition">
-                        <div className="admin-definition-header">
-                            <br></br>
-                            <h4>Inactive Users</h4>
-                        </div>
-                        <p>Those who haven't signed up and are not receiving any crushes.</p>
-                        <br></br>
-                    </div>
+                <div className="admin-insight-card">
+                    <h4>Top Crush Receivers</h4>
+                    {analytics?.topCrushReceivers.slice(0, 3).map(receiver => (
+                        <p key={receiver.name}>{receiver.name}: {receiver.count} crushes</p>
+                    ))}
                 </div>
             </div>
 
-            <div className="admin-stats-summary">
-                <div className="admin-stat-item">
-                    <span className="admin-stat-number">{userStats.realUsers}</span>
-                    <span className="admin-stat-label">Active Users</span>
+            <div className="admin-analytics">
+                <div className="admin-analytics-section">
+                    <h4>All Matches ({analytics?.totalMatches || 0})</h4>
+                    {analytics?.matchedPairs.length ? (
+                        <div className="admin-matches-list">
+                            {analytics.matchedPairs.map((pair, index) => (
+                                <div key={index} className="admin-match-item">
+                                    {index + 1}. {pair}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p>No matches found yet.</p>
+                    )}
                 </div>
-                <div className="admin-stat-item">
-                    <span className="admin-stat-number">{userStats.ghostsWithCrushes}</span>
-                    <span className="admin-stat-label">Ghost Users</span>
+
+                <div className="admin-analytics-section">
+                    <h4>Top Crush Receivers</h4>
+                    <div className="admin-list">
+                        {analytics?.topCrushReceivers.map((receiver, index) => (
+                            <div key={receiver.name} className="admin-list-item">
+                                <span>{index + 1}. {receiver.name}</span>
+                                <span>{receiver.count} crushes</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div className="admin-stat-item">
-                    <span className="admin-stat-number">{userStats.ghostsWithoutCrushes}</span>
-                    <span className="admin-stat-label">Inactive Users</span>
+
+                <div className="admin-analytics-section">
+                    <h4>Top Crush Senders</h4>
+                    <div className="admin-list">
+                        {analytics?.topCrushSenders.map((sender, index) => (
+                            <div key={sender.name} className="admin-list-item">
+                                <span>{index + 1}. {sender.name}</span>
+                                <span>{sender.count} crushes sent</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div className="admin-stat-item">
-                    <span className="admin-stat-number">{GSB_CLASS_NAMES.length}</span>
-                    <span className="admin-stat-label">Total Class</span>
+
+                <div className="admin-analytics-section">
+                    <h4>Inactive Receivers ({analytics?.inactiveReceivers.length || 0})</h4>
+                    <div className="admin-list">
+                        {analytics?.inactiveReceivers.map((inactive, index) => (
+                            <div key={inactive.email} className="admin-inactive-item">
+                                <div className="admin-inactive-header">
+                                    <span>{index + 1}. {inactive.name}</span>
+                                    <span>{inactive.crushCount} crushes</span>
+                                </div>
+                                <div className="admin-inactive-details">
+                                    <p>Email: {inactive.email}</p>
+                                    <p>Reason: {inactive.reason}</p>
+                                    <p>Crushers: {inactive.crushers.map(c => c.name).join(', ')}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
+        </div>
+    );
 
+    const renderUsers = () => (
+        <div className="admin-users">
             <div className="admin-controls">
                 <div className="admin-search-section">
                     <input
                         type="text"
-                        placeholder="Search users by name or email..."
+                        placeholder="Search users..."
                         value={adminSearchTerm}
                         onChange={handleAdminSearchChange}
                         className="admin-search-input"
@@ -446,6 +715,42 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                     )}
                 </div>
             )}
+        </div>
+    );
+
+    return (
+        <div className="admin-section">
+            <h3>Admin Dashboard</h3>
+
+            <div className="admin-definitions">
+                <p><strong>Active Users:</strong> Students who have signed up, verified their Stanford email, and selected their name from the class roster. They can send crushes and receive matches.</p>
+
+                <p><strong>Ghost Users:</strong> Students from the class roster who haven't signed up yet but are receiving crushes from active users. They appear as "taken" names but can't send crushes or see matches until they sign up.</p>
+
+                <p><strong>Inactive Users:</strong> Students from the class roster who haven't signed up and are not receiving any crushes. They don't appear in the system except in the complete class count.</p>
+
+                <p><strong>Inactive Receivers:</strong> Active users who are receiving crushes but haven't engaged properly - either they haven't verified their name or haven't sent any crushes themselves. These users need follow-up.</p>
+            </div>
+
+            <div className="admin-nav">
+                <button
+                    onClick={() => setViewMode('analytics')}
+                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
+                >
+                    Analytics
+                </button>
+                <button
+                    onClick={() => setViewMode('users')}
+                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
+                >
+                    Users ({userStats.total})
+                </button>
+            </div>
+
+            <div className="admin-content">
+                {viewMode === 'analytics' && renderAnalytics()}
+                {viewMode === 'users' && renderUsers()}
+            </div>
         </div>
     );
 };
