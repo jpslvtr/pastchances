@@ -478,13 +478,6 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                     <p>{analytics?.usersWithMatches || 0} users have matches</p>
                     <p>{analytics?.avgCrushes || 0} average crushes sent per user</p>
                 </div>
-
-                <div className="admin-insight-card">
-                    <h4>Top Crush Receivers</h4>
-                    {analytics?.topCrushReceivers.slice(0, 3).map(receiver => (
-                        <p key={receiver.name}>{receiver.name}: {receiver.count} crushes</p>
-                    ))}
-                </div>
             </div>
 
             <div className="admin-analytics">
