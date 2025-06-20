@@ -22,8 +22,7 @@ export const scheduledAnalytics = functions.pubsub
             const analyticsRef = db.collection('analytics').doc();
             await analyticsRef.set({
                 ...analyticsData,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                timestamp: new Date().toISOString()
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
             console.log('✅ Analytics data saved to Firestore');
@@ -43,6 +42,11 @@ async function generateAnalyticsData(usersSnapshot: any, takenNamesSnapshot: any
     // 2. Process users data
     const allUsers: any[] = [];
     const seenPairs = new Set<string>();
+    let totalCrushesSent = 0;
+    let activeUsersCount = 0;
+
+    // Calculate 24 hours ago timestamp
+    const twentyFourHoursAgo = new Date(Date.now() - (24 * 60 * 60 * 1000));
 
     usersSnapshot.forEach((doc: any) => {
         const userData = doc.data();
@@ -56,6 +60,28 @@ async function generateAnalyticsData(usersSnapshot: any, takenNamesSnapshot: any
         };
 
         allUsers.push(userInfo);
+
+        // Count crushes sent (actual crushes array length, not crushCount which is crushes received)
+        const userCrushes = userData.crushes || [];
+        totalCrushesSent += userCrushes.length;
+
+        // Check if user was active in last 24 hours
+        if (userData.lastLogin) {
+            let lastLoginDate;
+
+            // Handle both Firestore Timestamp and regular Date
+            if (userData.lastLogin.toDate) {
+                lastLoginDate = userData.lastLogin.toDate();
+            } else if (userData.lastLogin.seconds) {
+                lastLoginDate = new Date(userData.lastLogin.seconds * 1000);
+            } else {
+                lastLoginDate = new Date(userData.lastLogin);
+            }
+
+            if (lastLoginDate > twentyFourHoursAgo) {
+                activeUsersCount++;
+            }
+        }
 
         // Count unique matches
         const matches = userData.matches || [];
@@ -72,13 +98,11 @@ async function generateAnalyticsData(usersSnapshot: any, takenNamesSnapshot: any
     const totalMatches = seenPairs.size;
     const matchedPairs = Array.from(seenPairs).sort();
 
-    const totalCrushes = allUsers.reduce((sum, user) => sum + user.crushCount, 0);
     const peopleWithCrushes = allUsers.filter(user => user.crushCount > 0).length;
-    const avgCrushes = totalUsers > 0 ? totalCrushes / totalUsers : 0;
+    const avgCrushes = totalUsers > 0 ? totalCrushesSent / totalUsers : 0;
 
-    // 4. User activity stats
-    const usersWithCrushes = allUsers.filter(user => user.crushes.length > 0).length;
-    const usersWithMatches = allUsers.filter(user => user.matches.length > 0).length;
+    // Calculate active user percentage
+    const activeUsersLast24h = totalUsers > 0 ? Number((activeUsersCount / totalUsers * 100).toFixed(2)) : 0;
 
     return {
         // Basic stats
@@ -90,16 +114,12 @@ async function generateAnalyticsData(usersSnapshot: any, takenNamesSnapshot: any
         matchedPairs,
 
         // Crush stats
-        totalCrushes,
+        totalCrushes: totalCrushesSent,
         peopleWithCrushes,
         avgCrushes: Number(avgCrushes.toFixed(2)),
 
-        // User activity
-        usersWithCrushes,
-        usersWithMatches,
-
-        // Activity rates
-        participationRate: Number((usersWithCrushes / totalUsers * 100).toFixed(2))
+        // Activity stats
+        activeUsersLast24h // Now a percentage (0-100)
     };
 }
 
@@ -117,7 +137,6 @@ export const runAnalyticsNow = functions.https.onRequest(async (req, res) => {
         await analyticsRef.set({
             ...analyticsData,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            timestamp: new Date().toISOString(),
             manual: true
         });
 
