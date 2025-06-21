@@ -16,6 +16,74 @@ interface UserDashboardProps {
     handleUpdatePreferences: () => void;
 }
 
+// Enhanced name matching function
+const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
+    if (!searchTerm.trim()) return { matches: true, score: 0 };
+
+    const normalizeText = (text: string) => text.toLowerCase().trim().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ');
+
+    const normalizedName = normalizeText(fullName);
+    const normalizedSearch = normalizeText(searchTerm);
+
+    // Simple substring match (highest priority)
+    if (normalizedName.includes(normalizedSearch)) {
+        return { matches: true, score: 100 };
+    }
+
+    const nameParts = normalizedName.split(' ').filter(Boolean);
+    const searchParts = normalizedSearch.split(' ').filter(Boolean);
+
+    // Check if all search parts match the beginning of name parts
+    if (searchParts.every(searchPart =>
+        nameParts.some(namePart => namePart.startsWith(searchPart))
+    )) {
+        return { matches: true, score: 90 };
+    }
+
+    // Check if search parts match name parts in order (allows for middle names)
+    let nameIndex = 0;
+    let matchedParts = 0;
+
+    for (const searchPart of searchParts) {
+        let found = false;
+        for (let i = nameIndex; i < nameParts.length; i++) {
+            if (nameParts[i].startsWith(searchPart)) {
+                matchedParts++;
+                nameIndex = i + 1;
+                found = true;
+                break;
+            }
+        }
+        if (!found) break;
+    }
+
+    if (matchedParts === searchParts.length) {
+        return { matches: true, score: 80 };
+    }
+
+    // Fuzzy matching - check if most characters match
+    const searchChars = normalizedSearch.replace(/\s/g, '');
+    const nameChars = normalizedName.replace(/\s/g, '');
+
+    let matchCount = 0;
+    let searchIndex = 0;
+
+    for (let i = 0; i < nameChars.length && searchIndex < searchChars.length; i++) {
+        if (nameChars[i] === searchChars[searchIndex]) {
+            matchCount++;
+            searchIndex++;
+        }
+    }
+
+    const fuzzyScore = (matchCount / searchChars.length) * 100;
+
+    if (fuzzyScore >= 70) {
+        return { matches: true, score: fuzzyScore };
+    }
+
+    return { matches: false, score: 0 };
+};
+
 const UserDashboard: React.FC<UserDashboardProps> = ({
     userData,
     searchTerm,
@@ -28,6 +96,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     handleRemoveSelected,
     handleUpdatePreferences
 }) => {
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = React.useState('');
+    const [virtualStart, setVirtualStart] = React.useState(0);
+    const searchInputRef = React.useRef<HTMLInputElement>(null);
+
     const hasMatches = userData?.matches && userData.matches.length > 0;
     const crushCount = userData?.crushCount || 0;
     const lockedCrushes = userData?.lockedCrushes || [];
@@ -37,6 +109,22 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
     const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
+    // Debounce search term for better performance
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+            setVirtualStart(0); // Reset virtual scroll when search changes
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    // Handle search input change
+    const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+    }, [setSearchTerm]);
+
+    // Enhanced filtering with fuzzy name matching and memoization
     const filteredAvailableNames = React.useMemo(() => {
         const excludedNames = [...selectedNames];
 
@@ -46,12 +134,77 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 
         const availableNames = classNames.filter(name => !excludedNames.includes(name));
 
-        if (!searchTerm) return availableNames;
+        if (!debouncedSearchTerm.trim()) return availableNames;
 
-        return availableNames.filter(name =>
-            name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [selectedNames, searchTerm, userData?.name, classNames]);
+        // Apply fuzzy matching and sort by relevance score
+        const matchedNames = availableNames
+            .map(name => {
+                const result = matchesSearchTerm(name, debouncedSearchTerm);
+                return { name, ...result };
+            })
+            .filter(item => item.matches)
+            .sort((a, b) => b.score - a.score)
+            .map(item => item.name);
+
+        return matchedNames;
+    }, [selectedNames, debouncedSearchTerm, userData?.name, classNames]);
+
+    // Virtual scrolling constants
+    const ITEM_HEIGHT = 48;
+    const VISIBLE_ITEMS = Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
+    const BUFFER_SIZE = 5;
+
+    // Calculate visible range for virtual scrolling
+    const startIndex = Math.max(0, virtualStart - BUFFER_SIZE);
+    const endIndex = Math.min(filteredAvailableNames.length, virtualStart + VISIBLE_ITEMS + BUFFER_SIZE);
+    const visibleNames = filteredAvailableNames.slice(startIndex, endIndex);
+
+    // Handle scroll for virtual scrolling
+    const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const scrollTop = e.currentTarget.scrollTop;
+        const newStart = Math.floor(scrollTop / ITEM_HEIGHT);
+
+        if (Math.abs(newStart - virtualStart) > 2) {
+            setVirtualStart(newStart);
+        }
+    }, [virtualStart]);
+
+    // Clear search function
+    const clearSearch = React.useCallback(() => {
+        setSearchTerm('');
+        setDebouncedSearchTerm('');
+        setVirtualStart(0);
+        if (searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [setSearchTerm]);
+
+    // Highlight matching parts of names for better UX
+    const highlightMatch = React.useCallback((name: string, searchTerm: string) => {
+        if (!searchTerm.trim()) return name;
+
+        const normalizeText = (text: string) => text.toLowerCase().trim();
+        const normalizedName = normalizeText(name);
+        const normalizedSearch = normalizeText(searchTerm);
+
+        // Simple highlighting for exact substring matches
+        const index = normalizedName.indexOf(normalizedSearch);
+        if (index !== -1) {
+            const before = name.substring(0, index);
+            const match = name.substring(index, index + searchTerm.length);
+            const after = name.substring(index + searchTerm.length);
+
+            return (
+                <>
+                    {before}
+                    <span className="search-highlight">{match}</span>
+                    {after}
+                </>
+            );
+        }
+
+        return name;
+    }, []);
 
     return (
         <>
@@ -123,34 +276,91 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             )}
 
             <div className="search-section">
-                <input
-                    type="text"
-                    placeholder="Search names..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="search-input"
-                />
+                <div className="search-input-container">
+                    <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder={`Search ${classDisplayName} classmates...`}
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        className="search-input"
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={clearSearch}
+                            className="search-clear-btn"
+                            type="button"
+                            aria-label="Clear search"
+                        >
+                            ×
+                        </button>
+                    )}
+                </div>
+                {debouncedSearchTerm && debouncedSearchTerm !== searchTerm && (
+                    <div className="search-loading">Searching...</div>
+                )}
+                {debouncedSearchTerm && filteredAvailableNames.length > 0 && (
+                    <div className="search-hint">
+                        💡 Results sorted by relevance. Try searching by first and last name for better results.
+                    </div>
+                )}
             </div>
 
             <div className="available-names">
                 <h3>
                     Classmates
-                    {searchTerm && ` (${filteredAvailableNames.length} found)`}
+                    {debouncedSearchTerm && ` (${filteredAvailableNames.length} found)`}
+                    {!debouncedSearchTerm && ` (${filteredAvailableNames.length} available)`}
                 </h3>
-                <div className="names-simple-list">
-                    {filteredAvailableNames.map(name => (
-                        <div
-                            key={name}
-                            onClick={() => !updating && handleNameToggle(name)}
-                            className={`name-list-item ${updating ? 'disabled' : ''}`}
-                        >
-                            <span className="name-text">{name}</span>
-                            <span className="add-btn">+</span>
-                        </div>
-                    ))}
+                <div
+                    className="names-simple-list"
+                    onScroll={handleScroll}
+                    style={{ height: `${VISIBLE_ITEMS * ITEM_HEIGHT}px` }}
+                >
+                    {/* Spacer for items before visible range */}
+                    {startIndex > 0 && (
+                        <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
+                    )}
+
+                    {visibleNames.map((name, index) => {
+                        const actualIndex = startIndex + index;
+                        return (
+                            <div
+                                key={`${name}-${actualIndex}`}
+                                onClick={() => !updating && handleNameToggle(name)}
+                                className={`name-list-item ${updating ? 'disabled' : ''}`}
+                                style={{
+                                    height: `${ITEM_HEIGHT}px`,
+                                    minHeight: `${ITEM_HEIGHT}px`
+                                }}
+                            >
+                                <span className="name-text">
+                                    {highlightMatch(name, debouncedSearchTerm)}
+                                </span>
+                                <span className="add-btn">+</span>
+                            </div>
+                        );
+                    })}
+
+                    {/* Spacer for items after visible range */}
+                    {endIndex < filteredAvailableNames.length && (
+                        <div style={{ height: `${(filteredAvailableNames.length - endIndex) * ITEM_HEIGHT}px` }} />
+                    )}
+
                     {filteredAvailableNames.length === 0 && (
                         <div className="no-results">
-                            {searchTerm ? 'No names found matching your search.' : 'All classmates have been selected!'}
+                            {debouncedSearchTerm ? (
+                                <>
+                                    No names found matching "{debouncedSearchTerm}".
+                                    <br />
+                                    <small>Try searching with just first and last name (e.g., "chloe walsh")</small>
+                                    <button onClick={clearSearch} className="clear-search-link">
+                                        Clear search
+                                    </button>
+                                </>
+                            ) : (
+                                'All classmates have been selected!'
+                            )}
                         </div>
                     )}
                 </div>
