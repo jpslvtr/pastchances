@@ -1289,3 +1289,62 @@
     transform: translateY(-50%) scale(0.9);
   }
 }
+
+/* Access Denied Styles */
+.admin-access-denied {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: 20px;
+}
+
+.access-denied-card {
+  background: white;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+  border-left: 4px solid #dc3545;
+}
+
+.access-denied-card h2 {
+  color: #dc3545;
+  margin: 0 0 15px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.access-denied-card p {
+  color: #666;
+  margin: 10px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.access-denied-card p:last-child {
+  margin-bottom: 0;
+  font-weight: 500;
+}
+
+/* Mobile responsiveness for access denied */
+@media (max-width: 768px) {
+  .admin-access-denied {
+    min-height: 50vh;
+    padding: 15px;
+  }
+  
+  .access-denied-card {
+    padding: 30px 20px;
+  }
+  
+  .access-denied-card h2 {
+    font-size: 20px;
+  }
+  
+  .access-denied-card p {
+    font-size: 13px;
+  }
+}
