@@ -1,7 +1,9 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
+import AdminAnalytics from './admin/AdminAnalytics';
+import AdminUsers from './admin/AdminUsers';
 
 interface MatchInfo {
     name: string;
@@ -73,7 +75,7 @@ interface AnalyticsData {
     topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
     topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
     inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }>;
-    activeUsersLast24h?: number;
+    activeUsersLast24h: number;
 }
 
 type UserFilter = 'all' | 'active' | 'ghost' | 'inactive';
@@ -91,7 +93,6 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     const [userFilter, setUserFilter] = useState<UserFilter>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('analytics');
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-    const [liveAnalytics, setLiveAnalytics] = useState<FirebaseAnalyticsData | null>(null);
 
     const normalizeName = useCallback((name: string): string => {
         if (!name || typeof name !== 'string') return '';
@@ -186,7 +187,6 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
             if (!snapshot.empty) {
                 const latestAnalytics = snapshot.docs[0].data() as FirebaseAnalyticsData;
-                setLiveAnalytics(latestAnalytics);
                 console.log('Live analytics updated:', latestAnalytics);
             }
         }, (error) => {
@@ -195,6 +195,38 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
         return () => unsubscribe();
     }, []);
+
+    // Helper function to calculate real-time 24h active users percentage
+    const calculateRealTime24hActiveUsers = useCallback((): number => {
+        const realUsers = allUsers.filter(u => !(u as GhostUser).isGhost) as UserData[];
+
+        if (realUsers.length === 0) return 0;
+
+        // Calculate 24 hours ago timestamp
+        const twentyFourHoursAgo = new Date(Date.now() - (24 * 60 * 60 * 1000));
+        let activeUsersCount = 0;
+
+        realUsers.forEach(user => {
+            if (user.lastLogin) {
+                let lastLoginDate;
+
+                // Handle both Firestore Timestamp and regular Date
+                if (user.lastLogin.toDate) {
+                    lastLoginDate = user.lastLogin.toDate();
+                } else if (user.lastLogin.seconds) {
+                    lastLoginDate = new Date(user.lastLogin.seconds * 1000);
+                } else {
+                    lastLoginDate = new Date(user.lastLogin);
+                }
+
+                if (lastLoginDate > twentyFourHoursAgo) {
+                    activeUsersCount++;
+                }
+            }
+        });
+
+        return Number((activeUsersCount / realUsers.length * 100).toFixed(2));
+    }, [allUsers]);
 
     const calculateAnalytics = useCallback((): AnalyticsData => {
         const realUsers = allUsers.filter(u => !(u as GhostUser).isGhost) as UserData[];
@@ -348,9 +380,9 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             topCrushReceivers,
             topCrushSenders,
             inactiveReceivers,
-            activeUsersLast24h: liveAnalytics?.activeUsersLast24h
+            activeUsersLast24h: calculateRealTime24hActiveUsers()
         };
-    }, [allUsers, findUserByName, findCrushersForUser, liveAnalytics]);
+    }, [allUsers, findUserByName, findCrushersForUser, calculateRealTime24hActiveUsers]);
 
     const loadAllUsers = useCallback(async () => {
         setLoadingUsers(true);
@@ -452,39 +484,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         }
     }, [allUsers, calculateAnalytics]);
 
-    const filteredUsers = useMemo(() => {
-        let users = allUsers;
-
-        switch (userFilter) {
-            case 'active':
-                users = users.filter(u => !(u as GhostUser).isGhost);
-                break;
-            case 'ghost':
-                users = users.filter(u => (u as GhostUser).isGhost && (u as GhostUser).ghostType === 'with-crushes');
-                break;
-            case 'inactive':
-                users = users.filter(u => (u as GhostUser).isGhost && (u as GhostUser).ghostType === 'no-crushes');
-                break;
-            case 'all':
-            default:
-                break;
-        }
-
-        if (!adminSearchTerm.trim()) return users;
-
-        const searchLower = adminSearchTerm.toLowerCase();
-        return users.filter(u => {
-            const verifiedName = (u.verifiedName || '').toLowerCase();
-            const displayName = (u.displayName || '').toLowerCase();
-            const email = (u.email || '').toLowerCase();
-
-            return verifiedName.includes(searchLower) ||
-                displayName.includes(searchLower) ||
-                email.includes(searchLower);
-        });
-    }, [allUsers, adminSearchTerm, userFilter]);
-
-    const userStats = useMemo(() => {
+    const userStats = () => {
         const realUsers = allUsers.filter(u => !(u as GhostUser).isGhost);
         const ghostsWithCrushes = allUsers.filter(u => (u as GhostUser).ghostType === 'with-crushes');
         const ghostsWithoutCrushes = allUsers.filter(u => (u as GhostUser).ghostType === 'no-crushes');
@@ -495,260 +495,11 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             ghostsWithoutCrushes: ghostsWithoutCrushes.length,
             total: allUsers.length
         };
-    }, [allUsers]);
-
-    const handleAdminSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setAdminSearchTerm(e.target.value);
     };
 
     const handleViewUser = (userId: string) => {
         setViewingUserId(viewingUserId === userId ? null : userId);
     };
-
-    const renderAnalytics = () => (
-        <div className="admin-overview">
-            <div className="admin-quick-insights">
-                <div className="admin-insight-card">
-                    <h4>Platform Activity</h4>
-                    <p>{analytics?.usersWithCrushes || 0} users have sent crushes</p>
-                    <p>{analytics?.usersWithMatches || 0} users have matches</p>
-                    <p>{analytics?.avgCrushes || 0} average crushes sent per user</p>
-                    {analytics?.activeUsersLast24h !== undefined && (
-                        <p>{analytics.activeUsersLast24h}% users active in last 24h</p>
-                    )}
-                </div>
-            </div>
-
-            <div className="admin-analytics">
-                <div className="admin-analytics-section">
-                    <h4>All Matches ({analytics?.totalMatches || 0})</h4>
-                    {analytics?.matchedPairs.length ? (
-                        <div className="admin-matches-list">
-                            {analytics.matchedPairs.map((pair, index) => (
-                                <div key={index} className="admin-match-item">
-                                    {index + 1}. {pair}
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p>No matches found yet.</p>
-                    )}
-                </div>
-
-                <div className="admin-analytics-section">
-                    <h4>Top Crush Receivers</h4>
-                    <div className="admin-list">
-                        {analytics?.topCrushReceivers.map((receiver, index) => (
-                            <div key={receiver.name} className="admin-list-item">
-                                <span>{index + 1}. {receiver.name}</span>
-                                <span>{receiver.count} crushes</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="admin-analytics-section">
-                    <h4>Top Crush Senders</h4>
-                    <div className="admin-list">
-                        {analytics?.topCrushSenders.map((sender, index) => (
-                            <div key={sender.name} className="admin-list-item">
-                                <span>{index + 1}. {sender.name}</span>
-                                <span>{sender.count} crushes sent</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="admin-analytics-section">
-                    <h4>Inactive Receivers ({analytics?.inactiveReceivers.length || 0})</h4>
-                    <div className="admin-list">
-                        {analytics?.inactiveReceivers.map((inactive, index) => (
-                            <div key={inactive.email} className="admin-inactive-item">
-                                <div className="admin-inactive-header">
-                                    <span>{index + 1}. {inactive.name}</span>
-                                    <span>{inactive.crushCount} crushes</span>
-                                </div>
-                                <div className="admin-inactive-details">
-                                    <p>Email: {inactive.email}</p>
-                                    <p>Reason: {inactive.reason}</p>
-                                    <p>Crushers: {inactive.crushers.map(c => c.name).join(', ')}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    const renderUsers = () => (
-        <div className="admin-users">
-            <div className="admin-controls">
-                <div className="admin-search-section">
-                    <input
-                        type="text"
-                        placeholder="Search users..."
-                        value={adminSearchTerm}
-                        onChange={handleAdminSearchChange}
-                        className="admin-search-input"
-                    />
-                </div>
-                <div className="admin-filter-section">
-                    <select
-                        value={userFilter}
-                        onChange={(e) => setUserFilter(e.target.value as UserFilter)}
-                        className="admin-filter-dropdown"
-                    >
-                        <option value="all">All Users ({userStats.total})</option>
-                        <option value="active">Active Users ({userStats.realUsers})</option>
-                        <option value="ghost">Ghost Users ({userStats.ghostsWithCrushes})</option>
-                        <option value="inactive">Inactive Users ({userStats.ghostsWithoutCrushes})</option>
-                    </select>
-                </div>
-            </div>
-
-            {loadingUsers ? (
-                <div className="loading">Loading users...</div>
-            ) : (
-                <div className="admin-users-container">
-                    {filteredUsers.map(u => {
-                        const isViewing = viewingUserId === u.uid;
-                        const actualCrushCount = u.crushCount || 0;
-                        const crushers = findCrushersForUser(u);
-                        const isGhost = (u as GhostUser).isGhost || false;
-                        const ghostType = (u as GhostUser).ghostType;
-
-                        const displayName = u.verifiedName || u.displayName || u.email;
-                        const hasVerifiedName = !!(u.verifiedName && u.verifiedName.trim());
-
-                        return (
-                            <div key={u.uid} className={`admin-user-item ${isGhost ? `admin-user-ghost admin-user-ghost-${ghostType}` : ''}`}>
-                                <div className="admin-user-header">
-                                    <div className="admin-user-info">
-                                        <div className="admin-user-name">
-                                            {displayName}
-                                            {isGhost && ghostType === 'with-crushes' && (
-                                                <span style={{ color: '#dc3545', marginLeft: '8px', fontSize: '11px' }}>
-                                                    👻 Ghost User
-                                                </span>
-                                            )}
-                                            {isGhost && ghostType === 'no-crushes' && (
-                                                <span style={{ color: '#6c757d', marginLeft: '8px', fontSize: '11px' }}>
-                                                    💤 Inactive User
-                                                </span>
-                                            )}
-                                            {!isGhost && !hasVerifiedName && (
-                                                <span style={{ color: '#dc3545', marginLeft: '8px', fontSize: '11px' }}>
-                                                    (Not verified)
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="admin-user-email">{u.email}</div>
-                                        <div className="admin-user-stats">
-                                            {actualCrushCount} crushing • {u.matches?.length || 0} matches • {u.crushes?.length || 0} selected
-                                            {!isGhost && actualCrushCount !== crushers.length && (
-                                                <span style={{ color: '#dc3545', marginLeft: '8px' }}>
-                                                    (calc: {crushers.length})
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => handleViewUser(u.uid)}
-                                        className="admin-view-btn"
-                                        disabled={isGhost && ghostType === 'no-crushes'}
-                                    >
-                                        {isGhost && ghostType === 'no-crushes' ? 'No Data' : (isViewing ? 'Collapse' : 'View')}
-                                    </button>
-                                </div>
-
-                                {isViewing && !(isGhost && ghostType === 'no-crushes') && (
-                                    <div className="admin-user-expanded">
-                                        <div className="admin-view-header">
-                                            <h4>Data for {displayName}:</h4>
-                                        </div>
-
-                                        <div className="admin-data-grid">
-                                            <div className="admin-data-card">
-                                                <div className="admin-data-number">{actualCrushCount}</div>
-                                                <div className="admin-data-label">People Crushing On Them</div>
-                                                {crushers.length > 0 && (
-                                                    <div className="admin-data-names">
-                                                        {crushers.map((crusher, idx) => (
-                                                            <div key={idx} className="admin-name-item">
-                                                                {crusher.name}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {!isGhost && actualCrushCount !== crushers.length && (
-                                                    <div className="admin-discrepancy">
-                                                        ⚠️ DB shows {actualCrushCount}, calc shows {crushers.length}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="admin-data-card">
-                                                <div className="admin-data-number">{u.matches?.length || 0}</div>
-                                                <div className="admin-data-label">Matches</div>
-                                                {u.matches && u.matches.length > 0 && (
-                                                    <div className="admin-data-names">
-                                                        {u.matches.map((match, idx) => (
-                                                            <div key={idx} className="admin-name-item">
-                                                                {match.name}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {isGhost && (
-                                                    <div className="admin-no-activity">
-                                                        Ghost users cannot have matches yet
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="admin-data-card">
-                                                <div className="admin-data-number">{u.crushes?.length || 0}</div>
-                                                <div className="admin-data-label">Crushes Sent</div>
-                                                {u.crushes && u.crushes.length > 0 && (
-                                                    <div className="admin-data-names">
-                                                        {u.crushes.map((crush, idx) => {
-                                                            const isLocked = u.lockedCrushes?.includes(crush);
-                                                            return (
-                                                                <div key={idx} className={`admin-name-item ${isLocked ? 'locked' : ''}`}>
-                                                                    {crush} {isLocked && '🔒'}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                                {isGhost && (
-                                                    <div className="admin-no-activity">
-                                                        Ghost users haven't signed up yet
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {!isGhost && (actualCrushCount === 0 && (!u.matches || u.matches.length === 0) && (!u.crushes || u.crushes.length === 0)) && (
-                                            <div className="admin-no-activity">
-                                                No activity
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                    {filteredUsers.length === 0 && (
-                        <div className="no-results">
-                            {adminSearchTerm ? 'No users found.' : 'No users available.'}
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
 
     return (
         <div className="admin-section">
@@ -775,13 +526,27 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                     onClick={() => setViewMode('users')}
                     className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
                 >
-                    Users ({userStats.total})
+                    Users ({userStats().total})
                 </button>
             </div>
 
             <div className="admin-content">
-                {viewMode === 'analytics' && renderAnalytics()}
-                {viewMode === 'users' && renderUsers()}
+                {viewMode === 'analytics' && (
+                    <AdminAnalytics analytics={analytics} />
+                )}
+                {viewMode === 'users' && (
+                    <AdminUsers
+                        allUsers={allUsers}
+                        loadingUsers={loadingUsers}
+                        adminSearchTerm={adminSearchTerm}
+                        setAdminSearchTerm={setAdminSearchTerm}
+                        userFilter={userFilter}
+                        setUserFilter={setUserFilter}
+                        viewingUserId={viewingUserId}
+                        handleViewUser={handleViewUser}
+                        findCrushersForUser={findCrushersForUser}
+                    />
+                )}
             </div>
         </div>
     );
