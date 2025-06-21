@@ -174,7 +174,7 @@ const Home: React.FC = () => {
         <div className="dashboard-container">
             <div className="dashboard-card">
                 <div className="dashboard-header">
-                    <h1>Stanford Last Chances</h1>
+                    <h1>Past Chances</h1>
                     <div className="user-info">
                         <div className="user-details">
                             <img

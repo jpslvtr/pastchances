@@ -22,7 +22,7 @@ const db = admin.firestore();
 async function displayAllMatches() {
     try {
         console.log('='.repeat(80));
-        console.log('STANFORD LAST CHANCES - ALL MATCHES');
+        console.log('Past Chances - ALL MATCHES');
         console.log('='.repeat(80));
 
         // Get all users
