@@ -1116,3 +1116,176 @@
  .admin-filter-dropdown:focus {
   box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.2);
  }
+
+ /* Admin search highlighting */
+.admin-search-highlight {
+  background: #fff3cd;
+  color: #856404;
+  font-weight: 600;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+
+/* Admin search input container */
+.admin-search-input-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.admin-search-clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.admin-search-clear-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.admin-search-loading {
+  text-align: center;
+  padding: 6px;
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+}
+
+.admin-search-hint {
+  text-align: center;
+  padding: 6px 12px;
+  font-size: 10px;
+  color: #666;
+  background: #f8f9fa;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  border-left: 3px solid #8C1515;
+}
+
+.admin-clear-search-link {
+  background: none;
+  border: none;
+  color: #8C1515;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 8px;
+  padding: 0;
+  margin-top: 8px;
+  display: inline-block;
+}
+
+.admin-clear-search-link:hover {
+  color: #a01a1a;
+}
+
+/* Enhanced admin search input */
+.admin-search-input {
+  width: 100%;
+  padding: 12px 40px 12px 15px; /* Extra right padding for clear button */
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.admin-search-input:focus {
+  outline: none;
+  border-color: #8C1515;
+}
+
+/* Enhanced no results for admin */
+.admin-users .no-results {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.admin-users .no-results small {
+  display: block;
+  margin: 8px 0;
+  color: #888;
+  font-size: 12px;
+}
+
+/* Enhanced Mobile responsiveness for admin search */
+@media (max-width: 768px) {
+  .admin-search-input-container {
+    margin-bottom: 10px;
+  }
+  
+  .admin-search-clear-btn {
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    font-size: 20px;
+  }
+  
+  .admin-search-hint {
+    font-size: 9px;
+    padding: 5px 8px;
+  }
+  
+  .admin-search-loading {
+    font-size: 10px;
+    padding: 5px;
+  }
+  
+  .admin-search-input {
+    padding: 10px 35px 10px 12px;
+    font-size: 13px;
+  }
+  
+  .admin-users .no-results {
+    padding: 15px;
+    font-size: 13px;
+  }
+  
+  .admin-users .no-results small {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-search-clear-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 22px;
+  }
+  
+  .admin-search-hint {
+    font-size: 8px;
+    padding: 4px 6px;
+  }
+  
+  .admin-search-input {
+    padding: 8px 38px 8px 10px;
+    font-size: 12px;
+  }
+}
+
+/* Performance optimizations for admin search */
+@media (hover: none) and (pointer: coarse) {
+  .admin-search-clear-btn:active {
+    transform: translateY(-50%) scale(0.9);
+  }
+}
