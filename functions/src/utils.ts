@@ -15,13 +15,19 @@ export function normalizeName(name: string): string {
 }
 
 // Enhanced function to find the best matching user for a crush name
-export function findUserByName(crushName: string, allUsers: UserWithId[]): UserWithId | null {
+// Only matches users within the same class
+export function findUserByName(crushName: string, allUsers: UserWithId[], userClass?: string): UserWithId | null {
     if (!crushName || !crushName.trim()) return null;
 
     const normalizedCrush = normalizeName(crushName);
 
+    // Filter users by class if specified
+    const filteredUsers = userClass
+        ? allUsers.filter(user => (user.userClass || 'gsb') === userClass)
+        : allUsers;
+
     // First try exact match on name field
-    let match = allUsers.find(user =>
+    let match = filteredUsers.find(user =>
         user.name &&
         normalizeName(user.name) === normalizedCrush
     );
@@ -29,7 +35,7 @@ export function findUserByName(crushName: string, allUsers: UserWithId[]): UserW
     if (match) return match;
 
     // Try exact match on legacy verifiedName field (for migration)
-    match = allUsers.find(user =>
+    match = filteredUsers.find(user =>
         user.verifiedName &&
         normalizeName(user.verifiedName) === normalizedCrush
     );
@@ -37,7 +43,7 @@ export function findUserByName(crushName: string, allUsers: UserWithId[]): UserW
     if (match) return match;
 
     // Try exact match on legacy displayName field (for migration)
-    match = allUsers.find(user =>
+    match = filteredUsers.find(user =>
         user.displayName &&
         normalizeName(user.displayName) === normalizedCrush
     );
@@ -50,7 +56,7 @@ export function findUserByName(crushName: string, allUsers: UserWithId[]): UserW
         const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
 
         // Try partial match with name field
-        match = allUsers.find(user => {
+        match = filteredUsers.find(user => {
             const userIdentityName = user.name || user.verifiedName || user.displayName;
             if (userIdentityName) {
                 const nameParts = normalizeName(userIdentityName).split(' ');

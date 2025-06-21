@@ -5,6 +5,16 @@ import { useAuth } from '../contexts/AuthContext';
 import AdminView from './AdminView';
 import UserDashboard from './UserDashboard';
 
+// Helper function to get the correct document ID for user class
+function getUserDocumentId(user: any, userData: any): string {
+    if (user?.email === 'jpark22@stanford.edu') {
+        // For test user, use class-specific UIDs
+        const userClass = userData?.userClass || 'gsb';
+        return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
+    }
+    return user?.uid || '';
+}
+
 const Home: React.FC = () => {
     const { user, userData, logout, refreshUserData } = useAuth();
     const [imageError, setImageError] = useState(false);
@@ -19,10 +29,11 @@ const Home: React.FC = () => {
     const isAdmin = user?.email === 'jpark22@stanford.edu';
 
     const loadUserSelections = useCallback(async () => {
-        if (!user) return;
+        if (!user || !userData) return;
 
         try {
-            const userRef = doc(db, 'users', user.uid);
+            const actualUid = getUserDocumentId(user, userData);
+            const userRef = doc(db, 'users', actualUid);
             const userDoc = await getDoc(userRef);
 
             if (userDoc.exists()) {
@@ -36,13 +47,13 @@ const Home: React.FC = () => {
             console.error('Error loading user selections:', error);
             setError('Failed to load your previous selections.');
         }
-    }, [user]);
+    }, [user, userData]);
 
     useEffect(() => {
         const loadData = async () => {
             try {
                 setError(null);
-                if (user) {
+                if (user && userData) {
                     await loadUserSelections();
                 }
             } catch (error) {
@@ -54,7 +65,7 @@ const Home: React.FC = () => {
         };
 
         loadData();
-    }, [user, loadUserSelections]);
+    }, [user, userData, loadUserSelections]);
 
     const handleImageError = useCallback(() => {
         setImageError(true);
@@ -89,7 +100,7 @@ const Home: React.FC = () => {
     }, [updating, userData?.lockedCrushes]);
 
     const handleUpdatePreferences = useCallback(async () => {
-        if (!user || updating) return;
+        if (!user || !userData || updating) return;
 
         const lockedCrushes = userData?.lockedCrushes || [];
         const missingLockedCrushes = lockedCrushes.filter(locked => !selectedNames.includes(locked));
@@ -103,7 +114,8 @@ const Home: React.FC = () => {
         setError(null);
 
         try {
-            const userRef = doc(db, 'users', user.uid);
+            const actualUid = getUserDocumentId(user, userData);
+            const userRef = doc(db, 'users', actualUid);
             const finalCrushes = [...new Set([...selectedNames, ...lockedCrushes])];
 
             await updateDoc(userRef, {
@@ -143,7 +155,7 @@ const Home: React.FC = () => {
         } finally {
             setUpdating(false);
         }
-    }, [user, updating, selectedNames, userData?.lockedCrushes, refreshUserData]);
+    }, [user, userData, updating, selectedNames, refreshUserData]);
 
     if (loading) {
         return <div className="loading">Loading...</div>;

@@ -1,24 +1,7 @@
 import React from 'react';
 import { GSB_CLASS_NAMES } from '../data/names';
-
-interface MatchInfo {
-    name: string;
-    email: string;
-}
-
-interface UserData {
-    uid: string;
-    email: string;
-    name: string;  // Single name field
-    photoURL: string;
-    crushes: string[];
-    lockedCrushes: string[];
-    matches: MatchInfo[];
-    crushCount: number;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
-}
+import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
+import type { UserData } from '../types/userTypes';
 
 interface UserDashboardProps {
     userData: UserData;
@@ -50,6 +33,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const lockedCrushes = userData?.lockedCrushes || [];
     const hasUnsavedChanges = JSON.stringify(selectedNames.sort()) !== JSON.stringify(savedNames.sort());
 
+    // Get the appropriate class names based on user's class
+    const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+    const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
+
     const filteredAvailableNames = React.useMemo(() => {
         const excludedNames = [...selectedNames];
 
@@ -57,14 +44,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             excludedNames.push(userData.name);
         }
 
-        const availableNames = GSB_CLASS_NAMES.filter(name => !excludedNames.includes(name));
+        const availableNames = classNames.filter(name => !excludedNames.includes(name));
 
         if (!searchTerm) return availableNames;
 
         return availableNames.filter(name =>
             name.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }, [selectedNames, searchTerm, userData?.name]);
+    }, [selectedNames, searchTerm, userData?.name, classNames]);
 
     return (
         <>
@@ -89,6 +76,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             )}
 
             <div className="header-section">
+                <div className="class-indicator">
+                    <span className="class-badge">{classDisplayName} Class of 2025</span>
+                </div>
                 <div className="instructions">
                     <ol>
                         <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>

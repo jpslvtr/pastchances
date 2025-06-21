@@ -7,7 +7,7 @@ interface CrusherInfo {
 
 interface AnalyticsData {
     totalUsers: number;
-    totalTakenNames: number;
+    totalClassSize: number;
     totalMatches: number;
     matchedPairs: string[];
     totalCrushes: number;
@@ -26,25 +26,66 @@ interface AnalyticsData {
 
 interface AdminAnalyticsProps {
     analytics: AnalyticsData | null;
+    classView: 'gsb' | 'undergrad';
+    classDisplayName: string;
 }
 
-const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics }) => {
+const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplayName }) => {
+    if (!analytics) {
+        return (
+            <div className="admin-loading">
+                Loading {classDisplayName} analytics...
+            </div>
+        );
+    }
+
     return (
         <div className="admin-overview">
+            <div className="admin-class-header">
+                <h4>{classDisplayName} Class of 2025 - Analytics Dashboard</h4>
+                <div className="admin-class-stats-summary">
+                    <span className="class-stat">
+                        <strong>{analytics.totalUsers}</strong> active users
+                    </span>
+                    <span className="class-stat">
+                        <strong>{analytics.totalClassSize}</strong> total class size
+                    </span>
+                    <span className="class-stat">
+                        <strong>{analytics.classParticipationRate}%</strong> class participation
+                    </span>
+                </div>
+            </div>
+
             <div className="admin-quick-insights">
                 <div className="admin-insight-card">
                     <h4>Platform Activity</h4>
-                    <p>{analytics?.usersWithCrushes || 0} users have sent crushes</p>
-                    <p>{analytics?.usersWithMatches || 0} users have matches</p>
-                    <p>{analytics?.avgCrushes || 0} average crushes sent per user</p>
-                    <p>{analytics?.activeUsersLast24h || 0}% users active in last 24h (real-time)</p>
+                    <p>{analytics.usersWithCrushes} users have sent crushes</p>
+                    <p>{analytics.usersWithMatches} users have matches</p>
+                    <p>{analytics.avgCrushes} average crushes sent per user</p>
+                    <p>{analytics.activeUsersLast24h}% users active in last 24h</p>
+                </div>
+
+                <div className="admin-insight-card">
+                    <h4>Participation Metrics</h4>
+                    <p>{analytics.participationRate}% of signed-up users active</p>
+                    <p>{analytics.classParticipationRate}% of total class participating</p>
+                    <p>{analytics.totalUsers}/{analytics.totalClassSize} students signed up</p>
+                    <p>{analytics.inactiveReceivers.length} inactive receivers</p>
+                </div>
+
+                <div className="admin-insight-card">
+                    <h4>Matching Success</h4>
+                    <p>{analytics.totalMatches} total matches</p>
+                    <p>{analytics.totalCrushes} total crushes sent</p>
+                    <p>{analytics.peopleWithCrushes} people receiving crushes</p>
+                    <p>{analytics.orphanedCrushes.length} orphaned crushes</p>
                 </div>
             </div>
 
             <div className="admin-analytics">
                 <div className="admin-analytics-section">
-                    <h4>All Matches ({analytics?.totalMatches || 0})</h4>
-                    {analytics?.matchedPairs.length ? (
+                    <h4>All {classDisplayName} Matches ({analytics.totalMatches})</h4>
+                    {analytics.matchedPairs.length ? (
                         <div className="admin-matches-list">
                             {analytics.matchedPairs.map((pair, index) => (
                                 <div key={index} className="admin-match-item">
@@ -53,14 +94,14 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics }) => {
                             ))}
                         </div>
                     ) : (
-                        <p>No matches found yet.</p>
+                        <p>No matches found yet in {classDisplayName} class.</p>
                     )}
                 </div>
 
                 <div className="admin-analytics-section">
-                    <h4>Top Crush Receivers</h4>
+                    <h4>Top {classDisplayName} Crush Receivers</h4>
                     <div className="admin-list">
-                        {analytics?.topCrushReceivers.map((receiver, index) => (
+                        {analytics.topCrushReceivers.slice(0, 15).map((receiver, index) => (
                             <div key={receiver.name} className="admin-list-item">
                                 <span>{index + 1}. {receiver.name}</span>
                                 <span>{receiver.count} crushes</span>
@@ -70,9 +111,9 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics }) => {
                 </div>
 
                 <div className="admin-analytics-section">
-                    <h4>Top Crush Senders</h4>
+                    <h4>Top {classDisplayName} Crush Senders</h4>
                     <div className="admin-list">
-                        {analytics?.topCrushSenders.map((sender, index) => (
+                        {analytics.topCrushSenders.slice(0, 15).map((sender, index) => (
                             <div key={sender.name} className="admin-list-item">
                                 <span>{index + 1}. {sender.name}</span>
                                 <span>{sender.count} crushes sent</span>
@@ -82,9 +123,9 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics }) => {
                 </div>
 
                 <div className="admin-analytics-section">
-                    <h4>Inactive Receivers ({analytics?.inactiveReceivers.length || 0})</h4>
+                    <h4>{classDisplayName} Inactive Receivers ({analytics.inactiveReceivers.length})</h4>
                     <div className="admin-list">
-                        {analytics?.inactiveReceivers.map((inactive, index) => (
+                        {analytics.inactiveReceivers.map((inactive, index) => (
                             <div key={inactive.email} className="admin-inactive-item">
                                 <div className="admin-inactive-header">
                                     <span>{index + 1}. {inactive.name}</span>
@@ -99,6 +140,20 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics }) => {
                         ))}
                     </div>
                 </div>
+
+                {analytics.orphanedCrushes.length > 0 && (
+                    <div className="admin-analytics-section">
+                        <h4>{classDisplayName} Orphaned Crushes ({analytics.orphanedCrushes.length})</h4>
+                        <div className="admin-list">
+                            {analytics.orphanedCrushes.map((crush, index) => (
+                                <div key={crush} className="admin-list-item">
+                                    <span>{index + 1}. {crush}</span>
+                                    <span>Not signed up</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

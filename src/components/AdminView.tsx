@@ -2,27 +2,10 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { collection, getDocs, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
+import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
 import AdminAnalytics from './admin/AdminAnalytics';
 import AdminUsers from './admin/AdminUsers';
-
-interface MatchInfo {
-    name: string;
-    email: string;
-}
-
-interface UserData {
-    uid: string;
-    email: string;
-    name: string;
-    photoURL: string;
-    crushes: string[];
-    lockedCrushes: string[];
-    matches: MatchInfo[];
-    crushCount: number;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
-}
+import type { UserData, MatchInfo, UserClass } from '../types/userTypes';
 
 interface CrusherInfo {
     name: string;
@@ -38,6 +21,7 @@ interface InactiveUser {
     lockedCrushes: string[];
     matches: MatchInfo[];
     crushCount: number;
+    userClass: UserClass;
     isInactive: boolean;
     createdAt: any;
     updatedAt: any;
@@ -53,6 +37,7 @@ interface GhostUser {
     lockedCrushes: string[];
     matches: MatchInfo[];
     crushCount: number;
+    userClass: UserClass;
     isGhost: boolean;
     createdAt: any;
     updatedAt: any;
@@ -71,9 +56,9 @@ interface FirebaseAnalyticsData {
     createdAt: any;
 }
 
-interface AnalyticsData {
+interface ClassAnalyticsData {
     totalUsers: number;
-    totalTakenNames: number;
+    totalClassSize: number;
     totalMatches: number;
     matchedPairs: string[];
     totalCrushes: number;
@@ -92,6 +77,7 @@ interface AnalyticsData {
 
 type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
 type ViewMode = 'analytics' | 'users';
+type ClassView = 'gsb' | 'undergrad';
 
 interface AdminViewProps {
     user: any;
@@ -104,7 +90,11 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     const [viewingUserId, setViewingUserId] = useState<string | null>(null);
     const [userFilter, setUserFilter] = useState<UserFilter>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('analytics');
-    const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+    const [classView, setClassView] = useState<ClassView>('gsb');
+    const [gsbAnalytics, setGsbAnalytics] = useState<ClassAnalyticsData | null>(null);
+    const [undergradAnalytics, setUndergradAnalytics] = useState<ClassAnalyticsData | null>(null);
+    const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const normalizeName = useCallback((name: string): string => {
         if (!name || typeof name !== 'string') return '';
@@ -119,13 +109,18 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             .trim();
     }, []);
 
-    const findUserByName = useCallback((crushName: string, users: (UserData | InactiveUser | GhostUser)[]): UserData | InactiveUser | GhostUser | null => {
+    const findUserByName = useCallback((crushName: string, users: (UserData | InactiveUser | GhostUser)[], userClass?: UserClass): UserData | InactiveUser | GhostUser | null => {
         if (!crushName || !crushName.trim()) return null;
 
         const normalizedCrush = normalizeName(crushName);
 
+        // Filter by class if specified
+        const filteredUsers = userClass
+            ? users.filter(user => (user.userClass || 'gsb') === userClass)
+            : users;
+
         // Try exact match on name field
-        let match = users.find(user =>
+        let match = filteredUsers.find(user =>
             user.name &&
             normalizeName(user.name) === normalizedCrush
         );
@@ -137,7 +132,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         if (crushParts.length >= 2) {
             const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
 
-            match = users.find(user => {
+            match = filteredUsers.find(user => {
                 if (user.name) {
                     const nameParts = normalizeName(user.name).split(' ');
                     if (nameParts.length >= 2) {
@@ -155,11 +150,16 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     const findCrushersForUser = useCallback((targetUser: UserData | InactiveUser | GhostUser): CrusherInfo[] => {
         const crushers: CrusherInfo[] = [];
         const targetName = targetUser.name;
+        const targetClass = targetUser.userClass || 'gsb';
 
         if (!targetName) return crushers;
 
         allUsers.forEach(u => {
             if (u.uid === targetUser.uid || (u as InactiveUser).isInactive || (u as GhostUser).isGhost) return;
+
+            // Only consider crushes from users in the same class
+            const userClass = u.userClass || 'gsb';
+            if (userClass !== targetClass) return;
 
             const userCrushes = u.crushes || [];
             if (userCrushes.includes(targetName)) {
@@ -173,7 +173,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         return crushers;
     }, [allUsers]);
 
-    // Set up real-time listener for analytics
+    // Set up real-time listener for analytics with error handling
     useEffect(() => {
         const analyticsQuery = query(
             collection(db, 'analytics'),
@@ -185,6 +185,8 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             if (!snapshot.empty) {
                 const latestAnalytics = snapshot.docs[0].data() as FirebaseAnalyticsData;
                 console.log('Live analytics updated:', latestAnalytics);
+                // Trigger recalculation when new analytics arrive
+                setRefreshKey(prev => prev + 1);
             }
         }, (error) => {
             console.error('Error listening to analytics:', error);
@@ -193,17 +195,13 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         return () => unsubscribe();
     }, []);
 
-    const calculateRealTime24hActiveUsers = useCallback((): number => {
-        const realUsers = allUsers.filter(u =>
-            !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
-        ) as UserData[];
-
-        if (realUsers.length === 0) return 0;
+    const calculateRealTime24hActiveUsers = useCallback((classUsers: UserData[]): number => {
+        if (classUsers.length === 0) return 0;
 
         const twentyFourHoursAgo = new Date(Date.now() - (24 * 60 * 60 * 1000));
         let activeUsersCount = 0;
 
-        realUsers.forEach(user => {
+        classUsers.forEach(user => {
             if (user.lastLogin) {
                 let lastLoginDate;
 
@@ -221,45 +219,55 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             }
         });
 
-        return Number((activeUsersCount / realUsers.length * 100).toFixed(2));
-    }, [allUsers]);
+        return Number((activeUsersCount / classUsers.length * 100).toFixed(2));
+    }, []);
 
-    const calculateAnalytics = useCallback((): AnalyticsData => {
+    const calculateClassAnalytics = useCallback((targetClass: UserClass): ClassAnalyticsData => {
         const realUsers = allUsers.filter(u =>
             !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
         ) as UserData[];
 
-        // Basic stats
-        const totalUsers = realUsers.length;
-        const totalTakenNames = realUsers.filter(u => u.name && u.name.trim()).length;
+        // Filter users by class
+        const classUsers = realUsers.filter(user => (user.userClass || 'gsb') === targetClass);
 
-        // Calculate matches
-        const seenPairs = new Set<string>();
-        realUsers.forEach(user => {
+        // Get class size
+        const totalClassSize = targetClass === 'gsb' ? GSB_CLASS_NAMES.length : UNDERGRAD_CLASS_NAMES.length;
+
+        // Basic stats
+        const totalUsers = classUsers.length;
+
+        // Calculate matches within class
+        const classPairs = new Set<string>();
+
+        classUsers.forEach(user => {
             const matches = user.matches || [];
             if (Array.isArray(matches) && matches.length > 0) {
                 matches.forEach(match => {
                     const matchName = match.name || match;
                     const pair = [user.name, matchName].sort().join(' ↔ ');
-                    seenPairs.add(pair);
+                    classPairs.add(pair);
                 });
             }
         });
 
-        const totalMatches = seenPairs.size;
-        const matchedPairs = Array.from(seenPairs).sort();
+        const totalMatches = classPairs.size;
+        const matchedPairs = Array.from(classPairs).sort();
 
-        // Calculate crush statistics
-        const crushCounts = new Map<string, number>();
-        const crushersMap = new Map<string, string[]>();
+        // Calculate crush statistics for class
         let totalCrushes = 0;
 
-        realUsers.forEach(user => {
+        classUsers.forEach(user => {
             const userCrushes = user.crushes || [];
             totalCrushes += userCrushes.length;
+        });
 
+        const crushCounts = new Map<string, number>();
+        const crushersMap = new Map<string, string[]>();
+
+        classUsers.forEach(user => {
+            const userCrushes = user.crushes || [];
             userCrushes.forEach(crushName => {
-                const targetUser = findUserByName(crushName, allUsers);
+                const targetUser = findUserByName(crushName, allUsers, targetClass);
 
                 if (targetUser) {
                     const actualName = targetUser.name;
@@ -284,18 +292,18 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         const avgCrushes = totalUsers > 0 ? totalCrushes / totalUsers : 0;
 
         // User activity stats
-        const usersWithCrushes = realUsers.filter(user => user.crushes.length > 0).length;
-        const usersWithMatches = realUsers.filter(user => user.matches.length > 0).length;
+        const usersWithCrushes = classUsers.filter(user => user.crushes.length > 0).length;
+        const usersWithMatches = classUsers.filter(user => user.matches.length > 0).length;
 
         // Participation rates
         const participationRate = totalUsers > 0 ? (usersWithCrushes / totalUsers * 100) : 0;
-        const classParticipationRate = GSB_CLASS_NAMES.length > 0 ? (usersWithCrushes / GSB_CLASS_NAMES.length * 100) : 0;
+        const classParticipationRate = totalClassSize > 0 ? (usersWithCrushes / totalClassSize * 100) : 0;
 
         // Find orphaned crushes
         const orphanedCrushes: string[] = [];
         const allCrushNames = new Set<string>();
 
-        realUsers.forEach(user => {
+        classUsers.forEach(user => {
             const userCrushes = user.crushes || [];
             userCrushes.forEach(crushName => {
                 allCrushNames.add(crushName);
@@ -303,13 +311,13 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         });
 
         allCrushNames.forEach(crushName => {
-            const matchedUser = findUserByName(crushName, allUsers);
-            if (!matchedUser) {
+            const match = findUserByName(crushName, allUsers, targetClass);
+            if (!match) {
                 orphanedCrushes.push(crushName);
             }
         });
 
-        // Top crush receivers
+        // Top crush receivers (limit for performance)
         const topCrushReceivers = Array.from(crushCounts.entries())
             .map(([name, count]) => ({
                 name,
@@ -317,22 +325,22 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                 crushers: crushersMap.get(name) || []
             }))
             .sort((a, b) => b.count - a.count)
-            .slice(0, 20);
+            .slice(0, 25);
 
-        // Top crush senders
-        const topCrushSenders = realUsers
+        // Top crush senders (limit for performance)
+        const topCrushSenders = classUsers
             .map(user => ({
                 name: user.name,
                 count: user.crushes.length,
                 crushNames: user.crushes
             }))
             .sort((a, b) => b.count - a.count)
-            .slice(0, 20);
+            .slice(0, 25);
 
-        // Inactive receivers (people with crushes who haven't submitted)
+        // Inactive receivers
         const inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }> = [];
 
-        realUsers.forEach(user => {
+        classUsers.forEach(user => {
             if (user.crushCount > 0) {
                 const hasSubmittedCrushes = !!(user.crushes && user.crushes.length > 0);
 
@@ -354,7 +362,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
         return {
             totalUsers,
-            totalTakenNames,
+            totalClassSize,
             totalMatches,
             matchedPairs,
             totalCrushes,
@@ -368,7 +376,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             topCrushReceivers,
             topCrushSenders,
             inactiveReceivers,
-            activeUsersLast24h: calculateRealTime24hActiveUsers()
+            activeUsersLast24h: calculateRealTime24hActiveUsers(classUsers)
         };
     }, [allUsers, findUserByName, findCrushersForUser, calculateRealTime24hActiveUsers]);
 
@@ -382,11 +390,12 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                 const data = doc.data() as UserData;
                 realUsers.push({
                     ...data,
-                    uid: doc.id
+                    uid: doc.id,
+                    userClass: data.userClass || 'gsb'
                 });
             });
 
-            // Create inactive and ghost users from class roster
+            // Create inactive and ghost users from both class rosters
             const allCrushNames = new Set<string>();
             realUsers.forEach(user => {
                 const userCrushes = user.crushes || [];
@@ -399,26 +408,26 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             const inactiveUsers: InactiveUser[] = [];
             const ghostUsers: GhostUser[] = [];
 
-            // Process each class member
+            // Process GSB class members
             GSB_CLASS_NAMES.forEach(className => {
                 if (realUserNames.has(className)) {
-                    return; // This person has signed up (active user)
+                    return;
                 }
 
-                // Check if anyone is crushing on this person
                 let crushCount = 0;
                 realUsers.forEach(user => {
-                    const userCrushes = user.crushes || [];
-                    if (userCrushes.includes(className)) {
-                        crushCount++;
+                    if ((user.userClass || 'gsb') === 'gsb') {
+                        const userCrushes = user.crushes || [];
+                        if (userCrushes.includes(className)) {
+                            crushCount++;
+                        }
                     }
                 });
 
                 const derivedEmail = `${className.toLowerCase().replace(/\s+/g, '.')}@stanford.edu`;
 
                 if (crushCount > 0) {
-                    // Inactive user - being crushed on but hasn't signed up
-                    const inactiveId = `inactive-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    const inactiveId = `inactive-gsb-${normalizeName(className).replace(/\s+/g, '-')}`;
                     inactiveUsers.push({
                         uid: inactiveId,
                         email: derivedEmail,
@@ -428,14 +437,14 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                         lockedCrushes: [],
                         matches: [],
                         crushCount: crushCount,
+                        userClass: 'gsb',
                         isInactive: true,
                         createdAt: null,
                         updatedAt: null,
                         lastLogin: null
                     });
                 } else {
-                    // Ghost user - no engagement at all
-                    const ghostId = `ghost-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    const ghostId = `ghost-gsb-${normalizeName(className).replace(/\s+/g, '-')}`;
                     ghostUsers.push({
                         uid: ghostId,
                         email: derivedEmail,
@@ -445,6 +454,62 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                         lockedCrushes: [],
                         matches: [],
                         crushCount: 0,
+                        userClass: 'gsb',
+                        isGhost: true,
+                        createdAt: null,
+                        updatedAt: null,
+                        lastLogin: null
+                    });
+                }
+            });
+
+            // Process Undergrad class members
+            UNDERGRAD_CLASS_NAMES.forEach(className => {
+                if (realUserNames.has(className)) {
+                    return;
+                }
+
+                let crushCount = 0;
+                realUsers.forEach(user => {
+                    if (user.userClass === 'undergrad') {
+                        const userCrushes = user.crushes || [];
+                        if (userCrushes.includes(className)) {
+                            crushCount++;
+                        }
+                    }
+                });
+
+                const derivedEmail = `${className.toLowerCase().replace(/\s+/g, '.')}@stanford.edu`;
+
+                if (crushCount > 0) {
+                    const inactiveId = `inactive-undergrad-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    inactiveUsers.push({
+                        uid: inactiveId,
+                        email: derivedEmail,
+                        name: className,
+                        photoURL: '/files/default-profile.png',
+                        crushes: [],
+                        lockedCrushes: [],
+                        matches: [],
+                        crushCount: crushCount,
+                        userClass: 'undergrad',
+                        isInactive: true,
+                        createdAt: null,
+                        updatedAt: null,
+                        lastLogin: null
+                    });
+                } else {
+                    const ghostId = `ghost-undergrad-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    ghostUsers.push({
+                        uid: ghostId,
+                        email: derivedEmail,
+                        name: className,
+                        photoURL: '/files/default-profile.png',
+                        crushes: [],
+                        lockedCrushes: [],
+                        matches: [],
+                        crushCount: 0,
+                        userClass: 'undergrad',
                         isGhost: true,
                         createdAt: null,
                         updatedAt: null,
@@ -455,18 +520,25 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
             const allUsersArray = [...realUsers, ...inactiveUsers, ...ghostUsers];
 
-            // Sort: active users first, then inactive users, then ghost users, then alphabetically
+            // Sort by class first, then by type, then alphabetically
             allUsersArray.sort((a, b) => {
+                const aClass = (a.userClass || 'gsb');
+                const bClass = (b.userClass || 'gsb');
+
+                // Sort by class first (GSB then Undergrad)
+                if (aClass !== bClass) {
+                    return aClass === 'gsb' ? -1 : 1;
+                }
+
                 const aIsInactive = (a as InactiveUser).isInactive || false;
                 const bIsInactive = (b as InactiveUser).isInactive || false;
                 const aIsGhost = (a as GhostUser).isGhost || false;
                 const bIsGhost = (b as GhostUser).isGhost || false;
 
-                // Active users first
+                // Within same class: Active users first, then inactive, then ghost
                 if (!aIsInactive && !aIsGhost && (bIsInactive || bIsGhost)) return -1;
                 if ((aIsInactive || aIsGhost) && !bIsInactive && !bIsGhost) return 1;
 
-                // Then inactive users
                 if (aIsInactive && !bIsInactive && bIsGhost) return -1;
                 if (!aIsInactive && aIsGhost && bIsInactive) return 1;
 
@@ -491,33 +563,54 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         }
     }, [user, loadAllUsers]);
 
+    // Calculate analytics for both classes
     useEffect(() => {
         if (allUsers.length > 0) {
-            setAnalytics(calculateAnalytics());
-        }
-    }, [allUsers, calculateAnalytics]);
+            setLoadingAnalytics(true);
 
-    const userStats = useMemo(() => {
-        const realUsers = allUsers.filter(u =>
+            const timeoutId = setTimeout(() => {
+                try {
+                    const gsbData = calculateClassAnalytics('gsb');
+                    const undergradData = calculateClassAnalytics('undergrad');
+
+                    setGsbAnalytics(gsbData);
+                    setUndergradAnalytics(undergradData);
+                } finally {
+                    setLoadingAnalytics(false);
+                }
+            }, 300);
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [allUsers, calculateClassAnalytics, refreshKey]);
+
+    // Get current class data
+    const currentClassUsers = useMemo(() => {
+        return allUsers.filter(user => (user.userClass || 'gsb') === classView);
+    }, [allUsers, classView]);
+
+    const currentClassStats = useMemo(() => {
+        const realUsers = currentClassUsers.filter(u =>
             !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
         );
-        const inactiveUsers = allUsers.filter(u => (u as InactiveUser).isInactive);
-        const ghostUsers = allUsers.filter(u => (u as GhostUser).isGhost);
+        const inactiveUsers = currentClassUsers.filter(u => (u as InactiveUser).isInactive);
+        const ghostUsers = currentClassUsers.filter(u => (u as GhostUser).isGhost);
 
         return {
             activeUsers: realUsers.length,
             inactiveUsers: inactiveUsers.length,
             ghostUsers: ghostUsers.length,
-            total: allUsers.length
+            total: currentClassUsers.length
         };
-    }, [allUsers]);
+    }, [currentClassUsers]);
 
-    const handleViewUser = (userId: string) => {
+    const handleViewUser = useCallback((userId: string) => {
         setViewingUserId(viewingUserId === userId ? null : userId);
-    };
+    }, [viewingUserId]);
 
+    // Filter users by current class and filter
     const filteredUsers = useMemo(() => {
-        let users = allUsers;
+        let users = currentClassUsers;
 
         switch (userFilter) {
             case 'active':
@@ -545,40 +638,77 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
             return name.includes(searchLower) || email.includes(searchLower);
         });
-    }, [allUsers, adminSearchTerm, userFilter]);
+    }, [currentClassUsers, adminSearchTerm, userFilter]);
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshKey(prev => prev + 1);
+        await loadAllUsers();
+    }, [loadAllUsers]);
+
+    const currentAnalytics = classView === 'gsb' ? gsbAnalytics : undergradAnalytics;
+    const classDisplayName = classView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
     return (
         <div className="admin-section">
-            <h3>Admin Dashboard</h3>
+            <div className="admin-header-section">
+                <div className="admin-title-row">
+                    <h3>Admin Dashboard</h3>
+                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
+                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
+                    </button>
+                </div>
 
-            <div className="admin-definitions">
-                <p><strong>Active Users:</strong> Students who have signed up, verified their Stanford email, and have their name automatically assigned. They can send crushes and receive matches.</p>
-
-                <p><strong>Inactive Users:</strong> Students from the class roster who haven't signed up yet but are receiving crushes from active users. They appear as potential matches but can't send crushes or see matches until they sign up. High priority for outreach!</p>
-
-                <p><strong>Ghost Users:</strong> Students from the class roster with zero engagement - they haven't signed up and nobody is crushing on them. They represent the completely unengaged portion of the class.</p>
-
-                <p><strong>Inactive Receivers:</strong> Active users who are receiving crushes but haven't sent any crushes themselves. These users need follow-up to encourage engagement.</p>
+                <div className="admin-definitions">
+                    <p><strong>Class Separation:</strong> The system maintains strict class boundaries - GSB students can only match with GSB students, and undergrads can only match with undergrads.</p>
+                    <p><strong>Active Users:</strong> Students who have signed up and can match within their class.</p>
+                    <p><strong>Inactive Users:</strong> Students from the class roster who haven't signed up yet but are receiving crushes.</p>
+                    <p><strong>Ghost Users:</strong> Students from the class roster with zero engagement.</p>
+                </div>
             </div>
 
+            {/* Class Selection */}
+            <div className="admin-class-nav">
+                <button
+                    onClick={() => setClassView('gsb')}
+                    className={`admin-class-btn ${classView === 'gsb' ? 'active' : ''}`}
+                    disabled={loadingUsers}
+                >
+                    GSB MBA Class ({gsbAnalytics?.totalUsers || 0} active)
+                </button>
+                <button
+                    onClick={() => setClassView('undergrad')}
+                    className={`admin-class-btn ${classView === 'undergrad' ? 'active' : ''}`}
+                    disabled={loadingUsers}
+                >
+                    Undergrad Class ({undergradAnalytics?.totalUsers || 0} active)
+                </button>
+            </div>
+
+            {/* View Mode Navigation */}
             <div className="admin-nav">
                 <button
                     onClick={() => setViewMode('analytics')}
                     className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
+                    disabled={loadingAnalytics}
                 >
-                    Analytics
+                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
                 </button>
                 <button
                     onClick={() => setViewMode('users')}
                     className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
+                    disabled={loadingUsers}
                 >
-                    Users ({userStats.total})
+                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
                 </button>
             </div>
 
             <div className="admin-content">
                 {viewMode === 'analytics' && (
-                    <AdminAnalytics analytics={analytics} />
+                    <AdminAnalytics
+                        analytics={currentAnalytics}
+                        classView={classView}
+                        classDisplayName={classDisplayName}
+                    />
                 )}
                 {viewMode === 'users' && (
                     <AdminUsers
@@ -591,7 +721,9 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                         viewingUserId={viewingUserId}
                         handleViewUser={handleViewUser}
                         findCrushersForUser={findCrushersForUser}
-                        userStats={userStats}
+                        userStats={currentClassStats}
+                        classView={classView}
+                        classDisplayName={classDisplayName}
                     />
                 )}
             </div>
