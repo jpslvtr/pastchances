@@ -292,6 +292,7 @@ export const GSB_CLASS_NAMES = [
     "Sidney Owen",
     "Michael Paretzky",
     "Chanwoo Park",
+    "James Park",
     "Terry Park",
     "Sravan Patchala",
     "Kayan Patel",
