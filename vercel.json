@@ -1,4 +1,11 @@
 {
+    "redirects": [
+        {
+            "source": "/login",
+            "destination": "https://pastchances.com",
+            "permanent": true
+        }
+    ],
     "rewrites": [
         {
             "source": "/(.*)",
