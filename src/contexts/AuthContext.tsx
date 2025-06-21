@@ -101,7 +101,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [nameOptions, setNameOptions] = useState<string[] | null>(null);
     const [pendingUserClass, setPendingUserClass] = useState<UserClass | null>(null);
-    const [currentUserClass, setCurrentUserClass] = useState<UserClass | null>(null);
 
     const normalizeMatches = (matches: any[]): MatchInfo[] => {
         if (!matches || !Array.isArray(matches)) return [];
@@ -140,54 +139,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }, { merge: true });
 
             setNameOptions(null);
-            setCurrentUserClass(pendingUserClass);
             setPendingUserClass(null);
-            await refreshUserData();
+            await loadUserDataFromFirestore(user);
         } catch (error) {
             console.error('Error selecting name:', error);
             throw error;
         }
     };
 
-    const refreshUserData = async () => {
-        if (!user?.uid) {
-            console.warn('refreshUserData called without user');
+    // NEW: Standalone function to load user data - doesn't depend on state
+    const loadUserDataFromFirestore = async (authUser: User) => {
+        if (!authUser?.uid) {
+            console.warn('loadUserDataFromFirestore called without user');
             return;
         }
 
         try {
-            // If we have a current user class (from recent login), use that
-            if (currentUserClass && user.email === 'jpark22@stanford.edu') {
-                const actualUid = getUserDocumentId(user, currentUserClass);
-                const userRef = doc(db, 'users', actualUid);
-                const userDoc = await getDoc(userRef);
-
-                if (userDoc.exists()) {
-                    const data = userDoc.data();
-                    const userData: UserData = {
-                        uid: data.uid,
-                        email: data.email,
-                        name: data.name || data.verifiedName || data.displayName || '',
-                        photoURL: data.photoURL,
-                        crushes: data.crushes || [],
-                        lockedCrushes: data.lockedCrushes || [],
-                        matches: normalizeMatches(data.matches),
-                        crushCount: data.crushCount || 0,
-                        userClass: data.userClass || currentUserClass,
-                        createdAt: data.createdAt,
-                        updatedAt: data.updatedAt,
-                        lastLogin: data.lastLogin
-                    };
-                    setUserData(userData);
-                    return;
-                }
-            }
-
-            // Fallback logic for when currentUserClass is not set
-            if (user.email === 'jpark22@stanford.edu') {
-                // For test user, check both documents and prefer the one with a name
-                const gsbDocId = `${user.uid}_gsb`;
-                const undergradDocId = `${user.uid}_undergrad`;
+            // For test user, check both documents and prefer the one with a name
+            if (authUser.email === 'jpark22@stanford.edu') {
+                const gsbDocId = `${authUser.uid}_gsb`;
+                const undergradDocId = `${authUser.uid}_undergrad`;
 
                 const gsbRef = doc(db, 'users', gsbDocId);
                 const undergradRef = doc(db, 'users', undergradDocId);
@@ -217,9 +188,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 }
 
                 if (targetData) {
-                    // Set the current user class based on what we found
-                    setCurrentUserClass(detectedClass);
-
                     const userData: UserData = {
                         uid: targetData.uid,
                         email: targetData.email,
@@ -239,7 +207,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 }
             } else {
                 // Regular user logic
-                const userRef = doc(db, 'users', user.uid);
+                const userRef = doc(db, 'users', authUser.uid);
                 const userDoc = await getDoc(userRef);
 
                 if (userDoc.exists()) {
@@ -266,16 +234,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.error('User document does not exist');
             setUserData(null);
         } catch (error) {
-            console.error('Error refreshing user data:', error);
+            console.error('Error loading user data from Firestore:', error);
             setUserData(null);
         }
     };
 
+    const refreshUserData = async () => {
+        if (!user?.uid) {
+            console.warn('refreshUserData called without user');
+            return;
+        }
+        await loadUserDataFromFirestore(user);
+    };
+
     const createOrUpdateUserDocument = async (user: User, userClass: UserClass) => {
         if (!user.uid) return null;
-
-        // Set the current user class immediately when logging in
-        setCurrentUserClass(userClass);
 
         try {
             // Special handling for test user (you) - always use class-specific UIDs
@@ -466,14 +439,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     await signOut(auth);
                     setUser(null);
                     setUserData(null);
-                    setCurrentUserClass(null);
                     setLoading(false);
                     alert('Only @stanford.edu email addresses are allowed. Please sign in with your Stanford account.');
                 } else {
                     setUser(user);
-                    // THIS IS THE KEY FIX: When user is restored from auth state (refresh),
-                    // automatically load their user data
-                    await refreshUserData();
+                    // Load user data immediately when auth state is restored
+                    await loadUserDataFromFirestore(user);
                     setLoading(false);
                 }
             } else {
@@ -481,7 +452,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setUserData(null);
                 setNameOptions(null);
                 setPendingUserClass(null);
-                setCurrentUserClass(null);
                 setLoading(false);
             }
         });
@@ -519,7 +489,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUserData(null);
             setNameOptions(null);
             setPendingUserClass(null);
-            setCurrentUserClass(null);
         } catch (error) {
             console.error('Logout error:', error);
         }
