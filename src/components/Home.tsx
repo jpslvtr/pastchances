@@ -31,7 +31,7 @@ const Home: React.FC = () => {
     // Get the class display name based on user's class
     const getClassDisplayName = useCallback(() => {
         const userClass = userData?.userClass || 'gsb';
-        return userClass === 'gsb' ? 'GSB MBA Class of 2025' : 'Undergraduate Class of 2025';
+        return userClass === 'gsb' ? 'GSB MBA Class of 2025' : 'Undergrad Class of 2025';
     }, [userData?.userClass]);
 
     const loadUserSelections = useCallback(async () => {
