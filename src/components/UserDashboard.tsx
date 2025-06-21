@@ -103,7 +103,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const hasMatches = userData?.matches && userData.matches.length > 0;
     const crushCount = userData?.crushCount || 0;
     const lockedCrushes = userData?.lockedCrushes || [];
-    const hasUnsavedChanges = JSON.stringify(selectedNames.sort()) !== JSON.stringify(savedNames.sort());
+
+    // Ensure arrays are defined before using sort
+    const safeSelectedNames = selectedNames || [];
+    const safeSavedNames = savedNames || [];
+    const hasUnsavedChanges = JSON.stringify([...safeSelectedNames].sort()) !== JSON.stringify([...safeSavedNames].sort());
 
     // Get the appropriate class names based on user's class
     const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
@@ -126,7 +130,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 
     // Enhanced filtering with fuzzy name matching and memoization
     const filteredAvailableNames = React.useMemo(() => {
-        const excludedNames = [...selectedNames];
+        const excludedNames = [...safeSelectedNames];
 
         if (userData?.name) {
             excludedNames.push(userData.name);
@@ -147,7 +151,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             .map(item => item.name);
 
         return matchedNames;
-    }, [selectedNames, debouncedSearchTerm, userData?.name, classNames]);
+    }, [safeSelectedNames, debouncedSearchTerm, userData?.name, classNames]);
 
     // Virtual scrolling constants
     const ITEM_HEIGHT = 48;
@@ -229,9 +233,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             )}
 
             <div className="header-section">
-                <div className="class-indicator">
-                    <span className="class-badge">{classDisplayName} Class of 2025</span>
-                </div>
                 <div className="instructions">
                     <ol>
                         <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
@@ -243,15 +244,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             </div>
 
             <div className="selection-counter">
-                {selectedNames.length} selected
+                {safeSelectedNames.length} selected
                 {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
             </div>
 
-            {selectedNames.length > 0 && (
+            {safeSelectedNames.length > 0 && (
                 <div className="selected-names">
-                    <h3>Your Selections ({selectedNames.length})</h3>
+                    <h3>Your Selections ({safeSelectedNames.length})</h3>
                     <div className="name-chips">
-                        {selectedNames.map(name => {
+                        {safeSelectedNames.map(name => {
                             const isLocked = lockedCrushes.includes(name);
                             return (
                                 <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>

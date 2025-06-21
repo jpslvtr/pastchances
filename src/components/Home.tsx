@@ -28,6 +28,12 @@ const Home: React.FC = () => {
 
     const isAdmin = user?.email === 'jpark22@stanford.edu';
 
+    // Get the class display name based on user's class
+    const getClassDisplayName = useCallback(() => {
+        const userClass = userData?.userClass || 'gsb';
+        return userClass === 'gsb' ? 'GSB MBA Class of 2025' : 'Undergraduate Class of 2025';
+    }, [userData?.userClass]);
+
     const loadUserSelections = useCallback(async () => {
         if (!user || !userData) return;
 
@@ -38,14 +44,18 @@ const Home: React.FC = () => {
 
             if (userDoc.exists()) {
                 const data = userDoc.data();
-                if (data.crushes && Array.isArray(data.crushes)) {
-                    setSelectedNames(data.crushes);
-                    setSavedNames(data.crushes);
-                }
+                const crushes = data.crushes && Array.isArray(data.crushes) ? data.crushes : [];
+                setSelectedNames(crushes);
+                setSavedNames(crushes);
+            } else {
+                setSelectedNames([]);
+                setSavedNames([]);
             }
         } catch (error) {
             console.error('Error loading user selections:', error);
             setError('Failed to load your previous selections.');
+            setSelectedNames([]);
+            setSavedNames([]);
         }
     }, [user, userData]);
 
@@ -81,11 +91,12 @@ const Home: React.FC = () => {
     const handleNameToggle = useCallback((name: string) => {
         if (updating) return;
 
-        setSelectedNames(prev =>
-            prev.includes(name)
-                ? prev.filter(n => n !== name)
-                : [...prev, name]
-        );
+        setSelectedNames(prev => {
+            const currentNames = prev || [];
+            return currentNames.includes(name)
+                ? currentNames.filter(n => n !== name)
+                : [...currentNames, name];
+        });
     }, [updating]);
 
     const handleRemoveSelected = useCallback((nameToRemove: string) => {
@@ -96,17 +107,18 @@ const Home: React.FC = () => {
             return;
         }
 
-        setSelectedNames(prev => prev.filter(name => name !== nameToRemove));
+        setSelectedNames(prev => (prev || []).filter(name => name !== nameToRemove));
     }, [updating, userData?.lockedCrushes]);
 
     const handleUpdatePreferences = useCallback(async () => {
         if (!user || !userData || updating) return;
 
         const lockedCrushes = userData?.lockedCrushes || [];
-        const missingLockedCrushes = lockedCrushes.filter(locked => !selectedNames.includes(locked));
+        const currentSelectedNames = selectedNames || [];
+        const missingLockedCrushes = lockedCrushes.filter(locked => !currentSelectedNames.includes(locked));
 
         if (missingLockedCrushes.length > 0) {
-            const restoredNames = [...new Set([...selectedNames, ...lockedCrushes])];
+            const restoredNames = [...new Set([...currentSelectedNames, ...lockedCrushes])];
             setSelectedNames(restoredNames);
         }
 
@@ -116,7 +128,7 @@ const Home: React.FC = () => {
         try {
             const actualUid = getUserDocumentId(user, userData);
             const userRef = doc(db, 'users', actualUid);
-            const finalCrushes = [...new Set([...selectedNames, ...lockedCrushes])];
+            const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
 
             await updateDoc(userRef, {
                 crushes: finalCrushes,
@@ -174,7 +186,7 @@ const Home: React.FC = () => {
         <div className="dashboard-container">
             <div className="dashboard-card">
                 <div className="dashboard-header">
-                    <h1>Past Chances</h1>
+                    <h1>Past Chances: {getClassDisplayName()}</h1>
                     <div className="user-info">
                         <div className="user-details">
                             <img
@@ -211,8 +223,8 @@ const Home: React.FC = () => {
                             userData={userData!}
                             searchTerm={searchTerm}
                             setSearchTerm={setSearchTerm}
-                            selectedNames={selectedNames}
-                            savedNames={savedNames}
+                            selectedNames={selectedNames || []}
+                            savedNames={savedNames || []}
                             updating={updating}
                             error={error}
                             handleNameToggle={handleNameToggle}
