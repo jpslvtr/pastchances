@@ -84,6 +84,8 @@ interface AdminViewProps {
 }
 
 const AdminView: React.FC<AdminViewProps> = ({ user }) => {
+    // Server-side admin check with error handling
+    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
     const [allUsers, setAllUsers] = useState<(UserData | InactiveUser | GhostUser)[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [adminSearchTerm, setAdminSearchTerm] = useState('');
@@ -95,6 +97,37 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     const [undergradAnalytics, setUndergradAnalytics] = useState<ClassAnalyticsData | null>(null);
     const [loadingAnalytics, setLoadingAnalytics] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
+
+    // Strict admin access control
+    useEffect(() => {
+        if (user?.email !== 'jpark22@stanford.edu') {
+            setAdminAccessDenied(true);
+            return;
+        }
+        setAdminAccessDenied(false);
+    }, [user?.email]);
+
+    // Early return for non-admin users
+    if (adminAccessDenied) {
+        return (
+            <div className="admin-access-denied">
+                <div className="access-denied-card">
+                    <h2>Access Denied</h2>
+                    <p>You do not have permission to view this page.</p>
+                    <p>Admin access is restricted to authorized personnel only.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Only proceed with admin functionality if user is confirmed admin
+    if (user?.email !== 'jpark22@stanford.edu') {
+        return (
+            <div className="admin-loading">
+                Verifying admin access...
+            </div>
+        );
+    }
 
     const normalizeName = useCallback((name: string): string => {
         if (!name || typeof name !== 'string') return '';
@@ -173,8 +206,10 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         return crushers;
     }, [allUsers]);
 
-    // Set up real-time listener for analytics with error handling
+    // Set up real-time listener for analytics with error handling and admin check
     useEffect(() => {
+        if (user?.email !== 'jpark22@stanford.edu') return;
+
         const analyticsQuery = query(
             collection(db, 'analytics'),
             orderBy('createdAt', 'desc'),
@@ -190,10 +225,14 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             }
         }, (error) => {
             console.error('Error listening to analytics:', error);
+            // If we get a permission error, user is not admin
+            if (error.code === 'permission-denied') {
+                setAdminAccessDenied(true);
+            }
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [user?.email]);
 
     const calculateRealTime24hActiveUsers = useCallback((classUsers: UserData[]): number => {
         if (classUsers.length === 0) return 0;
@@ -381,6 +420,11 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     }, [allUsers, findUserByName, findCrushersForUser, calculateRealTime24hActiveUsers]);
 
     const loadAllUsers = useCallback(async () => {
+        if (user?.email !== 'jpark22@stanford.edu') {
+            setAdminAccessDenied(true);
+            return;
+        }
+
         setLoadingUsers(true);
         try {
             const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -550,22 +594,26 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
             setAllUsers(allUsersArray);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error loading all users:', error);
+            // Check for permission denied errors
+            if (error.code === 'permission-denied') {
+                setAdminAccessDenied(true);
+            }
         } finally {
             setLoadingUsers(false);
         }
-    }, [normalizeName]);
+    }, [normalizeName, user?.email]);
 
     useEffect(() => {
-        if (user) {
+        if (user?.email === 'jpark22@stanford.edu') {
             loadAllUsers();
         }
     }, [user, loadAllUsers]);
 
     // Calculate analytics for both classes
     useEffect(() => {
-        if (allUsers.length > 0) {
+        if (allUsers.length > 0 && user?.email === 'jpark22@stanford.edu') {
             setLoadingAnalytics(true);
 
             const timeoutId = setTimeout(() => {
@@ -582,7 +630,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
             return () => clearTimeout(timeoutId);
         }
-    }, [allUsers, calculateClassAnalytics, refreshKey]);
+    }, [allUsers, calculateClassAnalytics, refreshKey, user?.email]);
 
     // Get current class data
     const currentClassUsers = useMemo(() => {
