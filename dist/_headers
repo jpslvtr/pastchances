@@ -1,0 +1,17 @@
+# Cache static assets
+/stanford.svg
+  Cache-Control: public, max-age=86400
+  Content-Type: image/svg+xml
+
+/stanford.png
+  Cache-Control: public, max-age=86400
+  Content-Type: image/png
+
+/share.png
+  Cache-Control: public, max-age=86400
+  Content-Type: image/png
+
+# Security headers
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
