@@ -24,3 +24,6 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
     hd: 'stanford.edu' // This restricts to stanford.edu domain
 });
+
+// Additional configuration for cross-domain compatibility
+auth.useDeviceLanguage();
