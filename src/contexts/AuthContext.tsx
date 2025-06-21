@@ -5,32 +5,15 @@ import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
-
-interface MatchInfo {
-    name: string;
-    email: string;
-}
-
-interface UserData {
-    uid: string;
-    email: string;
-    name: string;  // Single name field instead of displayName/verifiedName
-    photoURL: string;
-    crushes: string[];
-    lockedCrushes: string[];
-    matches: MatchInfo[];
-    crushCount: number;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
-}
+import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
+import type { UserData, UserClass, MatchInfo } from '../types/userTypes';
 
 interface AuthContextType {
     user: User | null;
     userData: UserData | null;
     loading: boolean;
-    nameOptions: string[] | null; // For cases where multiple matches are found
-    signInWithGoogle: () => Promise<void>;
+    nameOptions: string[] | null;
+    signInWithGoogle: (userClass: UserClass) => Promise<void>;
     selectName: (selectedName: string) => Promise<void>;
     logout: () => Promise<void>;
     refreshUserData: () => Promise<void>;
@@ -57,12 +40,12 @@ function normalizeName(name: string): string {
     if (!name || typeof name !== 'string') return '';
 
     return name
-        .normalize('NFD')  // Decompose accented characters
-        .replace(/[\u0300-\u036f]/g, '')  // Remove accent marks
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .trim()
-        .replace(/[^\w\s]/g, ' ')  // Replace non-alphanumeric with spaces
-        .replace(/\s+/g, ' ')  // Normalize spaces
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
 }
 
@@ -97,11 +80,19 @@ function findNameMatches(displayName: string, availableNames: string[]): { exact
         const nameFirst = nameParts[0];
         const nameLast = nameParts[nameParts.length - 1];
 
-        // Match if first and last names match
         return nameFirst === inputFirst && nameLast === inputLast;
     });
 
     return { potentialMatches };
+}
+
+// Helper function to get the correct document ID for user class
+function getUserDocumentId(user: User, userClass: UserClass): string {
+    if (user.email === 'jpark22@stanford.edu') {
+        // For test user, always use class-specific UIDs to ensure complete separation
+        return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
+    }
+    return user.uid;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -109,6 +100,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
     const [nameOptions, setNameOptions] = useState<string[] | null>(null);
+    const [pendingUserClass, setPendingUserClass] = useState<UserClass | null>(null);
+    const [currentUserClass, setCurrentUserClass] = useState<UserClass | null>(null); // Track current class
 
     const normalizeMatches = (matches: any[]): MatchInfo[] => {
         if (!matches || !Array.isArray(matches)) return [];
@@ -133,53 +126,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
     };
 
-    const refreshUserData = async () => {
-        if (!user?.uid) {
-            console.warn('refreshUserData called without user');
-            return;
-        }
-
-        try {
-            const userRef = doc(db, 'users', user.uid);
-            const userDoc = await getDoc(userRef);
-
-            if (userDoc.exists()) {
-                const data = userDoc.data();
-                const userData: UserData = {
-                    uid: data.uid,
-                    email: data.email,
-                    name: data.name || data.verifiedName || data.displayName || '', // Migration support
-                    photoURL: data.photoURL,
-                    crushes: data.crushes || [],
-                    lockedCrushes: data.lockedCrushes || [],
-                    matches: normalizeMatches(data.matches),
-                    crushCount: data.crushCount || 0,
-                    createdAt: data.createdAt,
-                    updatedAt: data.updatedAt,
-                    lastLogin: data.lastLogin
-                };
-                setUserData(userData);
-            } else {
-                console.error('User document does not exist after creation');
-                setUserData(null);
-            }
-        } catch (error) {
-            console.error('Error refreshing user data:', error);
-            setUserData(null);
-        }
-    };
-
     const selectName = async (selectedName: string) => {
-        if (!user?.uid || !nameOptions) return;
+        if (!user?.uid || !nameOptions || !pendingUserClass) return;
 
         try {
-            const userRef = doc(db, 'users', user.uid);
+            const actualUid = getUserDocumentId(user, pendingUserClass);
+            const userRef = doc(db, 'users', actualUid);
+
             await setDoc(userRef, {
                 name: selectedName,
+                userClass: pendingUserClass,
                 updatedAt: serverTimestamp()
             }, { merge: true });
 
             setNameOptions(null);
+            setCurrentUserClass(pendingUserClass); // Set the current class
+            setPendingUserClass(null);
             await refreshUserData();
         } catch (error) {
             console.error('Error selecting name:', error);
@@ -187,86 +149,309 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
-    const createOrUpdateUserDocument = async (user: User) => {
-        if (!user.uid) return null;
-
-        const userRef = doc(db, 'users', user.uid);
+    const refreshUserData = async () => {
+        if (!user?.uid) {
+            console.warn('refreshUserData called without user');
+            return;
+        }
 
         try {
-            const userDoc = await getDoc(userRef);
+            // If we have a current user class (from recent login), use that
+            if (currentUserClass && user.email === 'jpark22@stanford.edu') {
+                const actualUid = getUserDocumentId(user, currentUserClass);
+                const userRef = doc(db, 'users', actualUid);
+                const userDoc = await getDoc(userRef);
 
-            if (!userDoc.exists()) {
-                // New user - try to match their displayName to class roster
-                const displayName = user.displayName || user.email?.split('@')[0] || '';
-                const { exactMatch, potentialMatches } = findNameMatches(displayName, GSB_CLASS_NAMES);
-
-                if (exactMatch) {
-                    // Perfect match - create user with this name
-                    const newUserData: UserData = {
-                        uid: user.uid,
-                        email: user.email || '',
-                        name: exactMatch,
-                        photoURL: user.photoURL || DEFAULT_PROFILE_URL,
-                        crushes: [],
-                        lockedCrushes: [],
-                        matches: [],
-                        crushCount: 0,
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp(),
-                        lastLogin: serverTimestamp()
+                if (userDoc.exists()) {
+                    const data = userDoc.data();
+                    const userData: UserData = {
+                        uid: data.uid,
+                        email: data.email,
+                        name: data.name || data.verifiedName || data.displayName || '',
+                        photoURL: data.photoURL,
+                        crushes: data.crushes || [],
+                        lockedCrushes: data.lockedCrushes || [],
+                        matches: normalizeMatches(data.matches),
+                        crushCount: data.crushCount || 0,
+                        userClass: data.userClass || currentUserClass,
+                        createdAt: data.createdAt,
+                        updatedAt: data.updatedAt,
+                        lastLogin: data.lastLogin
                     };
+                    setUserData(userData);
+                    return;
+                }
+            }
 
-                    await setDoc(userRef, newUserData);
-                    setUserData(newUserData);
-                    return newUserData;
-                } else if (potentialMatches.length > 0) {
-                    // Multiple potential matches - user needs to choose
-                    setNameOptions(potentialMatches);
+            // Fallback logic for when currentUserClass is not set
+            if (user.email === 'jpark22@stanford.edu') {
+                // For test user, check both documents and prefer the one with a name
+                const gsbDocId = `${user.uid}_gsb`;
+                const undergradDocId = `${user.uid}_undergrad`;
 
-                    // Create incomplete user document
-                    const incompleteUserData: UserData = {
-                        uid: user.uid,
-                        email: user.email || '',
-                        name: '', // Will be set when user selects
-                        photoURL: user.photoURL || DEFAULT_PROFILE_URL,
-                        crushes: [],
-                        lockedCrushes: [],
-                        matches: [],
-                        crushCount: 0,
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp(),
-                        lastLogin: serverTimestamp()
+                const gsbRef = doc(db, 'users', gsbDocId);
+                const undergradRef = doc(db, 'users', undergradDocId);
+
+                const [gsbDoc, undergradDoc] = await Promise.all([
+                    getDoc(gsbRef),
+                    getDoc(undergradRef)
+                ]);
+
+                let targetData = null;
+                let detectedClass: UserClass = 'gsb';
+
+                // Prefer the document that has a name set
+                if (gsbDoc.exists() && gsbDoc.data().name) {
+                    targetData = gsbDoc.data();
+                    detectedClass = 'gsb';
+                } else if (undergradDoc.exists() && undergradDoc.data().name) {
+                    targetData = undergradDoc.data();
+                    detectedClass = 'undergrad';
+                } else if (gsbDoc.exists()) {
+                    // Fall back to GSB if neither has a name
+                    targetData = gsbDoc.data();
+                    detectedClass = 'gsb';
+                } else if (undergradDoc.exists()) {
+                    targetData = undergradDoc.data();
+                    detectedClass = 'undergrad';
+                }
+
+                if (targetData) {
+                    // Set the current user class based on what we found
+                    setCurrentUserClass(detectedClass);
+
+                    const userData: UserData = {
+                        uid: targetData.uid,
+                        email: targetData.email,
+                        name: targetData.name || targetData.verifiedName || targetData.displayName || '',
+                        photoURL: targetData.photoURL,
+                        crushes: targetData.crushes || [],
+                        lockedCrushes: targetData.lockedCrushes || [],
+                        matches: normalizeMatches(targetData.matches),
+                        crushCount: targetData.crushCount || 0,
+                        userClass: targetData.userClass || detectedClass,
+                        createdAt: targetData.createdAt,
+                        updatedAt: targetData.updatedAt,
+                        lastLogin: targetData.lastLogin
                     };
-
-                    await setDoc(userRef, incompleteUserData);
-                    setUserData(incompleteUserData);
-                    return incompleteUserData;
-                } else {
-                    // No matches found
-                    await signOut(auth);
-                    alert(`Your name "${displayName}" was not found in the GSB Class of 2025 roster. Please contact the administrator if you believe this is an error.`);
-                    return null;
+                    setUserData(userData);
+                    return;
                 }
             } else {
-                // Existing user - update login time and migrate if needed
-                const existingData = userDoc.data();
-                const updatedData: UserData = {
-                    uid: existingData.uid,
-                    email: existingData.email,
-                    name: existingData.name || existingData.verifiedName || existingData.displayName || '', // Migration
-                    photoURL: user.photoURL || existingData.photoURL || DEFAULT_PROFILE_URL,
-                    crushes: existingData.crushes || [],
-                    lockedCrushes: existingData.lockedCrushes || [],
-                    matches: normalizeMatches(existingData.matches),
-                    crushCount: existingData.crushCount || 0,
-                    createdAt: existingData.createdAt,
-                    updatedAt: serverTimestamp(),
-                    lastLogin: serverTimestamp()
-                };
+                // Regular user logic
+                const userRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userRef);
 
-                await setDoc(userRef, updatedData, { merge: true });
-                setUserData(updatedData);
-                return updatedData;
+                if (userDoc.exists()) {
+                    const data = userDoc.data();
+                    const userData: UserData = {
+                        uid: data.uid,
+                        email: data.email,
+                        name: data.name || data.verifiedName || data.displayName || '',
+                        photoURL: data.photoURL,
+                        crushes: data.crushes || [],
+                        lockedCrushes: data.lockedCrushes || [],
+                        matches: normalizeMatches(data.matches),
+                        crushCount: data.crushCount || 0,
+                        userClass: data.userClass || 'gsb',
+                        createdAt: data.createdAt,
+                        updatedAt: data.updatedAt,
+                        lastLogin: data.lastLogin
+                    };
+                    setUserData(userData);
+                    return;
+                }
+            }
+
+            console.error('User document does not exist');
+            setUserData(null);
+        } catch (error) {
+            console.error('Error refreshing user data:', error);
+            setUserData(null);
+        }
+    };
+
+    const createOrUpdateUserDocument = async (user: User, userClass: UserClass) => {
+        if (!user.uid) return null;
+
+        // Set the current user class immediately when logging in
+        setCurrentUserClass(userClass);
+
+        try {
+            // Special handling for test user (you) - always use class-specific UIDs
+            if (user.email === 'jpark22@stanford.edu') {
+                const actualUid = getUserDocumentId(user, userClass);
+                const userRef = doc(db, 'users', actualUid);
+                const userDoc = await getDoc(userRef);
+
+                if (!userDoc.exists()) {
+                    // Create completely new user document for this class
+                    const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+                    const displayName = user.displayName || user.email?.split('@')[0] || '';
+
+                    const { exactMatch, potentialMatches } = findNameMatches(displayName, classNames);
+
+                    if (exactMatch) {
+                        console.log(`Creating fresh ${userClass} account with name: ${exactMatch}`);
+                        const newUserData: UserData = {
+                            uid: actualUid,
+                            email: user.email || '',
+                            name: exactMatch,
+                            photoURL: user.photoURL || DEFAULT_PROFILE_URL,
+                            crushes: [], // Start fresh - no crushes
+                            lockedCrushes: [], // Start fresh - no locked crushes
+                            matches: [], // Start fresh - no matches
+                            crushCount: 0, // Start fresh - no crush count
+                            userClass: userClass,
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
+                            lastLogin: serverTimestamp()
+                        };
+
+                        await setDoc(userRef, newUserData);
+                        setUserData(newUserData);
+                        console.log(`Successfully created fresh ${userClass} account`);
+                        return newUserData;
+                    } else if (potentialMatches.length > 0) {
+                        console.log(`Multiple matches found for ${userClass}, showing selection`);
+                        setNameOptions(potentialMatches);
+                        setPendingUserClass(userClass);
+
+                        const incompleteUserData: UserData = {
+                            uid: actualUid,
+                            email: user.email || '',
+                            name: '', // Will be set when user selects
+                            photoURL: user.photoURL || DEFAULT_PROFILE_URL,
+                            crushes: [], // Start fresh
+                            lockedCrushes: [], // Start fresh
+                            matches: [], // Start fresh
+                            crushCount: 0, // Start fresh
+                            userClass: userClass,
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
+                            lastLogin: serverTimestamp()
+                        };
+
+                        await setDoc(userRef, incompleteUserData);
+                        setUserData(incompleteUserData);
+                        return incompleteUserData;
+                    } else {
+                        await signOut(auth);
+                        const className = userClass === 'gsb' ? 'GSB Class of 2025' : 'Undergraduate Class of 2025';
+                        alert(`Your name was not found in the ${className} roster. If this is a mistake, please contact jpark22@stanford.edu.`);
+                        return null;
+                    }
+                } else {
+                    // Document exists, just update login time (don't modify crushes/matches)
+                    const existingData = userDoc.data();
+                    console.log(`Using existing ${userClass} account for ${existingData.name}`);
+
+                    const updatedData: UserData = {
+                        uid: existingData.uid,
+                        email: existingData.email,
+                        name: existingData.name || existingData.verifiedName || existingData.displayName || '',
+                        photoURL: user.photoURL || existingData.photoURL || DEFAULT_PROFILE_URL,
+                        crushes: existingData.crushes || [],
+                        lockedCrushes: existingData.lockedCrushes || [],
+                        matches: normalizeMatches(existingData.matches || []),
+                        crushCount: existingData.crushCount || 0,
+                        userClass: existingData.userClass || userClass,
+                        createdAt: existingData.createdAt,
+                        updatedAt: serverTimestamp(),
+                        lastLogin: serverTimestamp()
+                    };
+
+                    await setDoc(userRef, updatedData, { merge: true });
+                    setUserData(updatedData);
+                    return updatedData;
+                }
+            } else {
+                // Regular user flow for everyone else
+                const userRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userRef);
+
+                if (!userDoc.exists()) {
+                    // New user
+                    const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+                    const displayName = user.displayName || user.email?.split('@')[0] || '';
+                    const { exactMatch, potentialMatches } = findNameMatches(displayName, classNames);
+
+                    if (exactMatch) {
+                        const newUserData: UserData = {
+                            uid: user.uid,
+                            email: user.email || '',
+                            name: exactMatch,
+                            photoURL: user.photoURL || DEFAULT_PROFILE_URL,
+                            crushes: [],
+                            lockedCrushes: [],
+                            matches: [],
+                            crushCount: 0,
+                            userClass: userClass,
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
+                            lastLogin: serverTimestamp()
+                        };
+
+                        await setDoc(userRef, newUserData);
+                        setUserData(newUserData);
+                        return newUserData;
+                    } else if (potentialMatches.length > 0) {
+                        setNameOptions(potentialMatches);
+                        setPendingUserClass(userClass);
+
+                        const incompleteUserData: UserData = {
+                            uid: user.uid,
+                            email: user.email || '',
+                            name: '',
+                            photoURL: user.photoURL || DEFAULT_PROFILE_URL,
+                            crushes: [],
+                            lockedCrushes: [],
+                            matches: [],
+                            crushCount: 0,
+                            userClass: userClass,
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
+                            lastLogin: serverTimestamp()
+                        };
+
+                        await setDoc(userRef, incompleteUserData);
+                        setUserData(incompleteUserData);
+                        return incompleteUserData;
+                    } else {
+                        await signOut(auth);
+                        const className = userClass === 'gsb' ? 'GSB Class of 2025' : 'Undergraduate Class of 2025';
+                        alert(`Your name was not found in the ${className} roster. If this is a mistake, please contact jpark22@stanford.edu.`);
+                        return null;
+                    }
+                } else {
+                    // Existing user - check if they're trying wrong class
+                    const existingData = userDoc.data();
+                    if (existingData.userClass && existingData.userClass !== userClass) {
+                        await signOut(auth);
+                        const existingClassName = existingData.userClass === 'gsb' ? 'GSB' : 'Undergraduate';
+                        alert(`You are already registered as a ${existingClassName} student. Please sign in with the ${existingClassName} option.`);
+                        return null;
+                    }
+
+                    const updatedData: UserData = {
+                        uid: existingData.uid,
+                        email: existingData.email,
+                        name: existingData.name || existingData.verifiedName || existingData.displayName || '',
+                        photoURL: user.photoURL || existingData.photoURL || DEFAULT_PROFILE_URL,
+                        crushes: existingData.crushes || [],
+                        lockedCrushes: existingData.lockedCrushes || [],
+                        matches: normalizeMatches(existingData.matches),
+                        crushCount: existingData.crushCount || 0,
+                        userClass: existingData.userClass || userClass,
+                        createdAt: existingData.createdAt,
+                        updatedAt: serverTimestamp(),
+                        lastLogin: serverTimestamp()
+                    };
+
+                    await setDoc(userRef, updatedData, { merge: true });
+                    setUserData(updatedData);
+                    return updatedData;
+                }
             }
         } catch (error) {
             console.error('Error creating/updating user document:', error);
@@ -281,17 +466,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     await signOut(auth);
                     setUser(null);
                     setUserData(null);
+                    setCurrentUserClass(null);
                     setLoading(false);
                     alert('Only @stanford.edu email addresses are allowed. Please sign in with your Stanford account.');
                 } else {
                     setUser(user);
-                    await createOrUpdateUserDocument(user);
+                    // Don't automatically create user document here - wait for class selection
                     setLoading(false);
                 }
             } else {
                 setUser(null);
                 setUserData(null);
                 setNameOptions(null);
+                setPendingUserClass(null);
+                setCurrentUserClass(null);
                 setLoading(false);
             }
         });
@@ -299,7 +487,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return unsubscribe;
     }, []);
 
-    const signInWithGoogle = async () => {
+    const signInWithGoogle = async (userClass: UserClass) => {
         try {
             const result = await signInWithPopup(auth, googleProvider);
 
@@ -307,6 +495,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 await signOut(auth);
                 throw new Error('Only @stanford.edu email addresses are allowed');
             }
+
+            // Create or update user document with the selected class
+            await createOrUpdateUserDocument(result.user, userClass);
         } catch (error: any) {
             console.error('Login error:', error);
 
@@ -325,6 +516,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             await signOut(auth);
             setUserData(null);
             setNameOptions(null);
+            setPendingUserClass(null);
+            setCurrentUserClass(null);
         } catch (error) {
             console.error('Logout error:', error);
         }

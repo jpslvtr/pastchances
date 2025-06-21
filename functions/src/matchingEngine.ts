@@ -10,8 +10,9 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // Enhanced function to recalculate all matches and crush counts with better name matching
+// Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
 export async function processUpdatedCrushes(): Promise<void> {
-    console.log('🔄 Starting enhanced recalculation of all matches and crush counts...');
+    console.log('🔄 Starting enhanced recalculation of all matches and crush counts with class separation...');
 
     try {
         await db.runTransaction(async (transaction) => {
@@ -25,41 +26,74 @@ export async function processUpdatedCrushes(): Promise<void> {
 
             console.log(`📊 Processing ${allUsers.length} users`);
 
-            // Enhanced crush count calculation with better name matching
+            // Separate users by class
+            const gsbUsers = allUsers.filter(user => user.userClass === 'gsb' || !user.userClass); // Default to GSB for backwards compatibility
+            const undergradUsers = allUsers.filter(user => user.userClass === 'undergrad');
+
+            console.log(`📊 GSB users: ${gsbUsers.length}, Undergrad users: ${undergradUsers.length}`);
+
+            // Enhanced crush count calculation with better name matching and class separation
             const crushCounts = new Map<string, number>();
 
-            for (const user of allUsers) {
+            // Process GSB users
+            for (const user of gsbUsers) {
                 const userCrushes = user.crushes || [];
                 for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name
-                    const targetUser = findUserByName(crushName, allUsers);
+                    // Find the actual user that matches this crush name within GSB class
+                    const targetUser = findUserByName(crushName, gsbUsers, 'gsb');
 
                     if (targetUser) {
                         // Use the user's identity name
                         const actualName = getUserIdentityName(targetUser);
                         if (actualName) {
-                            crushCounts.set(actualName, (crushCounts.get(actualName) || 0) + 1);
+                            const key = `gsb:${actualName}`;
+                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
                         }
                     } else {
                         // If no user found, still count it but use the crush name directly
-                        // This handles cases where someone hasn't signed up yet or name doesn't match
-                        console.log(`⚠️ No user found for crush name: "${crushName}" - counting anyway`);
-                        crushCounts.set(crushName, (crushCounts.get(crushName) || 0) + 1);
+                        console.log(`⚠️ No GSB user found for crush name: "${crushName}" - counting anyway`);
+                        const key = `gsb:${crushName}`;
+                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+                    }
+                }
+            }
+
+            // Process Undergrad users
+            for (const user of undergradUsers) {
+                const userCrushes = user.crushes || [];
+                for (const crushName of userCrushes) {
+                    // Find the actual user that matches this crush name within undergrad class
+                    const targetUser = findUserByName(crushName, undergradUsers, 'undergrad');
+
+                    if (targetUser) {
+                        // Use the user's identity name
+                        const actualName = getUserIdentityName(targetUser);
+                        if (actualName) {
+                            const key = `undergrad:${actualName}`;
+                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+                        }
+                    } else {
+                        // If no user found, still count it but use the crush name directly
+                        console.log(`⚠️ No undergrad user found for crush name: "${crushName}" - counting anyway`);
+                        const key = `undergrad:${crushName}`;
+                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
                     }
                 }
             }
 
             console.log('💕 Enhanced crush counts calculated:', Object.fromEntries(crushCounts));
 
-            // Calculate matches and locked crushes with enhanced matching
+            // Calculate matches and locked crushes with enhanced matching and class separation
             const allMatches = new Map<string, MatchInfo[]>();
             const allLockedCrushes = new Map<string, string[]>();
 
+            // Process both classes together but only allow matches within same class
             for (const user of allUsers) {
                 const userMatches: MatchInfo[] = [];
                 const userLockedCrushes: string[] = [];
                 const userCrushes = user.crushes || [];
                 const userIdentityName = getUserIdentityName(user);
+                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
 
                 if (!userIdentityName || !userIdentityName.trim()) {
                     console.log(`⏭️ Skipping user ${user.id} - no identity name`);
@@ -68,20 +102,23 @@ export async function processUpdatedCrushes(): Promise<void> {
                     continue;
                 }
 
-                // Find mutual matches with enhanced name matching
+                // Get users from the same class only
+                const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
+
+                // Find mutual matches with enhanced name matching within same class
                 for (const crushName of userCrushes) {
-                    const crushedUser = findUserByName(crushName, allUsers);
+                    const crushedUser = findUserByName(crushName, sameClassUsers, userClass);
 
                     if (!crushedUser) {
-                        console.log(`⚠️ No user found for crush name: "${crushName}"`);
+                        console.log(`⚠️ No ${userClass} user found for crush name: "${crushName}"`);
                         continue;
                     }
 
                     const crushedUserCrushes = crushedUser.crushes || [];
 
-                    // Check if it's a mutual match using enhanced matching
+                    // Check if it's a mutual match using enhanced matching within same class
                     const hasMutualCrush = crushedUserCrushes.some(crush => {
-                        const matchedUser = findUserByName(crush, allUsers);
+                        const matchedUser = findUserByName(crush, sameClassUsers, userClass);
                         return matchedUser && matchedUser.id === user.id;
                     });
 
@@ -97,7 +134,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                             userLockedCrushes.push(crushName);
                         }
 
-                        console.log(`💕 Match found: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                        console.log(`💕 ${userClass.toUpperCase()} Match found: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
                     }
                 }
 
@@ -109,24 +146,27 @@ export async function processUpdatedCrushes(): Promise<void> {
             for (const user of allUsers) {
                 const userRef = db.collection('users').doc(user.id);
                 const userIdentityName = getUserIdentityName(user);
+                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
 
-                // For crush count, we need to check the user's identity name
+                // For crush count, we need to check the user's identity name with class prefix
                 let userCrushCount = 0;
                 if (userIdentityName) {
-                    userCrushCount = crushCounts.get(userIdentityName) || 0;
+                    const key = `${userClass}:${userIdentityName}`;
+                    userCrushCount = crushCounts.get(key) || 0;
                 }
 
                 const updateData = {
                     matches: allMatches.get(user.id) || [],
                     lockedCrushes: allLockedCrushes.get(user.id) || [],
                     crushCount: userCrushCount,
+                    userClass: userClass, // Ensure userClass is set for legacy users
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 };
 
                 transaction.update(userRef, updateData);
             }
 
-            console.log(`✅ Updated all ${allUsers.length} users with enhanced matches and crush counts`);
+            console.log(`✅ Updated all ${allUsers.length} users with enhanced matches and crush counts (class-separated)`);
         });
 
     } catch (error) {
