@@ -674,3 +674,61 @@
   color: #6c757d;
   font-style: italic;
 }
+
+/* Ghost User Styles */
+.admin-user-ghost {
+  background: linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%);
+  border-left: 4px solid #bbb;
+  opacity: 0.6;
+}
+
+.admin-user-ghost .admin-user-header {
+  background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
+}
+
+.admin-user-ghost .admin-user-name {
+  font-style: italic;
+  color: #777;
+}
+
+.admin-user-ghost .admin-user-email {
+  color: #999;
+}
+
+.admin-user-ghost .admin-user-stats {
+  color: #aaa;
+}
+
+.admin-user-ghost .admin-view-btn {
+  background: #999;
+  cursor: not-allowed;
+}
+
+.admin-user-ghost .admin-view-btn:hover {
+  background: #999;
+}
+
+/* Update existing inactive user styles to be more distinct from ghost */
+.admin-user-inactive {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  border-left: 4px solid #ffc107;
+  opacity: 0.9;
+}
+
+.admin-user-inactive .admin-user-header {
+  background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+}
+
+.admin-user-inactive .admin-user-name {
+  font-style: italic;
+  color: #856404;
+}
+
+.admin-user-inactive .admin-view-btn {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.admin-user-inactive .admin-view-btn:hover {
+  background: #6c757d;
+}

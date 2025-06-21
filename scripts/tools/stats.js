@@ -7,7 +7,7 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load service account key - corrected path
+// Load service account key
 const serviceAccount = JSON.parse(
     readFileSync(join(__dirname, '../../functions/src/serviceAccountKey.json'), 'utf8')
 );
@@ -22,26 +22,16 @@ const db = admin.firestore();
 // Dynamic import to load the TypeScript file
 let GSB_CLASS_NAMES;
 try {
-    // Try to import the TS file directly (works with some Node.js setups)
-    const namesModule = await import('../../src/data/names.ts');
-    GSB_CLASS_NAMES = namesModule.GSB_CLASS_NAMES;
-} catch (error) {
-    // Fallback: read and eval the file content
-    console.log('Direct TS import failed, trying file read approach...');
-    try {
-        const namesContent = readFileSync(join(__dirname, '../../src/data/names.ts'), 'utf8');
-        // Extract the array from the TypeScript file
-        const arrayMatch = namesContent.match(/export\s+const\s+GSB_CLASS_NAMES\s*=\s*(\[[\s\S]*?\]);/);
-        if (arrayMatch) {
-            GSB_CLASS_NAMES = eval(arrayMatch[1]);
-        } else {
-            throw new Error('Could not parse GSB_CLASS_NAMES from names.ts');
-        }
-    } catch (fileError) {
-        console.error('Failed to load names from names.ts:', fileError);
-        console.log('Please ensure src/data/names.ts exists and exports GSB_CLASS_NAMES');
-        process.exit(1);
+    const namesContent = readFileSync(join(__dirname, '../../src/data/names.ts'), 'utf8');
+    const arrayMatch = namesContent.match(/export\s+const\s+GSB_CLASS_NAMES\s*=\s*(\[[\s\S]*?\]);/);
+    if (arrayMatch) {
+        GSB_CLASS_NAMES = eval(arrayMatch[1]);
+    } else {
+        throw new Error('Could not parse GSB_CLASS_NAMES from names.ts');
     }
+} catch (error) {
+    console.error('Failed to load names from names.ts:', error);
+    process.exit(1);
 }
 
 async function runAnalytics() {
@@ -56,34 +46,40 @@ async function runAnalytics() {
 
         // Get all data
         const usersSnapshot = await db.collection('users').get();
-        const takenNamesSnapshot = await db.collection('takenNames').get();
 
         // 1. Platform stats
         const totalUsers = usersSnapshot.size;
-        const totalTakenNames = takenNamesSnapshot.size;
 
         console.log('\nPLATFORM:');
-        console.log(`Users on platform: ${totalUsers}`);
-        console.log(`Taken names: ${totalTakenNames}`);
+        console.log(`Total users in database: ${totalUsers}`);
 
         // 2. Process users data
         const allUsers = [];
-        const usersBeingCrushedOn = new Set(); // People who have crushes sent to them
+        const usersBeingCrushedOn = new Set();
         let totalCrushesSent = 0;
+        let usersWithNames = 0;
 
         usersSnapshot.forEach(doc => {
             const userData = doc.data();
-            const userName = userData.verifiedName || userData.displayName || userData.email || '(Unnamed User)';
+
+            // Use the new single name field (with fallback for migration)
+            const userName = userData.name || userData.verifiedName || userData.displayName || userData.email || '(Unnamed User)';
+            const hasName = !!(userData.name && userData.name.trim());
 
             const userInfo = {
                 name: userName,
-                hasVerifiedName: !!(userData.verifiedName && userData.verifiedName.trim()),
+                hasName: hasName,
                 crushes: userData.crushes || [],
                 matches: userData.matches || [],
                 crushCount: userData.crushCount || 0
             };
 
             allUsers.push(userInfo);
+
+            // Count users with names set
+            if (hasName) {
+                usersWithNames++;
+            }
 
             // Count crushes sent and track who's being crushed on
             const userCrushes = userData.crushes || [];
@@ -95,13 +91,15 @@ async function runAnalytics() {
         });
 
         // 3. Calculate crush statistics
-        const usersWithVerifiedNames = allUsers.filter(user => user.hasVerifiedName).length;
-        const avgCrushesSentPerUser = usersWithVerifiedNames > 0 ? totalCrushesSent / usersWithVerifiedNames : 0;
+        const avgCrushesSentPerUser = usersWithNames > 0 ? totalCrushesSent / usersWithNames : 0;
         const peopleBeingCrushedOn = usersBeingCrushedOn.size;
+
+        console.log(`Users with names set: ${usersWithNames}`);
+        console.log(`Users without names: ${totalUsers - usersWithNames}`);
 
         console.log('\nCRUSHES:');
         console.log(`Total crushes sent: ${totalCrushesSent}`);
-        console.log(`Average crushes per platform user: ${avgCrushesSentPerUser.toFixed(2)}`);
+        console.log(`Average crushes per user with name: ${avgCrushesSentPerUser.toFixed(2)}`);
         console.log(`People being crushed on: ${peopleBeingCrushedOn}`);
 
         // 4. Calculate matches
@@ -133,22 +131,21 @@ async function runAnalytics() {
         console.log(`Users who have sent crushes: ${usersWhoSentCrushes}`);
 
         // 6. Participation rates
-        const platformParticipationRate = usersWithVerifiedNames > 0 ? (usersWhoSentCrushes / usersWithVerifiedNames * 100) : 0;
+        const platformParticipationRate = usersWithNames > 0 ? (usersWhoSentCrushes / usersWithNames * 100) : 0;
         const classParticipationRate = (usersWhoSentCrushes / TOTAL_CLASS_SIZE * 100);
 
         console.log('\nPARTICIPATION:');
-        console.log(`Platform participation rate: ${platformParticipationRate.toFixed(1)}% (${usersWhoSentCrushes}/${usersWithVerifiedNames} platform users)`);
+        console.log(`Platform participation rate: ${platformParticipationRate.toFixed(1)}% (${usersWhoSentCrushes}/${usersWithNames} users with names)`);
         console.log(`Class participation rate: ${classParticipationRate.toFixed(1)}% (${usersWhoSentCrushes}/${TOTAL_CLASS_SIZE} total class)`);
 
         console.log('\n' + '='.repeat(80));
 
-        // Return structured data for potential API use
         return {
             classSize: TOTAL_CLASS_SIZE,
             platform: {
                 totalUsers,
-                totalTakenNames: usersWithVerifiedNames,
-                usersWithVerifiedNames
+                usersWithNames,
+                usersWithoutNames: totalUsers - usersWithNames
             },
             crushes: {
                 totalCrushesSent,

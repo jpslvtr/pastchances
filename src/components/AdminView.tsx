@@ -13,7 +13,7 @@ interface MatchInfo {
 interface UserData {
     uid: string;
     email: string;
-    name: string;  // Single name field
+    name: string;
     photoURL: string;
     crushes: string[];
     lockedCrushes: string[];
@@ -39,6 +39,21 @@ interface InactiveUser {
     matches: MatchInfo[];
     crushCount: number;
     isInactive: boolean;
+    createdAt: any;
+    updatedAt: any;
+    lastLogin: any;
+}
+
+interface GhostUser {
+    uid: string;
+    email: string;
+    name: string;
+    photoURL: string;
+    crushes: string[];
+    lockedCrushes: string[];
+    matches: MatchInfo[];
+    crushCount: number;
+    isGhost: boolean;
     createdAt: any;
     updatedAt: any;
     lastLogin: any;
@@ -75,7 +90,7 @@ interface AnalyticsData {
     activeUsersLast24h: number;
 }
 
-type UserFilter = 'all' | 'active' | 'inactive';
+type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
 type ViewMode = 'analytics' | 'users';
 
 interface AdminViewProps {
@@ -83,7 +98,7 @@ interface AdminViewProps {
 }
 
 const AdminView: React.FC<AdminViewProps> = ({ user }) => {
-    const [allUsers, setAllUsers] = useState<(UserData | InactiveUser)[]>([]);
+    const [allUsers, setAllUsers] = useState<(UserData | InactiveUser | GhostUser)[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [adminSearchTerm, setAdminSearchTerm] = useState('');
     const [viewingUserId, setViewingUserId] = useState<string | null>(null);
@@ -104,7 +119,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             .trim();
     }, []);
 
-    const findUserByName = useCallback((crushName: string, users: (UserData | InactiveUser)[]): UserData | InactiveUser | null => {
+    const findUserByName = useCallback((crushName: string, users: (UserData | InactiveUser | GhostUser)[]): UserData | InactiveUser | GhostUser | null => {
         if (!crushName || !crushName.trim()) return null;
 
         const normalizedCrush = normalizeName(crushName);
@@ -137,14 +152,14 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         return match || null;
     }, [normalizeName]);
 
-    const findCrushersForUser = useCallback((targetUser: UserData | InactiveUser): CrusherInfo[] => {
+    const findCrushersForUser = useCallback((targetUser: UserData | InactiveUser | GhostUser): CrusherInfo[] => {
         const crushers: CrusherInfo[] = [];
         const targetName = targetUser.name;
 
         if (!targetName) return crushers;
 
         allUsers.forEach(u => {
-            if (u.uid === targetUser.uid || (u as InactiveUser).isInactive) return;
+            if (u.uid === targetUser.uid || (u as InactiveUser).isInactive || (u as GhostUser).isGhost) return;
 
             const userCrushes = u.crushes || [];
             if (userCrushes.includes(targetName)) {
@@ -179,7 +194,9 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     }, []);
 
     const calculateRealTime24hActiveUsers = useCallback((): number => {
-        const realUsers = allUsers.filter(u => !(u as InactiveUser).isInactive) as UserData[];
+        const realUsers = allUsers.filter(u =>
+            !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
+        ) as UserData[];
 
         if (realUsers.length === 0) return 0;
 
@@ -208,7 +225,9 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     }, [allUsers]);
 
     const calculateAnalytics = useCallback((): AnalyticsData => {
-        const realUsers = allUsers.filter(u => !(u as InactiveUser).isInactive) as UserData[];
+        const realUsers = allUsers.filter(u =>
+            !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
+        ) as UserData[];
 
         // Basic stats
         const totalUsers = realUsers.length;
@@ -315,26 +334,16 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
         realUsers.forEach(user => {
             if (user.crushCount > 0) {
-                const hasName = !!(user.name && user.name.trim());
                 const hasSubmittedCrushes = !!(user.crushes && user.crushes.length > 0);
 
-                if (!hasName || !hasSubmittedCrushes) {
+                if (!hasSubmittedCrushes) {
                     const crushers = findCrushersForUser(user);
-
-                    let reason = '';
-                    if (!hasName && !hasSubmittedCrushes) {
-                        reason = 'No name set and no crushes submitted';
-                    } else if (!hasName) {
-                        reason = 'No name set';
-                    } else if (!hasSubmittedCrushes) {
-                        reason = 'No crushes submitted';
-                    }
 
                     inactiveReceivers.push({
                         name: user.name || 'Unknown',
                         email: user.email,
                         crushCount: user.crushCount,
-                        reason,
+                        reason: 'No crushes submitted',
                         crushers
                     });
                 }
@@ -377,7 +386,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                 });
             });
 
-            // Create inactive users for class members who haven't signed up but are receiving crushes
+            // Create inactive and ghost users from class roster
             const allCrushNames = new Set<string>();
             realUsers.forEach(user => {
                 const userCrushes = user.crushes || [];
@@ -388,11 +397,12 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
             const realUserNames = new Set(realUsers.map(u => u.name).filter(Boolean));
             const inactiveUsers: InactiveUser[] = [];
+            const ghostUsers: GhostUser[] = [];
 
-            // Find class members who haven't signed up but are being crushed on
+            // Process each class member
             GSB_CLASS_NAMES.forEach(className => {
                 if (realUserNames.has(className)) {
-                    return; // This person has signed up
+                    return; // This person has signed up (active user)
                 }
 
                 // Check if anyone is crushing on this person
@@ -404,11 +414,11 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                     }
                 });
 
-                if (crushCount > 0) {
-                    // This person is being crushed on but hasn't signed up
-                    const inactiveId = `inactive-${normalizeName(className).replace(/\s+/g, '-')}`;
-                    const derivedEmail = `${className.toLowerCase().replace(/\s+/g, '.')}@stanford.edu`;
+                const derivedEmail = `${className.toLowerCase().replace(/\s+/g, '.')}@stanford.edu`;
 
+                if (crushCount > 0) {
+                    // Inactive user - being crushed on but hasn't signed up
+                    const inactiveId = `inactive-${normalizeName(className).replace(/\s+/g, '-')}`;
                     inactiveUsers.push({
                         uid: inactiveId,
                         email: derivedEmail,
@@ -423,19 +433,44 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                         updatedAt: null,
                         lastLogin: null
                     });
+                } else {
+                    // Ghost user - no engagement at all
+                    const ghostId = `ghost-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    ghostUsers.push({
+                        uid: ghostId,
+                        email: derivedEmail,
+                        name: className,
+                        photoURL: '/files/default-profile.png',
+                        crushes: [],
+                        lockedCrushes: [],
+                        matches: [],
+                        crushCount: 0,
+                        isGhost: true,
+                        createdAt: null,
+                        updatedAt: null,
+                        lastLogin: null
+                    });
                 }
             });
 
-            const allUsersArray = [...realUsers, ...inactiveUsers];
+            const allUsersArray = [...realUsers, ...inactiveUsers, ...ghostUsers];
 
-            // Sort: active users first, then inactive users, then alphabetically
+            // Sort: active users first, then inactive users, then ghost users, then alphabetically
             allUsersArray.sort((a, b) => {
                 const aIsInactive = (a as InactiveUser).isInactive || false;
                 const bIsInactive = (b as InactiveUser).isInactive || false;
+                const aIsGhost = (a as GhostUser).isGhost || false;
+                const bIsGhost = (b as GhostUser).isGhost || false;
 
-                if (!aIsInactive && bIsInactive) return -1;
-                if (aIsInactive && !bIsInactive) return 1;
+                // Active users first
+                if (!aIsInactive && !aIsGhost && (bIsInactive || bIsGhost)) return -1;
+                if ((aIsInactive || aIsGhost) && !bIsInactive && !bIsGhost) return 1;
 
+                // Then inactive users
+                if (aIsInactive && !bIsInactive && bIsGhost) return -1;
+                if (!aIsInactive && aIsGhost && bIsInactive) return 1;
+
+                // Then alphabetically
                 const nameA = a.name || a.email || '';
                 const nameB = b.name || b.email || '';
                 return nameA.localeCompare(nameB);
@@ -463,12 +498,16 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     }, [allUsers, calculateAnalytics]);
 
     const userStats = useMemo(() => {
-        const realUsers = allUsers.filter(u => !(u as InactiveUser).isInactive);
+        const realUsers = allUsers.filter(u =>
+            !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
+        );
         const inactiveUsers = allUsers.filter(u => (u as InactiveUser).isInactive);
+        const ghostUsers = allUsers.filter(u => (u as GhostUser).isGhost);
 
         return {
-            realUsers: realUsers.length,
+            activeUsers: realUsers.length,
             inactiveUsers: inactiveUsers.length,
+            ghostUsers: ghostUsers.length,
             total: allUsers.length
         };
     }, [allUsers]);
@@ -482,10 +521,15 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
         switch (userFilter) {
             case 'active':
-                users = users.filter(u => !(u as InactiveUser).isInactive);
+                users = users.filter(u =>
+                    !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
+                );
                 break;
             case 'inactive':
                 users = users.filter(u => (u as InactiveUser).isInactive);
+                break;
+            case 'ghost':
+                users = users.filter(u => (u as GhostUser).isGhost);
                 break;
             case 'all':
             default:
@@ -508,9 +552,13 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             <h3>Admin Dashboard</h3>
 
             <div className="admin-definitions">
-                <p><strong>Active Users:</strong> Students who have signed up, verified their Stanford email, and have their name set. They can send crushes and receive matches.</p>
-                <p><strong>Inactive Users:</strong> Students from the class roster who haven't signed up yet but are receiving crushes from active users. They appear as potential matches but can't send crushes or see matches until they sign up.</p>
-                <p><strong>Inactive Receivers:</strong> Active users who are receiving crushes but haven't engaged properly - either they haven't set their name or haven't sent any crushes themselves. These users need follow-up.</p>
+                <p><strong>Active Users:</strong> Students who have signed up, verified their Stanford email, and have their name automatically assigned. They can send crushes and receive matches.</p>
+
+                <p><strong>Inactive Users:</strong> Students from the class roster who haven't signed up yet but are receiving crushes from active users. They appear as potential matches but can't send crushes or see matches until they sign up. High priority for outreach!</p>
+
+                <p><strong>Ghost Users:</strong> Students from the class roster with zero engagement - they haven't signed up and nobody is crushing on them. They represent the completely unengaged portion of the class.</p>
+
+                <p><strong>Inactive Receivers:</strong> Active users who are receiving crushes but haven't sent any crushes themselves. These users need follow-up to encourage engagement.</p>
             </div>
 
             <div className="admin-nav">
