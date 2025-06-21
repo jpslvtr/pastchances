@@ -848,3 +848,376 @@ will-change: scroll-position;
 /* Optimize repaints */
 contain: layout style paint;
 }
+
+/* Enhanced search input container */
+.search-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.search-clear-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.search-loading {
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+.clear-search-link {
+  background: none;
+  border: none;
+  color: #8C1515;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+  margin-left: 8px;
+  padding: 0;
+}
+
+.clear-search-link:hover {
+  color: #a01a1a;
+}
+
+/* Optimize the names list for virtual scrolling */
+.names-simple-list {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  background: white;
+  /* Fixed height for virtual scrolling */
+  min-height: 400px;
+  max-height: 60vh;
+  /* Optimize for smooth scrolling */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  /* Enable hardware acceleration */
+  transform: translateZ(0);
+  will-change: scroll-position;
+  contain: layout style paint;
+}
+
+.name-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  /* Fixed height for virtual scrolling */
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+  /* Optimize for large lists */
+  contain: layout style paint;
+}
+
+/* Enhanced Mobile responsiveness for search */
+@media (max-width: 768px) {
+  .search-input-container {
+    margin-bottom: 10px;
+  }
+  
+  .search-input {
+    padding-right: 40px; /* Make room for clear button */
+  }
+  
+  .search-clear-btn {
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    font-size: 20px;
+  }
+  
+  .names-simple-list {
+    max-height: 50vh;
+    min-height: 300px;
+  }
+  
+  .name-list-item {
+    height: 52px;
+    min-height: 52px;
+    padding: 14px 12px;
+    font-size: 13px;
+  }
+  
+  .search-loading {
+    font-size: 11px;
+    padding: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .names-simple-list {
+    max-height: 45vh;
+    min-height: 280px;
+  }
+  
+  .name-list-item {
+    height: 56px;
+    min-height: 56px;
+    padding: 16px 12px;
+    font-size: 14px;
+  }
+  
+  .search-clear-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 22px;
+  }
+}
+
+/* Performance optimizations for touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .name-list-item:active {
+    background: #e9ecef;
+    transform: scale(0.98);
+  }
+  
+  .search-clear-btn:active {
+    transform: translateY(-50%) scale(0.9);
+  }
+}
+
+/* Search highlighting */
+.search-highlight {
+  background: #fff3cd;
+  color: #856404;
+  font-weight: 600;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+
+/* Search hint */
+.search-hint {
+  text-align: center;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #666;
+  background: #f8f9fa;
+  border-radius: 4px;
+  margin-top: 8px;
+  border-left: 3px solid #8C1515;
+}
+
+/* Enhanced no results styling */
+.no-results {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.no-results small {
+  display: block;
+  margin: 8px 0;
+  color: #888;
+  font-size: 12px;
+}
+
+/* Enhanced search input container */
+.search-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.search-clear-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.search-loading {
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+}
+
+.clear-search-link {
+  background: none;
+  border: none;
+  color: #8C1515;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+  margin-left: 8px;
+  padding: 0;
+  margin-top: 8px;
+  display: inline-block;
+}
+
+.clear-search-link:hover {
+  color: #a01a1a;
+}
+
+/* Optimize the names list for virtual scrolling */
+.names-simple-list {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  background: white;
+  /* Fixed height for virtual scrolling */
+  min-height: 400px;
+  max-height: 60vh;
+  /* Optimize for smooth scrolling */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  /* Enable hardware acceleration */
+  transform: translateZ(0);
+  will-change: scroll-position;
+  contain: layout style paint;
+}
+
+.name-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  /* Fixed height for virtual scrolling */
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+  /* Optimize for large lists */
+  contain: layout style paint;
+}
+
+/* Enhanced Mobile responsiveness for search */
+@media (max-width: 768px) {
+  .search-input-container {
+    margin-bottom: 10px;
+  }
+  
+  .search-input {
+    padding-right: 40px; /* Make room for clear button */
+  }
+  
+  .search-clear-btn {
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    font-size: 20px;
+  }
+  
+  .search-hint {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+  
+  .names-simple-list {
+    max-height: 50vh;
+    min-height: 300px;
+  }
+  
+  .name-list-item {
+    height: 52px;
+    min-height: 52px;
+    padding: 14px 12px;
+    font-size: 13px;
+  }
+  
+  .search-loading {
+    font-size: 11px;
+    padding: 6px;
+  }
+  
+  .no-results {
+    padding: 15px;
+    font-size: 13px;
+  }
+  
+  .no-results small {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .names-simple-list {
+    max-height: 45vh;
+    min-height: 280px;
+  }
+  
+  .name-list-item {
+    height: 56px;
+    min-height: 56px;
+    padding: 16px 12px;
+    font-size: 14px;
+  }
+  
+  .search-clear-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 22px;
+  }
+  
+  .search-hint {
+    font-size: 9px;
+    padding: 4px 6px;
+  }
+}
+
+/* Performance optimizations for touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .name-list-item:active {
+    background: #e9ecef;
+    transform: scale(0.98);
+  }
+  
+  .search-clear-btn:active {
+    transform: translateY(-50%) scale(0.9);
+  }
+}
