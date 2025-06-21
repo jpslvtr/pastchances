@@ -95,6 +95,23 @@ function getUserDocumentId(user: User, userClass: UserClass): string {
     return user.uid;
 }
 
+// Helper functions for localStorage to remember last used class
+function getLastUsedClass(): UserClass | null {
+    try {
+        return localStorage.getItem('lastUsedClass') as UserClass | null;
+    } catch {
+        return null;
+    }
+}
+
+function setLastUsedClass(userClass: UserClass): void {
+    try {
+        localStorage.setItem('lastUsedClass', userClass);
+    } catch {
+        // Ignore localStorage errors
+    }
+}
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [userData, setUserData] = useState<UserData | null>(null);
@@ -138,6 +155,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 updatedAt: serverTimestamp()
             }, { merge: true });
 
+            // Remember which class was selected
+            setLastUsedClass(pendingUserClass);
+
             setNameOptions(null);
             setPendingUserClass(null);
             await loadUserDataFromFirestore(user);
@@ -155,7 +175,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         try {
-            // For test user, check both documents and prefer the one with a name
+            // For test user, check both documents and prefer based on last used class
             if (authUser.email === 'jpark22@stanford.edu') {
                 const gsbDocId = `${authUser.uid}_gsb`;
                 const undergradDocId = `${authUser.uid}_undergrad`;
@@ -171,8 +191,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 let targetData = null;
                 let detectedClass: UserClass = 'gsb';
 
-                // Prefer the document that has a name set
-                if (gsbDoc.exists() && gsbDoc.data().name) {
+                // Get the last used class from localStorage
+                const lastUsedClass = getLastUsedClass();
+
+                // Prefer the last used class if both documents exist and have names
+                if (lastUsedClass === 'undergrad' && undergradDoc.exists() && undergradDoc.data().name) {
+                    targetData = undergradDoc.data();
+                    detectedClass = 'undergrad';
+                } else if (lastUsedClass === 'gsb' && gsbDoc.exists() && gsbDoc.data().name) {
+                    targetData = gsbDoc.data();
+                    detectedClass = 'gsb';
+                } else if (gsbDoc.exists() && gsbDoc.data().name) {
+                    // Fallback to GSB if no preference or preference doesn't exist
                     targetData = gsbDoc.data();
                     detectedClass = 'gsb';
                 } else if (undergradDoc.exists() && undergradDoc.data().name) {
@@ -203,6 +233,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         lastLogin: targetData.lastLogin
                     };
                     setUserData(userData);
+
+                    // Update localStorage with the class we're actually using
+                    setLastUsedClass(detectedClass);
                     return;
                 }
             } else {
@@ -249,6 +282,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const createOrUpdateUserDocument = async (user: User, userClass: UserClass) => {
         if (!user.uid) return null;
+
+        // Remember which class was selected for login
+        setLastUsedClass(userClass);
 
         try {
             // Special handling for test user (you) - always use class-specific UIDs
@@ -489,6 +525,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUserData(null);
             setNameOptions(null);
             setPendingUserClass(null);
+            // Clear the last used class on logout
+            try {
+                localStorage.removeItem('lastUsedClass');
+            } catch {
+                // Ignore localStorage errors
+            }
         } catch (error) {
             console.error('Logout error:', error);
         }
