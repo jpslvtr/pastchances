@@ -1,9 +1,8 @@
 export interface UserData {
     uid: string;
     email: string;
-    displayName: string;
+    name: string;  // Single name field instead of displayName/verifiedName
     photoURL: string;
-    verifiedName: string;
     crushes: string[];
     lockedCrushes?: string[];
     matches?: MatchInfo[];
@@ -11,6 +10,10 @@ export interface UserData {
     createdAt: any;
     updatedAt: any;
     lastLogin: any;
+
+    // Legacy fields for migration support
+    displayName?: string;
+    verifiedName?: string;
 }
 
 export interface UserWithId extends UserData {

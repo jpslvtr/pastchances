@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { UserWithId, MatchInfo } from './types';
-import { findUserByName } from './utils';
+import { findUserByName, getUserIdentityName } from './utils';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -35,8 +35,8 @@ export async function processUpdatedCrushes(): Promise<void> {
                     const targetUser = findUserByName(crushName, allUsers);
 
                     if (targetUser) {
-                        // Use verifiedName if available, otherwise displayName
-                        const actualName = targetUser.verifiedName || targetUser.displayName;
+                        // Use the user's identity name
+                        const actualName = getUserIdentityName(targetUser);
                         if (actualName) {
                             crushCounts.set(actualName, (crushCounts.get(actualName) || 0) + 1);
                         }
@@ -59,7 +59,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                 const userMatches: MatchInfo[] = [];
                 const userLockedCrushes: string[] = [];
                 const userCrushes = user.crushes || [];
-                const userIdentityName = user.verifiedName || user.displayName;
+                const userIdentityName = getUserIdentityName(user);
 
                 if (!userIdentityName || !userIdentityName.trim()) {
                     console.log(`⏭️ Skipping user ${user.id} - no identity name`);
@@ -86,7 +86,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                     });
 
                     if (hasMutualCrush) {
-                        const crushedUserIdentityName = crushedUser.verifiedName || crushedUser.displayName;
+                        const crushedUserIdentityName = getUserIdentityName(crushedUser);
                         userMatches.push({
                             name: crushedUserIdentityName,
                             email: crushedUser.email
@@ -108,19 +108,12 @@ export async function processUpdatedCrushes(): Promise<void> {
             // Update all users with their matches, crush counts, and locked crushes
             for (const user of allUsers) {
                 const userRef = db.collection('users').doc(user.id);
-                const userIdentityName = user.verifiedName || user.displayName;
+                const userIdentityName = getUserIdentityName(user);
 
-                // For crush count, we need to check both verifiedName and displayName
-                // because someone might be crushing on "Ludwig Neumann" but he only has displayName
+                // For crush count, we need to check the user's identity name
                 let userCrushCount = 0;
                 if (userIdentityName) {
                     userCrushCount = crushCounts.get(userIdentityName) || 0;
-
-                    // Also check if anyone is crushing on their alternate name
-                    const alternateName = user.verifiedName ? user.displayName : user.verifiedName;
-                    if (alternateName && alternateName !== userIdentityName) {
-                        userCrushCount += crushCounts.get(alternateName) || 0;
-                    }
                 }
 
                 const updateData = {

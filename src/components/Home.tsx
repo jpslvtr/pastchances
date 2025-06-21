@@ -173,7 +173,7 @@ const Home: React.FC = () => {
                                 onLoad={() => setImageError(false)}
                             />
                             <div>
-                                <div className="user-name">{userData?.verifiedName || userData?.displayName || user?.displayName}</div>
+                                <div className="user-name">{userData?.name || user?.displayName}</div>
                                 <div className="user-email">{user?.email}</div>
                             </div>
                         </div>
