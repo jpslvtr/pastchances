@@ -9,9 +9,8 @@ interface MatchInfo {
 interface UserData {
     uid: string;
     email: string;
-    displayName: string;
+    name: string;  // Single name field
     photoURL: string;
-    verifiedName: string;
     crushes: string[];
     lockedCrushes: string[];
     matches: MatchInfo[];
@@ -54,8 +53,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const filteredAvailableNames = React.useMemo(() => {
         const excludedNames = [...selectedNames];
 
-        if (userData?.verifiedName) {
-            excludedNames.push(userData.verifiedName);
+        if (userData?.name) {
+            excludedNames.push(userData.name);
         }
 
         const availableNames = GSB_CLASS_NAMES.filter(name => !excludedNames.includes(name));
@@ -65,7 +64,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         return availableNames.filter(name =>
             name.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }, [selectedNames, searchTerm, userData?.verifiedName]);
+    }, [selectedNames, searchTerm, userData?.name]);
 
     return (
         <>
