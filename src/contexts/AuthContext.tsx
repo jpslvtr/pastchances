@@ -101,7 +101,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [nameOptions, setNameOptions] = useState<string[] | null>(null);
     const [pendingUserClass, setPendingUserClass] = useState<UserClass | null>(null);
-    const [currentUserClass, setCurrentUserClass] = useState<UserClass | null>(null); // Track current class
+    const [currentUserClass, setCurrentUserClass] = useState<UserClass | null>(null);
 
     const normalizeMatches = (matches: any[]): MatchInfo[] => {
         if (!matches || !Array.isArray(matches)) return [];
@@ -140,7 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }, { merge: true });
 
             setNameOptions(null);
-            setCurrentUserClass(pendingUserClass); // Set the current class
+            setCurrentUserClass(pendingUserClass);
             setPendingUserClass(null);
             await refreshUserData();
         } catch (error) {
@@ -471,7 +471,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     alert('Only @stanford.edu email addresses are allowed. Please sign in with your Stanford account.');
                 } else {
                     setUser(user);
-                    // Don't automatically create user document here - wait for class selection
+                    // THIS IS THE KEY FIX: When user is restored from auth state (refresh),
+                    // automatically load their user data
+                    await refreshUserData();
                     setLoading(false);
                 }
             } else {
