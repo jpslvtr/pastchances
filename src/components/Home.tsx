@@ -25,7 +25,9 @@ const Home: React.FC = () => {
     const [updating, setUpdating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isAdminMode, setIsAdminMode] = useState(false);
+    const [adminAccessError, setAdminAccessError] = useState(false);
 
+    // Strict admin check - only jpark22@stanford.edu can access admin mode
     const isAdmin = user?.email === 'jpark22@stanford.edu';
 
     // Get the class display name based on user's class
@@ -63,6 +65,7 @@ const Home: React.FC = () => {
         const loadData = async () => {
             try {
                 setError(null);
+                setAdminAccessError(false);
                 if (user && userData) {
                     await loadUserSelections();
                 }
@@ -169,6 +172,16 @@ const Home: React.FC = () => {
         }
     }, [user, userData, updating, selectedNames, refreshUserData]);
 
+    // Enhanced admin mode toggle with proper error handling
+    const handleAdminToggle = useCallback(() => {
+        if (!isAdmin) {
+            setAdminAccessError(true);
+            setTimeout(() => setAdminAccessError(false), 3000);
+            return;
+        }
+        setIsAdminMode(!isAdminMode);
+    }, [isAdmin, isAdminMode]);
+
     if (loading) {
         return <div className="loading">Loading...</div>;
     }
@@ -204,7 +217,7 @@ const Home: React.FC = () => {
                         <div className="header-actions">
                             {isAdmin && (
                                 <button
-                                    onClick={() => setIsAdminMode(!isAdminMode)}
+                                    onClick={handleAdminToggle}
                                     className="admin-toggle-btn"
                                 >
                                     {isAdminMode ? 'Exit Admin View' : 'Admin View'}
@@ -214,6 +227,20 @@ const Home: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                {adminAccessError && (
+                    <div className="error-message" style={{
+                        background: '#f8d7da',
+                        color: '#721c24',
+                        padding: '10px',
+                        margin: '10px 20px',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        textAlign: 'center'
+                    }}>
+                        Access denied. Admin privileges are required.
+                    </div>
+                )}
 
                 <div className="dashboard-content">
                     {isAdminMode && isAdmin ? (
