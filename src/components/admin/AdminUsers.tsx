@@ -39,10 +39,25 @@ interface InactiveUser {
     lastLogin: any;
 }
 
-type UserFilter = 'all' | 'active' | 'inactive';
+interface GhostUser {
+    uid: string;
+    email: string;
+    name: string;
+    photoURL: string;
+    crushes: string[];
+    lockedCrushes: string[];
+    matches: MatchInfo[];
+    crushCount: number;
+    isGhost: boolean;
+    createdAt: any;
+    updatedAt: any;
+    lastLogin: any;
+}
+
+type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
 
 interface AdminUsersProps {
-    allUsers: (UserData | InactiveUser)[];
+    allUsers: (UserData | InactiveUser | GhostUser)[];
     loadingUsers: boolean;
     adminSearchTerm: string;
     setAdminSearchTerm: (term: string) => void;
@@ -50,10 +65,11 @@ interface AdminUsersProps {
     setUserFilter: (filter: UserFilter) => void;
     viewingUserId: string | null;
     handleViewUser: (userId: string) => void;
-    findCrushersForUser: (user: UserData | InactiveUser) => CrusherInfo[];
+    findCrushersForUser: (user: UserData | InactiveUser | GhostUser) => CrusherInfo[];
     userStats: {
-        realUsers: number;
+        activeUsers: number;
         inactiveUsers: number;
+        ghostUsers: number;
         total: number;
     };
 }
@@ -93,8 +109,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                         className="admin-filter-dropdown"
                     >
                         <option value="all">All Users ({userStats.total})</option>
-                        <option value="active">Active Users ({userStats.realUsers})</option>
+                        <option value="active">Active Users ({userStats.activeUsers})</option>
                         <option value="inactive">Inactive Users ({userStats.inactiveUsers})</option>
+                        <option value="ghost">Ghost Users ({userStats.ghostUsers})</option>
                     </select>
                 </div>
             </div>
@@ -108,22 +125,34 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                         const actualCrushCount = u.crushCount || 0;
                         const crushers = findCrushersForUser(u);
                         const isInactive = (u as InactiveUser).isInactive || false;
+                        const isGhost = (u as GhostUser).isGhost || false;
 
                         const displayName = u.name || u.email;
                         const hasName = !!(u.name && u.name.trim());
 
+                        let userTypeClass = '';
+                        let userTypeLabel = '';
+
+                        if (isGhost) {
+                            userTypeClass = 'admin-user-ghost';
+                            userTypeLabel = '👻 Ghost User';
+                        } else if (isInactive) {
+                            userTypeClass = 'admin-user-inactive';
+                            userTypeLabel = '💤 Inactive User';
+                        }
+
                         return (
-                            <div key={u.uid} className={`admin-user-item ${isInactive ? 'admin-user-inactive' : ''}`}>
+                            <div key={u.uid} className={`admin-user-item ${userTypeClass}`}>
                                 <div className="admin-user-header">
                                     <div className="admin-user-info">
                                         <div className="admin-user-name">
                                             {displayName}
-                                            {isInactive && (
-                                                <span style={{ color: '#6c757d', marginLeft: '8px', fontSize: '11px' }}>
-                                                    💤 Inactive User
+                                            {userTypeLabel && (
+                                                <span style={{ color: isGhost ? '#999' : '#6c757d', marginLeft: '8px', fontSize: '11px' }}>
+                                                    {userTypeLabel}
                                                 </span>
                                             )}
-                                            {!isInactive && !hasName && (
+                                            {!isInactive && !isGhost && !hasName && (
                                                 <span style={{ color: '#dc3545', marginLeft: '8px', fontSize: '11px' }}>
                                                     (No name set)
                                                 </span>
@@ -132,7 +161,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                                         <div className="admin-user-email">{u.email}</div>
                                         <div className="admin-user-stats">
                                             {actualCrushCount} crushing • {u.matches?.length || 0} matches • {u.crushes?.length || 0} selected
-                                            {!isInactive && actualCrushCount !== crushers.length && (
+                                            {!isInactive && !isGhost && actualCrushCount !== crushers.length && (
                                                 <span style={{ color: '#dc3545', marginLeft: '8px' }}>
                                                     (calc: {crushers.length})
                                                 </span>
@@ -142,13 +171,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                                     <button
                                         onClick={() => handleViewUser(u.uid)}
                                         className="admin-view-btn"
-                                        disabled={isInactive}
+                                        disabled={isInactive || isGhost}
                                     >
-                                        {isInactive ? 'Inactive' : (isViewing ? 'Collapse' : 'View')}
+                                        {isGhost ? 'Ghost' : (isInactive ? 'Inactive' : (isViewing ? 'Collapse' : 'View'))}
                                     </button>
                                 </div>
 
-                                {isViewing && !isInactive && (
+                                {isViewing && !isInactive && !isGhost && (
                                     <div className="admin-user-expanded">
                                         <div className="admin-view-header">
                                             <h4>Data for {displayName}:</h4>
