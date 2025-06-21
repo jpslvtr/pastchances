@@ -1,3 +1,5 @@
+export type UserClass = 'gsb' | 'undergrad';
+
 export interface UserData {
     uid: string;
     email: string;
@@ -7,6 +9,7 @@ export interface UserData {
     lockedCrushes?: string[];
     matches?: MatchInfo[];
     crushCount?: number;
+    userClass: UserClass;
     createdAt: any;
     updatedAt: any;
     lastLogin: any;

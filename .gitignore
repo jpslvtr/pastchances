@@ -1,6 +1,7 @@
 .gitignore
 node_modules
 public
+src/data
 repomix.config.json
 repomix-output.txt
 firebase.json

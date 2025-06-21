@@ -167,8 +167,6 @@ export const migrateToSingleNameField = functions.https.onRequest(async (req, re
     }
 });
 
-// Remove the manageTakenNames function since we're no longer using takenNames collection
-
 // Clean up orphaned crushes function
 export const cleanupOrphanedCrushes = functions.https.onRequest(async (req, res) => {
     try {
@@ -211,9 +209,10 @@ export const cleanupOrphanedCrushes = functions.https.onRequest(async (req, res)
                 const userCrushes = user.crushes || [];
                 let needsUpdate = false;
                 const updatedCrushes: string[] = [];
+                const userClass = user.userClass || 'gsb';
 
                 for (const crushName of userCrushes) {
-                    const targetUser = findUserByName(crushName, allUsers);
+                    const targetUser = findUserByName(crushName, allUsers, userClass);
 
                     if (targetUser) {
                         const correctName = getUserIdentityName(targetUser);
