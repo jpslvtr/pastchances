@@ -640,3 +640,37 @@
       gap: 4px;
   }
 }
+
+/* Inactive User Styles */
+.admin-user-inactive {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-left: 4px solid #6c757d;
+  opacity: 0.8;
+}
+
+.admin-user-inactive .admin-user-header {
+  background: linear-gradient(135deg, #f1f3f4 0%, #e8eaed 100%);
+}
+
+.admin-user-inactive .admin-user-name {
+  font-style: italic;
+}
+
+.admin-user-inactive .admin-data-card {
+  background: #f8f9fa;
+  border-left-color: #6c757d;
+}
+
+.admin-user-inactive .admin-data-number {
+  color: #6c757d;
+}
+
+.admin-user-inactive .admin-data-label {
+  color: #495057;
+}
+
+.admin-user-inactive .admin-no-activity {
+  background: #f1f3f4;
+  color: #6c757d;
+  font-style: italic;
+}

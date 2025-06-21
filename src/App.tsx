@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Home from './components/Home';
-import NameVerification from './components/NameVerification';
+import NameSelection from './components/NameSelection';
 import './App.css';
 
 interface ProtectedRouteProps {
@@ -12,7 +12,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, userData, loading } = useAuth();
+  const { user, userData, loading, nameOptions } = useAuth();
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -26,8 +26,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <div className="loading">Setting up your account...</div>;
   }
 
-  if (!userData.verifiedName || userData.verifiedName.trim() === '') {
-    return <NameVerification />;
+  // Show name selection if user has multiple name options
+  if (nameOptions && nameOptions.length > 0) {
+    return <NameSelection />;
+  }
+
+  // Show name selection if user doesn't have a name set yet
+  if (!userData.name || userData.name.trim() === '') {
+    return <NameSelection />;
   }
 
   return <>{children}</>;

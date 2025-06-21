@@ -1,9 +1,17 @@
 import { UserWithId } from './types';
 
-// Enhanced helper function to normalize names for case-insensitive comparison
+// Helper function to normalize names for case-insensitive comparison
 export function normalizeName(name: string): string {
     if (!name || typeof name !== 'string') return '';
-    return name.trim().toLowerCase().replace(/\s+/g, ' ');
+
+    return name
+        .normalize('NFD')  // Decompose accented characters
+        .replace(/[\u0300-\u036f]/g, '')  // Remove accent marks
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s]/g, ' ')  // Replace non-alphanumeric with spaces
+        .replace(/\s+/g, ' ')  // Normalize spaces
+        .trim();
 }
 
 // Enhanced function to find the best matching user for a crush name
@@ -12,15 +20,23 @@ export function findUserByName(crushName: string, allUsers: UserWithId[]): UserW
 
     const normalizedCrush = normalizeName(crushName);
 
-    // First try exact match on verifiedName
+    // First try exact match on name field
     let match = allUsers.find(user =>
+        user.name &&
+        normalizeName(user.name) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try exact match on legacy verifiedName field (for migration)
+    match = allUsers.find(user =>
         user.verifiedName &&
         normalizeName(user.verifiedName) === normalizedCrush
     );
 
     if (match) return match;
 
-    // Try exact match on displayName as fallback
+    // Try exact match on legacy displayName field (for migration)
     match = allUsers.find(user =>
         user.displayName &&
         normalizeName(user.displayName) === normalizedCrush
@@ -33,24 +49,11 @@ export function findUserByName(crushName: string, allUsers: UserWithId[]): UserW
     if (crushParts.length >= 2) {
         const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
 
-        // Try partial match with verifiedName
+        // Try partial match with name field
         match = allUsers.find(user => {
-            if (user.verifiedName) {
-                const nameParts = normalizeName(user.verifiedName).split(' ');
-                if (nameParts.length >= 2) {
-                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
-                    return nameFirstLast === crushFirstLast;
-                }
-            }
-            return false;
-        });
-
-        if (match) return match;
-
-        // Try partial match with displayName
-        match = allUsers.find(user => {
-            if (user.displayName) {
-                const nameParts = normalizeName(user.displayName).split(' ');
+            const userIdentityName = user.name || user.verifiedName || user.displayName;
+            if (userIdentityName) {
+                const nameParts = normalizeName(userIdentityName).split(' ');
                 if (nameParts.length >= 2) {
                     const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
                     return nameFirstLast === crushFirstLast;
@@ -61,4 +64,9 @@ export function findUserByName(crushName: string, allUsers: UserWithId[]): UserW
     }
 
     return match || null;
+}
+
+// Helper function to get user's identity name (with migration support)
+export function getUserIdentityName(user: UserWithId): string {
+    return user.name || user.verifiedName || user.displayName || '';
 }

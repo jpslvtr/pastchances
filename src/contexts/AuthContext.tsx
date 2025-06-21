@@ -14,9 +14,8 @@ interface MatchInfo {
 interface UserData {
     uid: string;
     email: string;
-    displayName: string;
+    name: string;  // Single name field instead of displayName/verifiedName
     photoURL: string;
-    verifiedName: string;
     crushes: string[];
     lockedCrushes: string[];
     matches: MatchInfo[];
@@ -30,7 +29,9 @@ interface AuthContextType {
     user: User | null;
     userData: UserData | null;
     loading: boolean;
+    nameOptions: string[] | null; // For cases where multiple matches are found
     signInWithGoogle: () => Promise<void>;
+    selectName: (selectedName: string) => Promise<void>;
     logout: () => Promise<void>;
     refreshUserData: () => Promise<void>;
 }
@@ -51,53 +52,63 @@ interface AuthProviderProps {
 
 const DEFAULT_PROFILE_URL = '/files/default-profile.png';
 
-// Helper function to check if user should be allowed to create account
-function isUserAllowedToSignUp(displayName: string, email: string): { allowed: boolean; reason?: string } {
-    if (!displayName || !email) {
-        return { allowed: false, reason: 'Missing display name or email' };
-    }
+// Helper function to normalize names for comparison
+function normalizeName(name: string): string {
+    if (!name || typeof name !== 'string') return '';
 
-    // Normalize the display name for comparison
-    const normalizedDisplayName = displayName.trim().toLowerCase().replace(/\s+/g, ' ');
+    return name
+        .normalize('NFD')  // Decompose accented characters
+        .replace(/[\u0300-\u036f]/g, '')  // Remove accent marks
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s]/g, ' ')  // Replace non-alphanumeric with spaces
+        .replace(/\s+/g, ' ')  // Normalize spaces
+        .trim();
+}
 
-    // Check if display name matches any name in GSB_CLASS_NAMES (case-insensitive)
-    const matchesClassName = GSB_CLASS_NAMES.some(className =>
-        className.toLowerCase().replace(/\s+/g, ' ') === normalizedDisplayName
+// Helper function to find potential name matches
+function findNameMatches(displayName: string, availableNames: string[]): { exactMatch?: string; potentialMatches: string[] } {
+    const normalizedInput = normalizeName(displayName);
+
+    // Try exact match first
+    const exactMatch = availableNames.find(name =>
+        normalizeName(name) === normalizedInput
     );
 
-    if (matchesClassName) {
-        return { allowed: true };
+    if (exactMatch) {
+        return { exactMatch, potentialMatches: [] };
     }
 
-    // Check partial matches (first + last name)
-    const displayParts = normalizedDisplayName.split(' ');
-    if (displayParts.length >= 2) {
-        const displayFirstLast = `${displayParts[0]} ${displayParts[displayParts.length - 1]}`;
-
-        const matchesPartialName = GSB_CLASS_NAMES.some(className => {
-            const nameParts = className.toLowerCase().replace(/\s+/g, ' ').split(' ');
-            if (nameParts.length >= 2) {
-                const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
-                return nameFirstLast === displayFirstLast;
-            }
-            return false;
-        });
-
-        if (matchesPartialName) {
-            return { allowed: true };
-        }
+    // If no exact match, look for potential matches
+    const inputParts = normalizedInput.split(' ').filter(Boolean);
+    if (inputParts.length < 2) {
+        return { potentialMatches: [] };
     }
 
-    return {
-        allowed: false,
-        reason: `Your name "${displayName}" was not found in the GSB Class of 2025 roster. Please contact the administrator if you believe this is an error.`
-    };
+    const inputFirst = inputParts[0];
+    const inputLast = inputParts[inputParts.length - 1];
+
+    const potentialMatches = availableNames.filter(name => {
+        const normalizedName = normalizeName(name);
+        const nameParts = normalizedName.split(' ').filter(Boolean);
+
+        if (nameParts.length < 2) return false;
+
+        const nameFirst = nameParts[0];
+        const nameLast = nameParts[nameParts.length - 1];
+
+        // Match if first and last names match
+        return nameFirst === inputFirst && nameLast === inputLast;
+    });
+
+    return { potentialMatches };
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [userData, setUserData] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [nameOptions, setNameOptions] = useState<string[] | null>(null);
 
     const normalizeMatches = (matches: any[]): MatchInfo[] => {
         if (!matches || !Array.isArray(matches)) return [];
@@ -137,9 +148,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 const userData: UserData = {
                     uid: data.uid,
                     email: data.email,
-                    displayName: data.displayName,
+                    name: data.name || data.verifiedName || data.displayName || '', // Migration support
                     photoURL: data.photoURL,
-                    verifiedName: data.verifiedName || '',
                     crushes: data.crushes || [],
                     lockedCrushes: data.lockedCrushes || [],
                     matches: normalizeMatches(data.matches),
@@ -159,6 +169,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
+    const selectName = async (selectedName: string) => {
+        if (!user?.uid || !nameOptions) return;
+
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            await setDoc(userRef, {
+                name: selectedName,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            setNameOptions(null);
+            await refreshUserData();
+        } catch (error) {
+            console.error('Error selecting name:', error);
+            throw error;
+        }
+    };
+
     const createOrUpdateUserDocument = async (user: User) => {
         if (!user.uid) return null;
 
@@ -168,51 +196,65 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const userDoc = await getDoc(userRef);
 
             if (!userDoc.exists()) {
-                // Check if new user should be allowed to sign up
-                const allowedCheck = isUserAllowedToSignUp(
-                    user.displayName || user.email?.split('@')[0] || '',
-                    user.email || ''
-                );
+                // New user - try to match their displayName to class roster
+                const displayName = user.displayName || user.email?.split('@')[0] || '';
+                const { exactMatch, potentialMatches } = findNameMatches(displayName, GSB_CLASS_NAMES);
 
-                if (!allowedCheck.allowed) {
-                    console.log('User not allowed to sign up:', allowedCheck.reason);
+                if (exactMatch) {
+                    // Perfect match - create user with this name
+                    const newUserData: UserData = {
+                        uid: user.uid,
+                        email: user.email || '',
+                        name: exactMatch,
+                        photoURL: user.photoURL || DEFAULT_PROFILE_URL,
+                        crushes: [],
+                        lockedCrushes: [],
+                        matches: [],
+                        crushCount: 0,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                        lastLogin: serverTimestamp()
+                    };
 
-                    // Sign them out immediately
+                    await setDoc(userRef, newUserData);
+                    setUserData(newUserData);
+                    return newUserData;
+                } else if (potentialMatches.length > 0) {
+                    // Multiple potential matches - user needs to choose
+                    setNameOptions(potentialMatches);
+
+                    // Create incomplete user document
+                    const incompleteUserData: UserData = {
+                        uid: user.uid,
+                        email: user.email || '',
+                        name: '', // Will be set when user selects
+                        photoURL: user.photoURL || DEFAULT_PROFILE_URL,
+                        crushes: [],
+                        lockedCrushes: [],
+                        matches: [],
+                        crushCount: 0,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                        lastLogin: serverTimestamp()
+                    };
+
+                    await setDoc(userRef, incompleteUserData);
+                    setUserData(incompleteUserData);
+                    return incompleteUserData;
+                } else {
+                    // No matches found
                     await signOut(auth);
-
-                    // Show error message
-                    alert(allowedCheck.reason || 'You are not authorized to access this application.');
-
+                    alert(`Your name "${displayName}" was not found in the GSB Class of 2025 roster. Please contact the administrator if you believe this is an error.`);
                     return null;
                 }
-
-                const newUserData: UserData = {
-                    uid: user.uid,
-                    email: user.email || '',
-                    displayName: user.displayName || user.email?.split('@')[0] || '',
-                    photoURL: user.photoURL || DEFAULT_PROFILE_URL,
-                    verifiedName: '',
-                    crushes: [],
-                    lockedCrushes: [],
-                    matches: [],
-                    crushCount: 0,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                    lastLogin: serverTimestamp()
-                };
-
-                await setDoc(userRef, newUserData);
-                console.log('New user document created:', user.email);
-                setUserData(newUserData);
-                return newUserData;
             } else {
+                // Existing user - update login time and migrate if needed
                 const existingData = userDoc.data();
                 const updatedData: UserData = {
                     uid: existingData.uid,
                     email: existingData.email,
-                    displayName: user.displayName || existingData.displayName,
+                    name: existingData.name || existingData.verifiedName || existingData.displayName || '', // Migration
                     photoURL: user.photoURL || existingData.photoURL || DEFAULT_PROFILE_URL,
-                    verifiedName: existingData.verifiedName || '',
                     crushes: existingData.crushes || [],
                     lockedCrushes: existingData.lockedCrushes || [],
                     matches: normalizeMatches(existingData.matches),
@@ -223,7 +265,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 };
 
                 await setDoc(userRef, updatedData, { merge: true });
-                console.log('User document updated:', user.email);
                 setUserData(updatedData);
                 return updatedData;
             }
@@ -235,11 +276,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            console.log('Auth state changed:', user?.email);
-
             if (user) {
                 if (!user.email?.endsWith('@stanford.edu')) {
-                    console.log('Invalid email domain:', user.email);
                     await signOut(auth);
                     setUser(null);
                     setUserData(null);
@@ -247,13 +285,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     alert('Only @stanford.edu email addresses are allowed. Please sign in with your Stanford account.');
                 } else {
                     setUser(user);
-                    // Create/update user document and set loading to false after completion
                     await createOrUpdateUserDocument(user);
                     setLoading(false);
                 }
             } else {
                 setUser(null);
                 setUserData(null);
+                setNameOptions(null);
                 setLoading(false);
             }
         });
@@ -263,21 +301,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const signInWithGoogle = async () => {
         try {
-            console.log('Attempting Google sign-in...');
             const result = await signInWithPopup(auth, googleProvider);
-            console.log('Sign-in successful:', result.user.email);
 
             if (!result.user.email?.endsWith('@stanford.edu')) {
                 await signOut(auth);
                 throw new Error('Only @stanford.edu email addresses are allowed');
             }
-
         } catch (error: any) {
             console.error('Login error:', error);
 
-            if (error.code === 'auth/configuration-not-found') {
-                alert('Authentication is not properly configured. Please contact the administrator.');
-            } else if (error.code === 'auth/popup-closed-by-user') {
+            if (error.code === 'auth/popup-closed-by-user') {
                 console.log('Sign-in popup was closed by user');
             } else if (error.code === 'auth/cancelled-popup-request') {
                 console.log('Another sign-in popup is already open');
@@ -291,7 +324,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
             await signOut(auth);
             setUserData(null);
-            console.log('User signed out successfully');
+            setNameOptions(null);
         } catch (error) {
             console.error('Logout error:', error);
         }
@@ -301,7 +334,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         userData,
         loading,
+        nameOptions,
         signInWithGoogle,
+        selectName,
         logout,
         refreshUserData
     };
