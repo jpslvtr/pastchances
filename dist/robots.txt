@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /share.png
+Allow: /stanford.svg
+Allow: /stanford.png
+
+Sitemap: https://pastchances.com/sitemap.xml
