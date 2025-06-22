@@ -77,13 +77,13 @@ interface ClassAnalyticsData {
 
 type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
 type ViewMode = 'analytics' | 'users';
-type ClassView = 'gsb' | 'undergrad';
 
 interface AdminViewProps {
     user: any;
+    userData: UserData | null;
 }
 
-const AdminView: React.FC<AdminViewProps> = ({ user }) => {
+const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
     // Server-side admin check with error handling
     const [adminAccessDenied, setAdminAccessDenied] = useState(false);
     const [allUsers, setAllUsers] = useState<(UserData | InactiveUser | GhostUser)[]>([]);
@@ -92,11 +92,13 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
     const [viewingUserId, setViewingUserId] = useState<string | null>(null);
     const [userFilter, setUserFilter] = useState<UserFilter>('all');
     const [viewMode, setViewMode] = useState<ViewMode>('analytics');
-    const [classView, setClassView] = useState<ClassView>('gsb');
-    const [gsbAnalytics, setGsbAnalytics] = useState<ClassAnalyticsData | null>(null);
-    const [undergradAnalytics, setUndergradAnalytics] = useState<ClassAnalyticsData | null>(null);
+    const [currentAnalytics, setCurrentAnalytics] = useState<ClassAnalyticsData | null>(null);
     const [loadingAnalytics, setLoadingAnalytics] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
+
+    // Automatically determine which class view to show based on current user's class
+    const currentClassView: UserClass = userData?.userClass || 'gsb';
+    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
     // Strict admin access control
     useEffect(() => {
@@ -439,7 +441,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                 });
             });
 
-            // Create inactive and ghost users from both class rosters
+            // Create inactive and ghost users only for the current class
             const allCrushNames = new Set<string>();
             realUsers.forEach(user => {
                 const userCrushes = user.crushes || [];
@@ -452,15 +454,17 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
             const inactiveUsers: InactiveUser[] = [];
             const ghostUsers: GhostUser[] = [];
 
-            // Process GSB class members
-            GSB_CLASS_NAMES.forEach(className => {
+            // Only process the current class roster
+            const currentClassNames = currentClassView === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+
+            currentClassNames.forEach(className => {
                 if (realUserNames.has(className)) {
                     return;
                 }
 
                 let crushCount = 0;
                 realUsers.forEach(user => {
-                    if ((user.userClass || 'gsb') === 'gsb') {
+                    if ((user.userClass || 'gsb') === currentClassView) {
                         const userCrushes = user.crushes || [];
                         if (userCrushes.includes(className)) {
                             crushCount++;
@@ -471,7 +475,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                 const derivedEmail = `${className.toLowerCase().replace(/\s+/g, '.')}@stanford.edu`;
 
                 if (crushCount > 0) {
-                    const inactiveId = `inactive-gsb-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    const inactiveId = `inactive-${currentClassView}-${normalizeName(className).replace(/\s+/g, '-')}`;
                     inactiveUsers.push({
                         uid: inactiveId,
                         email: derivedEmail,
@@ -481,14 +485,14 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                         lockedCrushes: [],
                         matches: [],
                         crushCount: crushCount,
-                        userClass: 'gsb',
+                        userClass: currentClassView,
                         isInactive: true,
                         createdAt: null,
                         updatedAt: null,
                         lastLogin: null
                     });
                 } else {
-                    const ghostId = `ghost-gsb-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    const ghostId = `ghost-${currentClassView}-${normalizeName(className).replace(/\s+/g, '-')}`;
                     ghostUsers.push({
                         uid: ghostId,
                         email: derivedEmail,
@@ -498,7 +502,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                         lockedCrushes: [],
                         matches: [],
                         crushCount: 0,
-                        userClass: 'gsb',
+                        userClass: currentClassView,
                         isGhost: true,
                         createdAt: null,
                         updatedAt: null,
@@ -507,79 +511,18 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                 }
             });
 
-            // Process Undergrad class members
-            UNDERGRAD_CLASS_NAMES.forEach(className => {
-                if (realUserNames.has(className)) {
-                    return;
-                }
+            // Filter all users to only include the current class
+            const currentClassRealUsers = realUsers.filter(user => (user.userClass || 'gsb') === currentClassView);
+            const allUsersArray = [...currentClassRealUsers, ...inactiveUsers, ...ghostUsers];
 
-                let crushCount = 0;
-                realUsers.forEach(user => {
-                    if (user.userClass === 'undergrad') {
-                        const userCrushes = user.crushes || [];
-                        if (userCrushes.includes(className)) {
-                            crushCount++;
-                        }
-                    }
-                });
-
-                const derivedEmail = `${className.toLowerCase().replace(/\s+/g, '.')}@stanford.edu`;
-
-                if (crushCount > 0) {
-                    const inactiveId = `inactive-undergrad-${normalizeName(className).replace(/\s+/g, '-')}`;
-                    inactiveUsers.push({
-                        uid: inactiveId,
-                        email: derivedEmail,
-                        name: className,
-                        photoURL: '/files/default-profile.png',
-                        crushes: [],
-                        lockedCrushes: [],
-                        matches: [],
-                        crushCount: crushCount,
-                        userClass: 'undergrad',
-                        isInactive: true,
-                        createdAt: null,
-                        updatedAt: null,
-                        lastLogin: null
-                    });
-                } else {
-                    const ghostId = `ghost-undergrad-${normalizeName(className).replace(/\s+/g, '-')}`;
-                    ghostUsers.push({
-                        uid: ghostId,
-                        email: derivedEmail,
-                        name: className,
-                        photoURL: '/files/default-profile.png',
-                        crushes: [],
-                        lockedCrushes: [],
-                        matches: [],
-                        crushCount: 0,
-                        userClass: 'undergrad',
-                        isGhost: true,
-                        createdAt: null,
-                        updatedAt: null,
-                        lastLogin: null
-                    });
-                }
-            });
-
-            const allUsersArray = [...realUsers, ...inactiveUsers, ...ghostUsers];
-
-            // Sort by class first, then by type, then alphabetically
+            // Sort alphabetically within each type
             allUsersArray.sort((a, b) => {
-                const aClass = (a.userClass || 'gsb');
-                const bClass = (b.userClass || 'gsb');
-
-                // Sort by class first (GSB then Undergrad)
-                if (aClass !== bClass) {
-                    return aClass === 'gsb' ? -1 : 1;
-                }
-
                 const aIsInactive = (a as InactiveUser).isInactive || false;
                 const bIsInactive = (b as InactiveUser).isInactive || false;
                 const aIsGhost = (a as GhostUser).isGhost || false;
                 const bIsGhost = (b as GhostUser).isGhost || false;
 
-                // Within same class: Active users first, then inactive, then ghost
+                // Active users first, then inactive, then ghost
                 if (!aIsInactive && !aIsGhost && (bIsInactive || bIsGhost)) return -1;
                 if ((aIsInactive || aIsGhost) && !bIsInactive && !bIsGhost) return 1;
 
@@ -603,7 +546,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         } finally {
             setLoadingUsers(false);
         }
-    }, [normalizeName, user?.email]);
+    }, [normalizeName, user?.email, currentClassView]);
 
     useEffect(() => {
         if (user?.email === 'jpark22@stanford.edu') {
@@ -611,18 +554,15 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         }
     }, [user, loadAllUsers]);
 
-    // Calculate analytics for both classes
+    // Calculate analytics for current class only
     useEffect(() => {
         if (allUsers.length > 0 && user?.email === 'jpark22@stanford.edu') {
             setLoadingAnalytics(true);
 
             const timeoutId = setTimeout(() => {
                 try {
-                    const gsbData = calculateClassAnalytics('gsb');
-                    const undergradData = calculateClassAnalytics('undergrad');
-
-                    setGsbAnalytics(gsbData);
-                    setUndergradAnalytics(undergradData);
+                    const analyticsData = calculateClassAnalytics(currentClassView);
+                    setCurrentAnalytics(analyticsData);
                 } finally {
                     setLoadingAnalytics(false);
                 }
@@ -630,27 +570,23 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
 
             return () => clearTimeout(timeoutId);
         }
-    }, [allUsers, calculateClassAnalytics, refreshKey, user?.email]);
+    }, [allUsers, calculateClassAnalytics, refreshKey, user?.email, currentClassView]);
 
-    // Get current class data
-    const currentClassUsers = useMemo(() => {
-        return allUsers.filter(user => (user.userClass || 'gsb') === classView);
-    }, [allUsers, classView]);
-
+    // Get current class stats
     const currentClassStats = useMemo(() => {
-        const realUsers = currentClassUsers.filter(u =>
+        const realUsers = allUsers.filter(u =>
             !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
         );
-        const inactiveUsers = currentClassUsers.filter(u => (u as InactiveUser).isInactive);
-        const ghostUsers = currentClassUsers.filter(u => (u as GhostUser).isGhost);
+        const inactiveUsers = allUsers.filter(u => (u as InactiveUser).isInactive);
+        const ghostUsers = allUsers.filter(u => (u as GhostUser).isGhost);
 
         return {
             activeUsers: realUsers.length,
             inactiveUsers: inactiveUsers.length,
             ghostUsers: ghostUsers.length,
-            total: currentClassUsers.length
+            total: allUsers.length
         };
-    }, [currentClassUsers]);
+    }, [allUsers]);
 
     const handleViewUser = useCallback((userId: string) => {
         setViewingUserId(viewingUserId === userId ? null : userId);
@@ -661,43 +597,22 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         await loadAllUsers();
     }, [loadAllUsers]);
 
-    const currentAnalytics = classView === 'gsb' ? gsbAnalytics : undergradAnalytics;
-    const classDisplayName = classView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
-
     return (
         <div className="admin-section">
             <div className="admin-header-section">
                 <div className="admin-title-row">
-                    <h3>Admin Dashboard</h3>
+                    <h3>{classDisplayName} Admin Dashboard</h3>
                     <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
                         {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
                     </button>
                 </div>
 
                 <div className="admin-definitions">
-                    <p><strong>Class Separation:</strong> The system maintains strict class boundaries - GSB students can only match with GSB students, and undergrads can only match with undergrads.</p>
-                    <p><strong>Active Users:</strong> Students who have signed up and can match within their class.</p>
-                    <p><strong>Inactive Users:</strong> Students from the class roster who haven't signed up yet but are receiving crushes.</p>
-                    <p><strong>Ghost Users:</strong> Students from the class roster with zero engagement.</p>
+                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
+                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
+                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
+                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
                 </div>
-            </div>
-
-            {/* Class Selection */}
-            <div className="admin-class-nav">
-                <button
-                    onClick={() => setClassView('gsb')}
-                    className={`admin-class-btn ${classView === 'gsb' ? 'active' : ''}`}
-                    disabled={loadingUsers}
-                >
-                    GSB MBA Class ({gsbAnalytics?.totalUsers || 0} active)
-                </button>
-                <button
-                    onClick={() => setClassView('undergrad')}
-                    className={`admin-class-btn ${classView === 'undergrad' ? 'active' : ''}`}
-                    disabled={loadingUsers}
-                >
-                    Undergrad Class ({undergradAnalytics?.totalUsers || 0} active)
-                </button>
             </div>
 
             {/* View Mode Navigation */}
@@ -722,13 +637,13 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                 {viewMode === 'analytics' && (
                     <AdminAnalytics
                         analytics={currentAnalytics}
-                        classView={classView}
+                        classView={currentClassView}
                         classDisplayName={classDisplayName}
                     />
                 )}
                 {viewMode === 'users' && (
                     <AdminUsers
-                        allUsers={currentClassUsers}
+                        allUsers={allUsers}
                         loadingUsers={loadingUsers}
                         adminSearchTerm={adminSearchTerm}
                         setAdminSearchTerm={setAdminSearchTerm}
@@ -738,7 +653,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                         handleViewUser={handleViewUser}
                         findCrushersForUser={findCrushersForUser}
                         userStats={currentClassStats}
-                        classView={classView}
+                        classView={currentClassView}
                         classDisplayName={classDisplayName}
                     />
                 )}
