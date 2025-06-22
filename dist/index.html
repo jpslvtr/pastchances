@@ -3,17 +3,22 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/stanford.svg" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/stanford.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/stanford.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/stanford.png" />
+
+  <!-- Favicon with cache busting and multiple formats -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/stanford.png?v=2" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/stanford.png?v=2" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/stanford.png?v=2" />
+  <link rel="shortcut icon" href="/stanford.png?v=2" />
+  <link rel="icon" href="/stanford.png?v=2" type="image/png" />
+  <link rel="icon" type="image/svg+xml" href="/stanford.svg?v=2" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Past Chances</title>
 
   <!-- Open Graph Meta Tags for Social Sharing -->
   <meta property="og:title" content="Past Chances" />
   <meta property="og:description" content="Share your crushes anonymously and see if there's a mutual connection." />
-  <meta property="og:image" content="https://pastchances.com/share.png" />
+  <meta property="og:image" content="https://pastchances.com/share.png?v=2" />
   <meta property="og:image:width" content="1140" />
   <meta property="og:image:height" content="420" />
   <meta property="og:image:type" content="image/png" />
@@ -25,20 +30,17 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Past Chances" />
   <meta name="twitter:description" content="Share your crushes anonymously and see if there's a mutual connection." />
-  <meta name="twitter:image" content="https://pastchances.com/share.png" />
+  <meta name="twitter:image" content="https://pastchances.com/share.png?v=2" />
   <meta name="twitter:image:width" content="1140" />
   <meta name="twitter:image:height" content="420" />
 
   <!-- Standard Meta Tags -->
   <meta name="description" content="Share your crushes anonymously and see if there's a mutual connection." />
 
-  <!-- Additional favicon formats for better browser support -->
-  <link rel="shortcut icon" href="/stanford.png" />
-  <link rel="icon" href="/stanford.png" type="image/png" />
-
-  <!-- Preload critical images -->
-  <link rel="preload" as="image" href="/share.png" />
-  <link rel="preload" as="image" href="/stanford.svg" />
+  <!-- Preload critical images with cache busting -->
+  <link rel="preload" as="image" href="/share.png?v=2" />
+  <link rel="preload" as="image" href="/stanford.svg?v=2" />
+  <link rel="preload" as="image" href="/stanford.png?v=2" />
   <script type="module" crossorigin src="/assets/index-Cscs7stI.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-DPf5SjeW.css">
 </head>
