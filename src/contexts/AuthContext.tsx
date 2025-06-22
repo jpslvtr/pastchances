@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
@@ -160,124 +160,143 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             setNameOptions(null);
             setPendingUserClass(null);
-            await loadUserDataFromFirestore(user);
+            // Real-time listener will handle the update
         } catch (error) {
             console.error('Error selecting name:', error);
             throw error;
         }
     };
 
-    // NEW: Standalone function to load user data - doesn't depend on state
-    const loadUserDataFromFirestore = async (authUser: User) => {
-        if (!authUser?.uid) {
-            console.warn('loadUserDataFromFirestore called without user');
-            return;
-        }
+    // Set up real-time listener for user data
+    useEffect(() => {
+        if (!user?.uid) return;
 
-        try {
-            // For test user, check both documents and prefer based on last used class
-            if (authUser.email === 'jpark22@stanford.edu') {
-                const gsbDocId = `${authUser.uid}_gsb`;
-                const undergradDocId = `${authUser.uid}_undergrad`;
+        let unsubscribe: (() => void) | null = null;
 
-                const gsbRef = doc(db, 'users', gsbDocId);
-                const undergradRef = doc(db, 'users', undergradDocId);
+        const setupListener = async () => {
+            try {
+                // For test user, check both documents and prefer based on last used class
+                if (user.email === 'jpark22@stanford.edu') {
+                    const gsbDocId = `${user.uid}_gsb`;
+                    const undergradDocId = `${user.uid}_undergrad`;
 
-                const [gsbDoc, undergradDoc] = await Promise.all([
-                    getDoc(gsbRef),
-                    getDoc(undergradRef)
-                ]);
+                    const gsbRef = doc(db, 'users', gsbDocId);
+                    const undergradRef = doc(db, 'users', undergradDocId);
 
-                let targetData = null;
-                let detectedClass: UserClass = 'gsb';
+                    const [gsbDoc, undergradDoc] = await Promise.all([
+                        getDoc(gsbRef),
+                        getDoc(undergradRef)
+                    ]);
 
-                // Get the last used class from localStorage
-                const lastUsedClass = getLastUsedClass();
+                    let targetDocId = gsbDocId;
+                    let detectedClass: UserClass = 'gsb';
 
-                // Prefer the last used class if both documents exist and have names
-                if (lastUsedClass === 'undergrad' && undergradDoc.exists() && undergradDoc.data().name) {
-                    targetData = undergradDoc.data();
-                    detectedClass = 'undergrad';
-                } else if (lastUsedClass === 'gsb' && gsbDoc.exists() && gsbDoc.data().name) {
-                    targetData = gsbDoc.data();
-                    detectedClass = 'gsb';
-                } else if (gsbDoc.exists() && gsbDoc.data().name) {
-                    // Fallback to GSB if no preference or preference doesn't exist
-                    targetData = gsbDoc.data();
-                    detectedClass = 'gsb';
-                } else if (undergradDoc.exists() && undergradDoc.data().name) {
-                    targetData = undergradDoc.data();
-                    detectedClass = 'undergrad';
-                } else if (gsbDoc.exists()) {
-                    // Fall back to GSB if neither has a name
-                    targetData = gsbDoc.data();
-                    detectedClass = 'gsb';
-                } else if (undergradDoc.exists()) {
-                    targetData = undergradDoc.data();
-                    detectedClass = 'undergrad';
+                    // Get the last used class from localStorage
+                    const lastUsedClass = getLastUsedClass();
+
+                    // Prefer the last used class if both documents exist and have names
+                    if (lastUsedClass === 'undergrad' && undergradDoc.exists() && undergradDoc.data().name) {
+                        targetDocId = undergradDocId;
+                        detectedClass = 'undergrad';
+                    } else if (lastUsedClass === 'gsb' && gsbDoc.exists() && gsbDoc.data().name) {
+                        targetDocId = gsbDocId;
+                        detectedClass = 'gsb';
+                    } else if (gsbDoc.exists() && gsbDoc.data().name) {
+                        // Fallback to GSB if no preference or preference doesn't exist
+                        targetDocId = gsbDocId;
+                        detectedClass = 'gsb';
+                    } else if (undergradDoc.exists() && undergradDoc.data().name) {
+                        targetDocId = undergradDocId;
+                        detectedClass = 'undergrad';
+                    } else if (gsbDoc.exists()) {
+                        // Fall back to GSB if neither has a name
+                        targetDocId = gsbDocId;
+                        detectedClass = 'gsb';
+                    } else if (undergradDoc.exists()) {
+                        targetDocId = undergradDocId;
+                        detectedClass = 'undergrad';
+                    }
+
+                    // Set up real-time listener for the target document
+                    const targetRef = doc(db, 'users', targetDocId);
+                    unsubscribe = onSnapshot(targetRef, (doc) => {
+                        if (doc.exists()) {
+                            const data = doc.data();
+                            const userData: UserData = {
+                                uid: data.uid,
+                                email: data.email,
+                                name: data.name || data.verifiedName || data.displayName || '',
+                                photoURL: data.photoURL,
+                                crushes: data.crushes || [],
+                                lockedCrushes: data.lockedCrushes || [],
+                                matches: normalizeMatches(data.matches),
+                                crushCount: data.crushCount || 0,
+                                userClass: data.userClass || detectedClass,
+                                createdAt: data.createdAt,
+                                updatedAt: data.updatedAt,
+                                lastLogin: data.lastLogin
+                            };
+                            setUserData(userData);
+
+                            // Update localStorage with the class we're actually using
+                            setLastUsedClass(detectedClass);
+                        } else {
+                            setUserData(null);
+                        }
+                    }, (error) => {
+                        console.error('Error in real-time user data listener:', error);
+                        setUserData(null);
+                    });
+
+                } else {
+                    // Regular user logic - set up real-time listener
+                    const userRef = doc(db, 'users', user.uid);
+                    unsubscribe = onSnapshot(userRef, (doc) => {
+                        if (doc.exists()) {
+                            const data = doc.data();
+                            const userData: UserData = {
+                                uid: data.uid,
+                                email: data.email,
+                                name: data.name || data.verifiedName || data.displayName || '',
+                                photoURL: data.photoURL,
+                                crushes: data.crushes || [],
+                                lockedCrushes: data.lockedCrushes || [],
+                                matches: normalizeMatches(data.matches),
+                                crushCount: data.crushCount || 0,
+                                userClass: data.userClass || 'gsb',
+                                createdAt: data.createdAt,
+                                updatedAt: data.updatedAt,
+                                lastLogin: data.lastLogin
+                            };
+                            setUserData(userData);
+                        } else {
+                            setUserData(null);
+                        }
+                    }, (error) => {
+                        console.error('Error in real-time user data listener:', error);
+                        setUserData(null);
+                    });
                 }
-
-                if (targetData) {
-                    const userData: UserData = {
-                        uid: targetData.uid,
-                        email: targetData.email,
-                        name: targetData.name || targetData.verifiedName || targetData.displayName || '',
-                        photoURL: targetData.photoURL,
-                        crushes: targetData.crushes || [],
-                        lockedCrushes: targetData.lockedCrushes || [],
-                        matches: normalizeMatches(targetData.matches),
-                        crushCount: targetData.crushCount || 0,
-                        userClass: targetData.userClass || detectedClass,
-                        createdAt: targetData.createdAt,
-                        updatedAt: targetData.updatedAt,
-                        lastLogin: targetData.lastLogin
-                    };
-                    setUserData(userData);
-
-                    // Update localStorage with the class we're actually using
-                    setLastUsedClass(detectedClass);
-                    return;
-                }
-            } else {
-                // Regular user logic
-                const userRef = doc(db, 'users', authUser.uid);
-                const userDoc = await getDoc(userRef);
-
-                if (userDoc.exists()) {
-                    const data = userDoc.data();
-                    const userData: UserData = {
-                        uid: data.uid,
-                        email: data.email,
-                        name: data.name || data.verifiedName || data.displayName || '',
-                        photoURL: data.photoURL,
-                        crushes: data.crushes || [],
-                        lockedCrushes: data.lockedCrushes || [],
-                        matches: normalizeMatches(data.matches),
-                        crushCount: data.crushCount || 0,
-                        userClass: data.userClass || 'gsb',
-                        createdAt: data.createdAt,
-                        updatedAt: data.updatedAt,
-                        lastLogin: data.lastLogin
-                    };
-                    setUserData(userData);
-                    return;
-                }
+            } catch (error) {
+                console.error('Error setting up real-time listener:', error);
+                setUserData(null);
             }
+        };
 
-            console.error('User document does not exist');
-            setUserData(null);
-        } catch (error) {
-            console.error('Error loading user data from Firestore:', error);
-            setUserData(null);
-        }
-    };
+        setupListener();
+
+        // Cleanup function
+        return () => {
+            if (unsubscribe) {
+                unsubscribe();
+            }
+        };
+    }, [user?.uid, user?.email]);
 
     const refreshUserData = async () => {
-        if (!user?.uid) {
-            console.warn('refreshUserData called without user');
-            return;
-        }
-        await loadUserDataFromFirestore(user);
+        // With real-time listeners, manual refresh is not needed
+        // The listener will automatically update when data changes
+        console.log('Real-time listener active - manual refresh not needed');
     };
 
     const createOrUpdateUserDocument = async (user: User, userClass: UserClass) => {
@@ -318,7 +337,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         };
 
                         await setDoc(userRef, newUserData);
-                        setUserData(newUserData);
+                        // Real-time listener will handle the update
                         console.log(`Successfully created fresh ${userClass} account`);
                         return newUserData;
                     } else if (potentialMatches.length > 0) {
@@ -342,7 +361,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         };
 
                         await setDoc(userRef, incompleteUserData);
-                        setUserData(incompleteUserData);
+                        // Real-time listener will handle the update
                         return incompleteUserData;
                     } else {
                         await signOut(auth);
@@ -371,7 +390,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     };
 
                     await setDoc(userRef, updatedData, { merge: true });
-                    setUserData(updatedData);
+                    // Real-time listener will handle the update
                     return updatedData;
                 }
             } else {
@@ -402,7 +421,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         };
 
                         await setDoc(userRef, newUserData);
-                        setUserData(newUserData);
+                        // Real-time listener will handle the update
                         return newUserData;
                     } else if (potentialMatches.length > 0) {
                         setNameOptions(potentialMatches);
@@ -424,7 +443,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         };
 
                         await setDoc(userRef, incompleteUserData);
-                        setUserData(incompleteUserData);
+                        // Real-time listener will handle the update
                         return incompleteUserData;
                     } else {
                         await signOut(auth);
@@ -458,7 +477,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     };
 
                     await setDoc(userRef, updatedData, { merge: true });
-                    setUserData(updatedData);
+                    // Real-time listener will handle the update
                     return updatedData;
                 }
             }
@@ -479,9 +498,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     alert('Only @stanford.edu email addresses are allowed. Please sign in with your Stanford account.');
                 } else {
                     setUser(user);
-                    // Load user data immediately when auth state is restored
-                    await loadUserDataFromFirestore(user);
                     setLoading(false);
+                    // Real-time listener will be set up in the useEffect above
                 }
             } else {
                 setUser(null);

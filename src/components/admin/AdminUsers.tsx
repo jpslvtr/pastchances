@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { UserData, MatchInfo, UserClass } from '../../types/userTypes';
 
 interface CrusherInfo {
@@ -60,117 +60,81 @@ interface AdminUsersProps {
     classDisplayName: string;
 }
 
-// Enhanced admin search matching function
-const matchesAdminSearchTerm = (user: UserData | InactiveUser | GhostUser, searchTerm: string): { matches: boolean; score: number } => {
+// Use the exact same search function as the normal user search
+const matchesSearchTerm = (searchableText: string, searchTerm: string): { matches: boolean; score: number } => {
     if (!searchTerm.trim()) return { matches: true, score: 0 };
 
-    const normalizeText = (text: string) => text.toLowerCase().trim().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ');
-
+    const normalizeText = (text: string) => text.toLowerCase().trim();
+    const normalizedText = normalizeText(searchableText);
     const normalizedSearch = normalizeText(searchTerm);
+
+    // Exact substring match (highest priority)
+    if (normalizedText.includes(normalizedSearch)) {
+        return { matches: true, score: 100 };
+    }
+
+    const textParts = normalizedText.split(' ').filter(Boolean);
     const searchParts = normalizedSearch.split(' ').filter(Boolean);
 
-    // Search in name and email
-    const searchableFields = [
-        user.name || '',
-        user.email || ''
-    ].filter(Boolean);
+    // First + Last name matching (most common use case)
+    if (searchParts.length >= 2) {
+        const searchFirst = searchParts[0];
+        const searchLast = searchParts[searchParts.length - 1];
 
-    let bestScore = 0;
-    let hasMatch = false;
+        if (textParts.length >= 2) {
+            const textFirst = textParts[0];
+            const textLast = textParts[textParts.length - 1];
 
-    for (const field of searchableFields) {
-        const normalizedField = normalizeText(field);
-
-        // Simple substring match (highest priority)
-        if (normalizedField.includes(normalizedSearch)) {
-            hasMatch = true;
-            bestScore = Math.max(bestScore, 100);
-            continue;
-        }
-
-        const fieldParts = normalizedField.split(' ').filter(Boolean);
-
-        // Check if all search parts match the beginning of field parts
-        if (searchParts.every(searchPart =>
-            fieldParts.some(fieldPart => fieldPart.startsWith(searchPart))
-        )) {
-            hasMatch = true;
-            bestScore = Math.max(bestScore, 90);
-            continue;
-        }
-
-        // Check if search parts match field parts in order (allows for middle names/domains)
-        let fieldIndex = 0;
-        let matchedParts = 0;
-
-        for (const searchPart of searchParts) {
-            let found = false;
-            for (let i = fieldIndex; i < fieldParts.length; i++) {
-                if (fieldParts[i].startsWith(searchPart)) {
-                    matchedParts++;
-                    fieldIndex = i + 1;
-                    found = true;
-                    break;
-                }
+            // Exact first + last match
+            if (textFirst === searchFirst && textLast === searchLast) {
+                return { matches: true, score: 95 };
             }
-            if (!found) break;
-        }
 
-        if (matchedParts === searchParts.length) {
-            hasMatch = true;
-            bestScore = Math.max(bestScore, 80);
-            continue;
-        }
-
-        // Fuzzy matching - check if most characters match
-        const searchChars = normalizedSearch.replace(/\s/g, '');
-        const fieldChars = normalizedField.replace(/\s/g, '');
-
-        let matchCount = 0;
-        let searchIndex = 0;
-
-        for (let i = 0; i < fieldChars.length && searchIndex < searchChars.length; i++) {
-            if (fieldChars[i] === searchChars[searchIndex]) {
-                matchCount++;
-                searchIndex++;
+            // Partial first + exact last
+            if (textFirst.startsWith(searchFirst) && textLast === searchLast) {
+                return { matches: true, score: 90 };
             }
-        }
 
-        const fuzzyScore = searchChars.length > 0 ? (matchCount / searchChars.length) * 100 : 0;
-
-        if (fuzzyScore >= 70) {
-            hasMatch = true;
-            bestScore = Math.max(bestScore, fuzzyScore);
+            // Exact first + partial last
+            if (textFirst === searchFirst && textLast.startsWith(searchLast)) {
+                return { matches: true, score: 85 };
+            }
         }
     }
 
-    return { matches: hasMatch, score: bestScore };
+    // Single term matching
+    if (searchParts.length === 1) {
+        const searchTerm = searchParts[0];
+
+        // Check if any text part starts with search term
+        if (textParts.some(part => part.startsWith(searchTerm))) {
+            return { matches: true, score: 80 };
+        }
+    }
+
+    // Multi-word progressive matching
+    let textIndex = 0;
+    let matchedParts = 0;
+
+    for (const searchPart of searchParts) {
+        for (let i = textIndex; i < textParts.length; i++) {
+            if (textParts[i].startsWith(searchPart)) {
+                matchedParts++;
+                textIndex = i + 1;
+                break;
+            }
+        }
+    }
+
+    if (matchedParts === searchParts.length) {
+        return { matches: true, score: 75 };
+    }
+
+    return { matches: false, score: 0 };
 };
 
-// Highlight matching parts for admin search
-const highlightAdminMatch = (text: string, searchTerm: string) => {
-    if (!searchTerm.trim() || !text) return text;
-
-    const normalizeText = (str: string) => str.toLowerCase().trim();
-    const normalizedText = normalizeText(text);
-    const normalizedSearch = normalizeText(searchTerm);
-
-    // Simple highlighting for exact substring matches
-    const index = normalizedText.indexOf(normalizedSearch);
-    if (index !== -1) {
-        const before = text.substring(0, index);
-        const match = text.substring(index, index + searchTerm.length);
-        const after = text.substring(index + searchTerm.length);
-
-        return (
-            <>
-                {before}
-                <span className="admin-search-highlight">{match}</span>
-                {after}
-            </>
-        );
-    }
-
+// Simple function that just returns the text without highlighting
+const highlightMatch = (text: string, _searchTerm: string) => {
     return text;
 };
 
@@ -188,37 +152,34 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
     classDisplayName
 }) => {
     const [virtualStart, setVirtualStart] = useState(0);
-    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const searchInputRef = React.useRef<HTMLInputElement>(null);
 
     const ITEMS_PER_PAGE = 50;
 
-    // Debounce search term for better performance
-    React.useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearchTerm(adminSearchTerm);
-            setVirtualStart(0); // Reset virtual scroll when search changes
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [adminSearchTerm]);
+    // Reset virtual scroll when search term or filter changes
+    useEffect(() => {
+        setVirtualStart(0);
+    }, [adminSearchTerm, userFilter]);
 
     const handleAdminSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        setAdminSearchTerm(e.target.value);
+        const newValue = e.target.value;
+        setAdminSearchTerm(newValue);
+        setVirtualStart(0);
     }, [setAdminSearchTerm]);
 
     // Clear search function
     const clearAdminSearch = useCallback(() => {
         setAdminSearchTerm('');
-        setDebouncedSearchTerm('');
         setVirtualStart(0);
         if (searchInputRef.current) {
             searchInputRef.current.focus();
         }
     }, [setAdminSearchTerm]);
 
-    // Enhanced filtering with fuzzy matching
+    // Use the exact same filtering logic as normal search with better debugging
     const filteredUsers = useMemo(() => {
+        console.log('Admin filtering - Search term:', `"${adminSearchTerm}"`, 'Filter:', userFilter, 'All users count:', allUsers.length);
+
         let users = allUsers;
 
         // Apply user type filter first
@@ -239,20 +200,44 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                 break;
         }
 
-        // Apply search filter with fuzzy matching
-        if (!debouncedSearchTerm.trim()) return users;
+        console.log('After filter:', users.length, 'users');
+
+        // Apply search filter - key fix: explicit empty string check
+        const trimmedSearch = adminSearchTerm.trim();
+        if (trimmedSearch === '') {
+            console.log('Empty search, returning all filtered users');
+            return users;
+        }
+
+        console.log('Applying search for:', `"${trimmedSearch}"`);
 
         const matchedUsers = users
             .map(user => {
-                const result = matchesAdminSearchTerm(user, debouncedSearchTerm);
-                return { user, ...result };
+                // Search in both name and email
+                const searchableTexts = [
+                    user.name || '',
+                    user.email || ''
+                ].filter(Boolean);
+
+                let bestMatch = { matches: false, score: 0 };
+
+                // Test each searchable text and take the best match
+                for (const text of searchableTexts) {
+                    const result = matchesSearchTerm(text, trimmedSearch);
+                    if (result.matches && result.score > bestMatch.score) {
+                        bestMatch = result;
+                    }
+                }
+
+                return { user, ...bestMatch };
             })
             .filter(item => item.matches)
             .sort((a, b) => b.score - a.score)
             .map(item => item.user);
 
+        console.log('Search results:', matchedUsers.length, 'users');
         return matchedUsers;
-    }, [allUsers, debouncedSearchTerm, userFilter]);
+    }, [allUsers, adminSearchTerm, userFilter]);
 
     const visibleUsers = useMemo(() => {
         const startIndex = virtualStart;
@@ -297,7 +282,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                 <div className="admin-user-header">
                     <div className="admin-user-info">
                         <div className="admin-user-name">
-                            {highlightAdminMatch(displayName, debouncedSearchTerm)}
+                            {highlightMatch(displayName, adminSearchTerm)}
                             {userTypeLabel && (
                                 <span className="user-type-label">
                                     {userTypeLabel}
@@ -310,7 +295,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                             )}
                         </div>
                         <div className="admin-user-email">
-                            {highlightAdminMatch(u.email, debouncedSearchTerm)}
+                            {highlightMatch(u.email, adminSearchTerm)}
                         </div>
                         <div className="admin-user-stats">
                             {actualCrushCount} crushing • {u.matches?.length || 0} matches • {u.crushes?.length || 0} selected
@@ -435,12 +420,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                             </button>
                         )}
                     </div>
-                    {debouncedSearchTerm && debouncedSearchTerm !== adminSearchTerm && (
-                        <div className="admin-search-loading">Searching...</div>
-                    )}
-                    {debouncedSearchTerm && filteredUsers.length > 0 && (
+                    {adminSearchTerm && filteredUsers.length > 0 && (
                         <div className="admin-search-hint">
-                            💡 Results sorted by relevance. Search works with partial names and emails.
+                            💡 {filteredUsers.length} results found. Try "first last" for best results.
                         </div>
                     )}
                     {filteredUsers.length > ITEMS_PER_PAGE && (
@@ -484,12 +466,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
 
                     {filteredUsers.length === 0 && (
                         <div className="no-results">
-                            {debouncedSearchTerm ? (
+                            {adminSearchTerm ? (
                                 <>
-                                    No {classDisplayName} users found matching "{debouncedSearchTerm}".
+                                    No {classDisplayName} users found matching "{adminSearchTerm}".
                                     <br />
-                                    <small>Try searching with partial names or email addresses</small>
-                                    <button onClick={clearAdminSearch} className="admin-clear-search-link">
+                                    <small>Try searching with first and last name (e.g., "john smith")</small>
+                                    <button onClick={clearAdminSearch} className="clear-search-link">
                                         Clear search
                                     </button>
                                 </>
