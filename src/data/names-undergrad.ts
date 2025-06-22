@@ -435,6 +435,7 @@ export const UNDERGRAD_CLASS_NAMES = [
     "Stefano Fantini Delmanto",
     "Marguerite Marie DeMarco",
     "Brooke K. Demetre",
+    "Emily Deng",
     "Yiman Deng",
     "Caden James Denning",
     "William Toby Denton",
