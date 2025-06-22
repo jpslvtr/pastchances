@@ -25,45 +25,23 @@ ls -la dist/stanford.png dist/stanford.svg dist/share.png
 echo "Deploying Firebase functions and Firestore..."
 firebase deploy --only functions,firestore
 
-# Deploy to Vercel (hosting)
+# Deploy to Vercel (hosting) with public and yes flags
 echo "Deploying to Vercel..."
-DEPLOY_OUTPUT=$(npx vercel --prod --public --yes 2>&1)
-echo "$DEPLOY_OUTPUT"
-
-# Extract the deployment URL from the output
-DEPLOYMENT_URL=$(echo "$DEPLOY_OUTPUT" | grep -o 'https://stanford-lastchances-[a-z0-9]*-jpslvtrs-projects\.vercel\.app' | head -1)
-
-if [ -z "$DEPLOYMENT_URL" ]; then
-    echo "❌ Could not extract deployment URL. Manual assignment needed."
-    echo "Please run: npx vercel ls"
-    echo "Then: npx vercel alias set [LATEST_URL] pastchances.com"
-else
-    echo "✅ Deployment URL: $DEPLOYMENT_URL"
-    
-    # Test the deployment URL directly first
-    echo "Testing deployment URL directly..."
-    sleep 5
-    curl -I "$DEPLOYMENT_URL/stanford.png"
-    
-    # Assign domain
-    echo "Assigning domain pastchances.com to $DEPLOYMENT_URL..."
-    npx vercel alias set "$DEPLOYMENT_URL" pastchances.com
-    
-    # Test the custom domain
-    echo "Testing custom domain..."
-    sleep 10
-    curl -I https://pastchances.com/stanford.png
-fi
+npx vercel --prod --public --yes
 
 # Git operations
 echo "Committing changes to git..."
 git add .
 
+# Check if there are any changes to commit
 if git diff --staged --quiet; then
     echo "No changes to commit"
 else
+    # Get current timestamp for commit message
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
     git commit -m "updates - $TIMESTAMP"
+    
+    echo "Pushing to git..."
     git push
 fi
 
