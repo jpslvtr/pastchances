@@ -244,7 +244,7 @@ const Home: React.FC = () => {
 
                 <div className="dashboard-content">
                     {isAdminMode && isAdmin ? (
-                        <AdminView user={user} />
+                        <AdminView user={user} userData={userData} />
                     ) : (
                         <UserDashboard
                             userData={userData!}
