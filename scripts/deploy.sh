@@ -11,9 +11,13 @@ cd ..
 echo "Building project..."
 npm run build
 
-# Deploy to Firebase
-echo "Deploying to Firebase..."
-firebase deploy
+# Deploy to Firebase (functions and Firestore only, not hosting)
+echo "Deploying Firebase functions and Firestore..."
+firebase deploy --only functions,firestore
+
+# Deploy to Vercel (hosting)
+echo "Deploying to Vercel..."
+npx vercel --prod
 
 # Git operations
 echo "Committing changes to git..."
@@ -32,3 +36,5 @@ else
 fi
 
 echo "Deployment complete"
+echo "Frontend: https://pastchances.com (Vercel)"
+echo "Backend: Firebase Functions & Firestore"
