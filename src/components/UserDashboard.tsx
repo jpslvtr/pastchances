@@ -16,16 +16,15 @@ interface UserDashboardProps {
     handleUpdatePreferences: () => void;
 }
 
-// Enhanced name matching function
+// Fast name matching function optimized for first/last name searches
 const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
     if (!searchTerm.trim()) return { matches: true, score: 0 };
 
-    const normalizeText = (text: string) => text.toLowerCase().trim().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ');
-
+    const normalizeText = (text: string) => text.toLowerCase().trim();
     const normalizedName = normalizeText(fullName);
     const normalizedSearch = normalizeText(searchTerm);
 
-    // Simple substring match (highest priority)
+    // Exact substring match (highest priority)
     if (normalizedName.includes(normalizedSearch)) {
         return { matches: true, score: 100 };
     }
@@ -33,52 +32,58 @@ const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boo
     const nameParts = normalizedName.split(' ').filter(Boolean);
     const searchParts = normalizedSearch.split(' ').filter(Boolean);
 
-    // Check if all search parts match the beginning of name parts
-    if (searchParts.every(searchPart =>
-        nameParts.some(namePart => namePart.startsWith(searchPart))
-    )) {
-        return { matches: true, score: 90 };
+    // First + Last name matching (most common use case)
+    if (searchParts.length >= 2) {
+        const searchFirst = searchParts[0];
+        const searchLast = searchParts[searchParts.length - 1];
+
+        if (nameParts.length >= 2) {
+            const nameFirst = nameParts[0];
+            const nameLast = nameParts[nameParts.length - 1];
+
+            // Exact first + last match
+            if (nameFirst === searchFirst && nameLast === searchLast) {
+                return { matches: true, score: 95 };
+            }
+
+            // Partial first + exact last
+            if (nameFirst.startsWith(searchFirst) && nameLast === searchLast) {
+                return { matches: true, score: 90 };
+            }
+
+            // Exact first + partial last
+            if (nameFirst === searchFirst && nameLast.startsWith(searchLast)) {
+                return { matches: true, score: 85 };
+            }
+        }
     }
 
-    // Check if search parts match name parts in order (allows for middle names)
+    // Single term matching
+    if (searchParts.length === 1) {
+        const searchTerm = searchParts[0];
+
+        // Check if any name part starts with search term
+        if (nameParts.some(part => part.startsWith(searchTerm))) {
+            return { matches: true, score: 80 };
+        }
+    }
+
+    // Multi-word progressive matching
     let nameIndex = 0;
     let matchedParts = 0;
 
     for (const searchPart of searchParts) {
-        let found = false;
         for (let i = nameIndex; i < nameParts.length; i++) {
             if (nameParts[i].startsWith(searchPart)) {
                 matchedParts++;
                 nameIndex = i + 1;
-                found = true;
                 break;
             }
         }
-        if (!found) break;
     }
 
     if (matchedParts === searchParts.length) {
-        return { matches: true, score: 80 };
-    }
-
-    // Fuzzy matching - check if most characters match
-    const searchChars = normalizedSearch.replace(/\s/g, '');
-    const nameChars = normalizedName.replace(/\s/g, '');
-
-    let matchCount = 0;
-    let searchIndex = 0;
-
-    for (let i = 0; i < nameChars.length && searchIndex < searchChars.length; i++) {
-        if (nameChars[i] === searchChars[searchIndex]) {
-            matchCount++;
-            searchIndex++;
-        }
-    }
-
-    const fuzzyScore = (matchCount / searchChars.length) * 100;
-
-    if (fuzzyScore >= 70) {
-        return { matches: true, score: fuzzyScore };
+        return { matches: true, score: 75 };
     }
 
     return { matches: false, score: 0 };
@@ -96,7 +101,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     handleRemoveSelected,
     handleUpdatePreferences
 }) => {
-    const [debouncedSearchTerm, setDebouncedSearchTerm] = React.useState('');
     const [virtualStart, setVirtualStart] = React.useState(0);
     const searchInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -113,22 +117,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
     const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
-    // Debounce search term for better performance
-    React.useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearchTerm(searchTerm);
-            setVirtualStart(0); // Reset virtual scroll when search changes
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [searchTerm]);
-
     // Handle search input change
     const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
+        setVirtualStart(0); // Reset scroll when search changes
     }, [setSearchTerm]);
 
-    // Enhanced filtering with fuzzy name matching and memoization
+    // Fast filtering with optimized name matching
     const filteredAvailableNames = React.useMemo(() => {
         const excludedNames = [...safeSelectedNames];
 
@@ -138,12 +133,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 
         const availableNames = classNames.filter(name => !excludedNames.includes(name));
 
-        if (!debouncedSearchTerm.trim()) return availableNames;
+        if (!searchTerm.trim()) return availableNames;
 
-        // Apply fuzzy matching and sort by relevance score
+        // Apply fast matching and sort by relevance score
         const matchedNames = availableNames
             .map(name => {
-                const result = matchesSearchTerm(name, debouncedSearchTerm);
+                const result = matchesSearchTerm(name, searchTerm);
                 return { name, ...result };
             })
             .filter(item => item.matches)
@@ -151,7 +146,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             .map(item => item.name);
 
         return matchedNames;
-    }, [safeSelectedNames, debouncedSearchTerm, userData?.name, classNames]);
+    }, [safeSelectedNames, searchTerm, userData?.name, classNames]);
 
     // Virtual scrolling constants
     const ITEM_HEIGHT = 48;
@@ -176,37 +171,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     // Clear search function
     const clearSearch = React.useCallback(() => {
         setSearchTerm('');
-        setDebouncedSearchTerm('');
         setVirtualStart(0);
         if (searchInputRef.current) {
             searchInputRef.current.focus();
         }
     }, [setSearchTerm]);
 
-    // Highlight matching parts of names for better UX
-    const highlightMatch = React.useCallback((name: string, searchTerm: string) => {
-        if (!searchTerm.trim()) return name;
-
-        const normalizeText = (text: string) => text.toLowerCase().trim();
-        const normalizedName = normalizeText(name);
-        const normalizedSearch = normalizeText(searchTerm);
-
-        // Simple highlighting for exact substring matches
-        const index = normalizedName.indexOf(normalizedSearch);
-        if (index !== -1) {
-            const before = name.substring(0, index);
-            const match = name.substring(index, index + searchTerm.length);
-            const after = name.substring(index + searchTerm.length);
-
-            return (
-                <>
-                    {before}
-                    <span className="search-highlight">{match}</span>
-                    {after}
-                </>
-            );
-        }
-
+    // Simple function that just returns the name without highlighting
+    const highlightMatch = React.useCallback((name: string, _searchTerm: string) => {
         return name;
     }, []);
 
@@ -297,12 +269,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         </button>
                     )}
                 </div>
-                {debouncedSearchTerm && debouncedSearchTerm !== searchTerm && (
-                    <div className="search-loading">Searching...</div>
-                )}
-                {debouncedSearchTerm && filteredAvailableNames.length > 0 && (
+                {searchTerm && filteredAvailableNames.length > 0 && (
                     <div className="search-hint">
-                        💡 Results sorted by relevance. Try searching by first and last name for better results.
+                        💡 {filteredAvailableNames.length} results found. Try "first last" for best results.
                     </div>
                 )}
             </div>
@@ -310,8 +279,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             <div className="available-names">
                 <h3>
                     Classmates
-                    {debouncedSearchTerm && ` (${filteredAvailableNames.length} found)`}
-                    {!debouncedSearchTerm && ` (${filteredAvailableNames.length} available)`}
+                    {searchTerm && ` (${filteredAvailableNames.length} found)`}
+                    {!searchTerm && ` (${filteredAvailableNames.length} available)`}
                 </h3>
                 <div
                     className="names-simple-list"
@@ -336,7 +305,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                 }}
                             >
                                 <span className="name-text">
-                                    {highlightMatch(name, debouncedSearchTerm)}
+                                    {highlightMatch(name, searchTerm)}
                                 </span>
                                 <span className="add-btn">+</span>
                             </div>
@@ -350,11 +319,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 
                     {filteredAvailableNames.length === 0 && (
                         <div className="no-results">
-                            {debouncedSearchTerm ? (
+                            {searchTerm ? (
                                 <>
-                                    No names found matching "{debouncedSearchTerm}".
+                                    No names found matching "{searchTerm}".
                                     <br />
-                                    <small>Try searching with just first and last name (e.g., "chloe walsh")</small>
+                                    <small>Try searching with just first and last name (e.g., "john smith")</small>
                                     <button onClick={clearSearch} className="clear-search-link">
                                         Clear search
                                     </button>

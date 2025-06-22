@@ -656,38 +656,6 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
         setViewingUserId(viewingUserId === userId ? null : userId);
     }, [viewingUserId]);
 
-    // Filter users by current class and filter
-    const filteredUsers = useMemo(() => {
-        let users = currentClassUsers;
-
-        switch (userFilter) {
-            case 'active':
-                users = users.filter(u =>
-                    !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
-                );
-                break;
-            case 'inactive':
-                users = users.filter(u => (u as InactiveUser).isInactive);
-                break;
-            case 'ghost':
-                users = users.filter(u => (u as GhostUser).isGhost);
-                break;
-            case 'all':
-            default:
-                break;
-        }
-
-        if (!adminSearchTerm.trim()) return users;
-
-        const searchLower = adminSearchTerm.toLowerCase();
-        return users.filter(u => {
-            const name = (u.name || '').toLowerCase();
-            const email = (u.email || '').toLowerCase();
-
-            return name.includes(searchLower) || email.includes(searchLower);
-        });
-    }, [currentClassUsers, adminSearchTerm, userFilter]);
-
     const handleRefresh = useCallback(async () => {
         setRefreshKey(prev => prev + 1);
         await loadAllUsers();
@@ -760,7 +728,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user }) => {
                 )}
                 {viewMode === 'users' && (
                     <AdminUsers
-                        allUsers={filteredUsers}
+                        allUsers={currentClassUsers}
                         loadingUsers={loadingUsers}
                         adminSearchTerm={adminSearchTerm}
                         setAdminSearchTerm={setAdminSearchTerm}
