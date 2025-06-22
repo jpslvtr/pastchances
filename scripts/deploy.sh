@@ -11,26 +11,15 @@ cd ..
 echo "Building project..."
 npm run build
 
-# Ensure critical images are in dist (in case Vite doesn't copy them)
-echo "Ensuring critical images are in dist..."
-if [ ! -f "dist/stanford.png" ]; then
-    echo "Copying stanford.png..."
-    cp public/stanford.png dist/
-fi
-
-if [ ! -f "dist/stanford.svg" ]; then
-    echo "Copying stanford.svg..."
-    cp public/stanford.svg dist/
-fi
-
-if [ ! -f "dist/share.png" ]; then
-    echo "Copying share.png..."
-    cp public/share.png dist/
-fi
+# Force copy critical images (don't rely on Vite)
+echo "Force copying critical images..."
+cp public/stanford.png dist/stanford.png
+cp public/stanford.svg dist/stanford.svg  
+cp public/share.png dist/share.png
 
 # Verify images are there
 echo "Verifying images in dist..."
-ls -la dist/*.png dist/*.svg
+ls -la dist/stanford.png dist/stanford.svg dist/share.png
 
 # Deploy to Firebase (functions and Firestore only, not hosting)
 echo "Deploying Firebase functions and Firestore..."
@@ -38,38 +27,46 @@ firebase deploy --only functions,firestore
 
 # Deploy to Vercel (hosting)
 echo "Deploying to Vercel..."
-npx vercel --prod --public --yes
+DEPLOY_OUTPUT=$(npx vercel --prod --public --yes 2>&1)
+echo "$DEPLOY_OUTPUT"
 
-# Get the latest deployment URL and assign the domain
-echo "Assigning domain to latest deployment..."
-DEPLOYMENT_URL=$(npx vercel ls --limit 1 | grep https | head -1 | awk '{print $2}')
-echo "Latest deployment: $DEPLOYMENT_URL"
+# Extract the deployment URL from the output
+DEPLOYMENT_URL=$(echo "$DEPLOY_OUTPUT" | grep -o 'https://stanford-lastchances-[a-z0-9]*-jpslvtrs-projects\.vercel\.app' | head -1)
 
-# Assign pastchances.com to the latest deployment
-npx vercel alias set $DEPLOYMENT_URL pastchances.com
+if [ -z "$DEPLOYMENT_URL" ]; then
+    echo "❌ Could not extract deployment URL. Manual assignment needed."
+    echo "Please run: npx vercel ls"
+    echo "Then: npx vercel alias set [LATEST_URL] pastchances.com"
+else
+    echo "✅ Deployment URL: $DEPLOYMENT_URL"
+    
+    # Test the deployment URL directly first
+    echo "Testing deployment URL directly..."
+    sleep 5
+    curl -I "$DEPLOYMENT_URL/stanford.png"
+    
+    # Assign domain
+    echo "Assigning domain pastchances.com to $DEPLOYMENT_URL..."
+    npx vercel alias set "$DEPLOYMENT_URL" pastchances.com
+    
+    # Test the custom domain
+    echo "Testing custom domain..."
+    sleep 10
+    curl -I https://pastchances.com/stanford.png
+fi
 
 # Git operations
 echo "Committing changes to git..."
 git add .
 
-# Check if there are any changes to commit
 if git diff --staged --quiet; then
     echo "No changes to commit"
 else
-    # Get current timestamp for commit message
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
     git commit -m "updates - $TIMESTAMP"
-    
-    echo "Pushing to git..."
     git push
 fi
 
 echo "Deployment complete"
 echo "Frontend: https://pastchances.com (Vercel)"
 echo "Backend: Firebase Functions & Firestore"
-
-# Test the deployment
-echo "Testing deployment..."
-sleep 10
-curl -I https://pastchances.com/stanford.png
-echo "✅ Deployment and domain assignment complete!"
