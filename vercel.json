@@ -6,12 +6,6 @@
             "permanent": true
         }
     ],
-    "rewrites": [
-        {
-            "source": "/(.*)",
-            "destination": "/index.html"
-        }
-    ],
     "headers": [
         {
             "source": "/share.png",
@@ -19,15 +13,48 @@
                 {
                     "key": "Cache-Control",
                     "value": "public, max-age=31536000, immutable"
+                },
+                {
+                    "key": "Content-Type",
+                    "value": "image/png"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
                 }
             ]
         },
         {
-            "source": "/stanford.(svg|png)",
+            "source": "/stanford.png",
             "headers": [
                 {
                     "key": "Cache-Control",
                     "value": "public, max-age=31536000, immutable"
+                },
+                {
+                    "key": "Content-Type",
+                    "value": "image/png"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                }
+            ]
+        },
+        {
+            "source": "/stanford.svg",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                },
+                {
+                    "key": "Content-Type",
+                    "value": "image/svg+xml"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
                 }
             ]
         },
@@ -43,6 +70,12 @@
                     "value": "nosniff"
                 }
             ]
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/((?!.*\\.).*)",
+            "destination": "/index.html"
         }
     ]
 }
