@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import type { UserData, MatchInfo, UserClass } from '../../types/userTypes';
 
 interface CrusherInfo {
@@ -59,6 +59,46 @@ interface AdminUsersProps {
     classView: 'gsb' | 'undergrad';
     classDisplayName: string;
 }
+
+// Helper function to format match timestamp for admin view
+const formatAdminMatchTimestamp = (matchedAt: any): string => {
+    if (!matchedAt) return 'Unknown';
+
+    let date: Date;
+
+    // Handle Firestore Timestamp
+    if (matchedAt && typeof matchedAt.toDate === 'function') {
+        date = matchedAt.toDate();
+    } else if (matchedAt && matchedAt.seconds) {
+        date = new Date(matchedAt.seconds * 1000);
+    } else if (matchedAt instanceof Date) {
+        date = matchedAt;
+    } else {
+        date = new Date(matchedAt);
+    }
+
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) {
+        return 'Just now';
+    } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes}m ago`;
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours}h ago`;
+    } else if (diffInSeconds < 604800) {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days}d ago`;
+    } else {
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+    }
+};
 
 // Use the exact same search function as the normal user search
 const matchesSearchTerm = (searchableText: string, searchTerm: string): { matches: boolean; score: number } => {
@@ -151,26 +191,70 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
     userStats,
     classDisplayName
 }) => {
-    const [virtualStart, setVirtualStart] = useState(0);
-    const searchInputRef = React.useRef<HTMLInputElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const scrollRestoreRef = useRef<{ scrollTop: number; timestamp: number } | null>(null);
 
-    const ITEMS_PER_PAGE = 50;
-
-    // Reset virtual scroll when search term or filter changes
+    // Reset scroll when search term or filter changes
     useEffect(() => {
-        setVirtualStart(0);
+        if (containerRef.current) {
+            containerRef.current.scrollTop = 0;
+            scrollRestoreRef.current = null;
+        }
     }, [adminSearchTerm, userFilter]);
+
+    // Restore scroll position after viewingUserId changes
+    useEffect(() => {
+        if (scrollRestoreRef.current && containerRef.current) {
+            const { scrollTop, timestamp } = scrollRestoreRef.current;
+
+            // Only restore if this is a recent change (within 100ms)
+            if (Date.now() - timestamp < 100) {
+                // Use multiple methods to ensure scroll restoration
+                const restoreScroll = () => {
+                    if (containerRef.current) {
+                        containerRef.current.scrollTop = scrollTop;
+                    }
+                };
+
+                // Immediate restoration
+                restoreScroll();
+
+                // Delayed restoration to catch any layout shifts
+                requestAnimationFrame(() => {
+                    restoreScroll();
+                    setTimeout(restoreScroll, 0);
+                    setTimeout(restoreScroll, 10);
+                });
+            }
+
+            // Clear the restore reference
+            scrollRestoreRef.current = null;
+        }
+    }, [viewingUserId]);
+
+    // Enhanced handleViewUser that captures scroll position
+    const handleViewUserWithScrollPreservation = useCallback((userId: string) => {
+        if (containerRef.current) {
+            // Capture current scroll position with timestamp
+            scrollRestoreRef.current = {
+                scrollTop: containerRef.current.scrollTop,
+                timestamp: Date.now()
+            };
+        }
+
+        // Trigger the actual view change
+        handleViewUser(userId);
+    }, [handleViewUser]);
 
     const handleAdminSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const newValue = e.target.value;
         setAdminSearchTerm(newValue);
-        setVirtualStart(0);
     }, [setAdminSearchTerm]);
 
     // Clear search function
     const clearAdminSearch = useCallback(() => {
         setAdminSearchTerm('');
-        setVirtualStart(0);
         if (searchInputRef.current) {
             searchInputRef.current.focus();
         }
@@ -239,23 +323,6 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
         return matchedUsers;
     }, [allUsers, adminSearchTerm, userFilter]);
 
-    const visibleUsers = useMemo(() => {
-        const startIndex = virtualStart;
-        const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredUsers.length);
-        return filteredUsers.slice(startIndex, endIndex);
-    }, [filteredUsers, virtualStart]);
-
-    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLDivElement;
-        const scrollTop = target.scrollTop;
-        const itemHeight = 80;
-        const newStart = Math.floor(scrollTop / itemHeight);
-
-        if (Math.abs(newStart - virtualStart) > 5) {
-            setVirtualStart(Math.max(0, newStart - 10));
-        }
-    }, [virtualStart]);
-
     const UserItem = React.memo(({ u }: { u: UserData | InactiveUser | GhostUser }) => {
         const isViewing = viewingUserId === u.uid;
         const actualCrushCount = u.crushCount || 0;
@@ -278,7 +345,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
         }
 
         return (
-            <div className={`admin-user-item ${userTypeClass}`}>
+            <div
+                className={`admin-user-item ${userTypeClass}`}
+                data-user-id={u.uid}
+                key={u.uid}
+            >
                 <div className="admin-user-header">
                     <div className="admin-user-info">
                         <div className="admin-user-name">
@@ -307,18 +378,31 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                         </div>
                     </div>
                     <button
-                        onClick={() => handleViewUser(u.uid)}
+                        onClick={() => handleViewUserWithScrollPreservation(u.uid)}
                         className="admin-view-btn"
-                        disabled={isInactive || isGhost}
+                        disabled={isGhost}
                     >
-                        {isGhost ? 'Ghost' : (isInactive ? 'Inactive' : (isViewing ? 'Collapse' : 'View'))}
+                        {isGhost ? 'Ghost' : (isViewing ? 'Collapse' : 'View')}
                     </button>
                 </div>
 
-                {isViewing && !isInactive && !isGhost && (
+                {isViewing && !isGhost && (
                     <div className="admin-user-expanded">
                         <div className="admin-view-header">
                             <h4>Data for {displayName} ({classDisplayName}):</h4>
+                            {isInactive && (
+                                <div style={{
+                                    background: '#fff3cd',
+                                    color: '#856404',
+                                    padding: '8px 12px',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    marginTop: '8px'
+                                }}>
+                                    💤 This is an inactive user - they haven't signed up yet but are receiving crushes
+                                </div>
+                            )}
                         </div>
 
                         <div className="admin-data-grid">
@@ -347,10 +431,23 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                                 {u.matches && u.matches.length > 0 && (
                                     <div className="admin-data-names">
                                         {u.matches.map((match, idx) => (
-                                            <div key={idx} className="admin-name-item">
-                                                {match.name}
+                                            <div key={idx} className="admin-name-item admin-match-with-timestamp">
+                                                <div className="admin-match-name">{match.name}</div>
+                                                <div className="admin-match-timestamp">
+                                                    {formatAdminMatchTimestamp(match.matchedAt)}
+                                                </div>
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+                                {isInactive && (
+                                    <div style={{
+                                        fontSize: '11px',
+                                        color: '#666',
+                                        fontStyle: 'italic',
+                                        marginTop: '8px'
+                                    }}>
+                                        Inactive users cannot have matches until they sign up
                                     </div>
                                 )}
                             </div>
@@ -368,6 +465,16 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                                                 </div>
                                             );
                                         })}
+                                    </div>
+                                )}
+                                {isInactive && (
+                                    <div style={{
+                                        fontSize: '11px',
+                                        color: '#666',
+                                        fontStyle: 'italic',
+                                        marginTop: '8px'
+                                    }}>
+                                        Inactive users cannot send crushes until they sign up
                                     </div>
                                 )}
                             </div>
@@ -425,9 +532,9 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                             💡 {filteredUsers.length} results found. Try "first last" for best results.
                         </div>
                     )}
-                    {filteredUsers.length > ITEMS_PER_PAGE && (
+                    {filteredUsers.length > 50 && (
                         <div className="admin-pagination-info">
-                            Showing {Math.min(visibleUsers.length, ITEMS_PER_PAGE)} of {filteredUsers.length} {classDisplayName} users
+                            Showing all {filteredUsers.length} {classDisplayName} users
                         </div>
                     )}
                 </div>
@@ -449,20 +556,13 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                 <div className="loading">Loading {classDisplayName} users...</div>
             ) : (
                 <div
+                    ref={containerRef}
                     className="admin-users-container"
-                    onScroll={handleScroll}
+                    style={{ scrollBehavior: 'auto' }}
                 >
-                    {virtualStart > 0 && (
-                        <div style={{ height: `${virtualStart * 80}px` }} className="virtual-spacer" />
-                    )}
-
-                    {visibleUsers.map((u) => (
+                    {filteredUsers.map((u) => (
                         <UserItem key={u.uid} u={u} />
                     ))}
-
-                    {virtualStart + ITEMS_PER_PAGE < filteredUsers.length && (
-                        <div style={{ height: `${(filteredUsers.length - virtualStart - ITEMS_PER_PAGE) * 80}px` }} className="virtual-spacer" />
-                    )}
 
                     {filteredUsers.length === 0 && (
                         <div className="no-results">
@@ -471,7 +571,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                                     No {classDisplayName} users found matching "{adminSearchTerm}".
                                     <br />
                                     <small>Try searching with first and last name (e.g., "john smith")</small>
-                                    <button onClick={clearAdminSearch} className="clear-search-link">
+                                    <button onClick={clearAdminSearch} className="admin-clear-search-link">
                                         Clear search
                                     </button>
                                 </>
