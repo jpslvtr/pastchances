@@ -2,7 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { UserData, UserWithId } from './types';
 import { findUserByName, getUserIdentityName } from './utils';
-import { processUpdatedCrushes } from './matchingEngine';
+import { processUpdatedCrushes, fixAllCrushCounts, fixMissingMatchTimestamps, fixAllMatchTimestampsOnce } from './matchingEngine';
 
 export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
 
@@ -84,6 +84,99 @@ export const recalculateAllMatches = functions.https.onRequest(async (req, res) 
     } catch (error) {
         console.error('Error in recalculateAllMatches:', error);
         res.status(500).json({ error: 'Failed to recalculate matches and crush counts' });
+    }
+});
+
+// NEW: Manual function to fix crush count discrepancies
+export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting manual fix of crush count discrepancies...');
+        await fixAllCrushCounts();
+        res.json({
+            success: true,
+            message: 'Successfully fixed all crush count discrepancies'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing crush count discrepancies:', error);
+        res.status(500).json({ error: 'Failed to fix crush count discrepancies' });
+    }
+});
+
+// NEW: Function to fix missing match timestamps ONCE
+export const fixMatchTimestamps = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting one-time fix for missing match timestamps...');
+        await fixAllMatchTimestampsOnce();
+        res.json({
+            success: true,
+            message: 'Successfully fixed missing match timestamps'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing match timestamps:', error);
+        res.status(500).json({ error: 'Failed to fix match timestamps' });
+    }
+});
+
+// New function to add timestamps to existing matches
+export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔄 Adding timestamps to existing matches...');
+
+        // Use current timestamp for all existing matches
+        const currentTimestamp = admin.firestore.Timestamp.now();
+
+        let updatedUsers = 0;
+        let totalMatchesUpdated = 0;
+
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const usersSnapshot = await transaction.get(db.collection('users'));
+
+            usersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                const matches = userData.matches || [];
+
+                if (matches.length > 0) {
+                    // Check if any matches are missing timestamps
+                    let needsUpdate = false;
+                    const updatedMatches = matches.map((match: any) => {
+                        if (!match.matchedAt) {
+                            needsUpdate = true;
+                            totalMatchesUpdated++;
+                            return {
+                                ...match,
+                                matchedAt: currentTimestamp
+                            };
+                        }
+                        return match;
+                    });
+
+                    if (needsUpdate) {
+                        const userRef = db.collection('users').doc(doc.id);
+                        transaction.update(userRef, {
+                            matches: updatedMatches,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        updatedUsers++;
+
+                        console.log(`✅ Updated ${updatedMatches.filter((m: any) => m.matchedAt === currentTimestamp).length} matches for user: ${userData.name || userData.email}`);
+                    }
+                }
+            });
+
+            console.log(`\n🎉 Migration completed!`);
+            console.log(`📊 Updated ${updatedUsers} users`);
+            console.log(`💕 Added timestamps to ${totalMatchesUpdated} existing matches`);
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully added timestamps to ${totalMatchesUpdated} existing matches across ${updatedUsers} users`
+        });
+
+    } catch (error) {
+        console.error('❌ Error adding timestamps to matches:', error);
+        res.status(500).json({ error: 'Failed to add timestamps to matches' });
     }
 });
 

@@ -1,0 +1,20 @@
+// This script will help you understand what sizes you need
+console.log('📐 Favicon Size Requirements:');
+console.log('');
+console.log('Standard favicon sizes:');
+console.log('• 16x16 - Browser tab (smallest)');
+console.log('• 32x32 - Browser tab (standard)');
+console.log('• 48x48 - Browser tab (large)');
+console.log('• 180x180 - Apple touch icon');
+console.log('• 192x192 - Android chrome');
+console.log('• 512x512 - High resolution displays');
+console.log('');
+console.log('💡 For best results:');
+console.log('1. Create a square version of your Stanford logo');
+console.log('2. Or add padding around the logo to make it square');
+console.log('3. Generate multiple sizes from the square version');
+console.log('');
+console.log('🔧 Tools you can use:');
+console.log('• Online: https://realfavicongenerator.net/');
+console.log('• Online: https://favicon.io/');
+console.log('• Local: ImageMagick or Photoshop');

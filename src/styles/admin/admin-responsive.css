@@ -1,0 +1,453 @@
+/* Admin Mobile Responsiveness */
+
+/* Mobile responsiveness for access denied */
+@media (max-width: 768px) {
+    .admin-access-denied {
+      min-height: 50vh;
+      padding: 15px;
+    }
+    
+    .access-denied-card {
+      padding: 30px 20px;
+    }
+    
+    .access-denied-card h2 {
+      font-size: 20px;
+    }
+    
+    .access-denied-card p {
+      font-size: 13px;
+    }
+  
+    .header-actions {
+      flex-direction: row;
+      gap: 6px;
+    }
+    
+    .admin-toggle-btn, .admin-refresh-btn {
+      font-size: 11px;
+      padding: 5px 8px;
+    }
+    
+    .admin-title-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+  
+    /* Class Navigation Mobile */
+    .admin-class-nav {
+      flex-direction: column;
+      gap: 8px;
+    }
+  
+    .admin-class-btn {
+      width: 100%;
+      min-width: auto;
+      padding: 10px 16px;
+      font-size: 13px;
+    }
+  
+    /* Class Headers Mobile */
+    .admin-class-header {
+      padding: 15px;
+    }
+  
+    .admin-class-header h4 {
+      font-size: 16px;
+    }
+  
+    .admin-class-stats-summary {
+      gap: 15px;
+      justify-content: space-around;
+    }
+  
+    .class-stat {
+      font-size: 12px;
+    }
+  
+    .class-stat strong {
+      font-size: 14px;
+    }
+  
+    .admin-class-users-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 12px 15px;
+    }
+  
+    .admin-class-users-header h4 {
+      font-size: 14px;
+    }
+  
+    .admin-class-users-summary {
+      gap: 10px;
+      font-size: 11px;
+    }
+    
+    .admin-definitions {
+      padding: 12px;
+    }
+    
+    .admin-definitions p {
+      font-size: 12px;
+      margin: 6px 0;
+    }
+    
+    .admin-nav {
+      gap: 6px;
+      flex-direction: column;
+    }
+    
+    .admin-nav-btn {
+      font-size: 12px;
+      padding: 8px 12px;
+      width: 100%;
+      text-align: center;
+      min-width: auto;
+    }
+    
+    .admin-quick-insights {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    
+    .admin-insight-card {
+      padding: 15px;
+    }
+    
+    .admin-data-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    
+    .admin-data-card {
+      padding: 15px;
+    }
+    
+    .admin-data-number {
+      font-size: 28px;
+    }
+    
+    .admin-data-label {
+      font-size: 12px;
+    }
+    
+    .admin-user-expanded {
+      padding: 15px;
+    }
+    
+    .admin-user-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+    }
+    
+    .admin-user-info {
+      width: 100%;
+    }
+    
+    .admin-user-name {
+      font-size: 13px;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    
+    .admin-view-btn {
+      align-self: flex-end;
+      width: auto;
+    }
+  
+    .admin-filter-dropdown {
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+  
+    .admin-users-container {
+      max-height: 60vh;
+    }
+  
+    .user-type-label, .no-name-indicator, .discrepancy-indicator {
+      font-size: 10px;
+    }
+  
+    .admin-pagination-info {
+      font-size: 11px;
+    }
+  
+    .admin-search-clear-btn {
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      font-size: 20px;
+    }
+    
+    .admin-search-hint {
+      font-size: 9px;
+      padding: 5px 8px;
+    }
+    
+    .admin-search-input {
+      padding: 10px 35px 10px 12px;
+      font-size: 13px;
+    }
+    
+    .admin-users .no-results {
+      padding: 15px;
+      font-size: 13px;
+    }
+    
+    .admin-users .no-results small {
+      font-size: 11px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .header-actions {
+      width: 100%;
+      justify-content: space-between;
+    }
+    
+    .admin-toggle-btn, .admin-refresh-btn {
+      font-size: 10px;
+      padding: 4px 6px;
+    }
+    
+    .admin-title-row h3 {
+      font-size: 16px;
+    }
+  
+    .admin-class-btn {
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+  
+    .admin-class-header {
+      padding: 12px;
+    }
+  
+    .admin-class-header h4 {
+      font-size: 15px;
+    }
+  
+    .admin-class-stats-summary {
+      gap: 10px;
+    }
+  
+    .class-stat {
+      font-size: 11px;
+    }
+  
+    .class-stat strong {
+      font-size: 13px;
+    }
+  
+    .admin-class-users-header {
+      padding: 10px 12px;
+    }
+  
+    .admin-class-users-header h4 {
+      font-size: 13px;
+    }
+  
+    .admin-class-users-summary {
+      gap: 8px;
+      font-size: 10px;
+    }
+    
+    .admin-definitions {
+      padding: 10px;
+    }
+    
+    .admin-definitions p {
+      font-size: 11px;
+      margin: 5px 0;
+    }
+    
+    .admin-nav {
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .admin-nav-btn {
+      width: 100%;
+      text-align: center;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    
+    .admin-search-input {
+      padding: 8px 38px 8px 10px;
+      font-size: 12px;
+    }
+    
+    .admin-user-header {
+      padding: 12px;
+    }
+    
+    .admin-user-name {
+      font-size: 12px;
+    }
+    
+    .admin-user-email {
+      font-size: 11px;
+      word-break: break-all;
+    }
+    
+    .admin-user-stats {
+      font-size: 10px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+    
+    .admin-view-btn {
+      font-size: 11px;
+      padding: 6px 12px;
+      min-width: 70px;
+    }
+    
+    .admin-data-card {
+      padding: 12px;
+    }
+    
+    .admin-data-number {
+      font-size: 24px;
+    }
+    
+    .admin-data-label {
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+    
+    .admin-name-item {
+      font-size: 11px;
+      padding: 4px 8px;
+    }
+  
+    .admin-filter-dropdown {
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+    
+    .admin-list-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    
+    .admin-inactive-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+  
+    .admin-users-container {
+      max-height: 55vh;
+    }
+  
+    .user-type-label, .no-name-indicator, .discrepancy-indicator {
+      font-size: 9px;
+    }
+  
+    .admin-pagination-info {
+      font-size: 10px;
+    }
+  
+    /* Optimize touch targets for mobile */
+    .admin-user-item {
+      min-height: 90px;
+    }
+  
+    .admin-view-btn {
+      min-height: 36px;
+      min-width: 80px;
+    }
+  
+    .admin-class-btn {
+      min-height: 44px;
+    }
+  
+    .admin-search-clear-btn {
+      width: 32px;
+      height: 32px;
+      font-size: 22px;
+    }
+    
+    .admin-search-hint {
+      font-size: 8px;
+      padding: 4px 6px;
+    }
+  }
+  
+  /* Performance optimizations for large datasets */
+  @media (hover: none) and (pointer: coarse) {
+    .admin-users-container {
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
+    }
+    
+    .admin-user-header:active {
+      background: #e9ecef;
+    }
+    
+    .admin-view-btn:active {
+      transform: scale(0.98);
+    }
+    
+    .admin-data-card:active {
+      transform: scale(0.98);
+    }
+  
+    .admin-class-btn:active {
+      transform: scale(0.98);
+    }
+  
+    .admin-search-clear-btn:active {
+      transform: translateY(-50%) scale(0.9);
+    }
+  }
+  
+  /* Accessibility improvements */
+  @media (prefers-reduced-motion: reduce) {
+    .admin-user-expanded {
+      animation: none;
+    }
+    
+    .admin-data-card:hover, .admin-insight-card:hover {
+      transform: none;
+    }
+    
+    .admin-view-btn:hover:not(:disabled), .admin-refresh-btn:hover:not(:disabled), .admin-class-btn:hover:not(:disabled) {
+      transform: none;
+    }
+  }
+  
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .admin-user-item {
+      border: 2px solid #000;
+    }
+    
+    .admin-view-btn, .admin-class-btn, .admin-refresh-btn {
+      border: 2px solid #000;
+    }
+    
+    .admin-class-nav .admin-class-btn.active {
+      border: 3px solid #000;
+    }
+  }
+  
+  /* Focus styles for keyboard navigation */
+  .admin-class-btn:focus,
+  .admin-view-btn:focus {
+    outline: 2px solid #8C1515;
+    outline-offset: 2px;
+  }
+  
+  .admin-search-input:focus,
+  .admin-filter-dropdown:focus {
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.2);
+  }
