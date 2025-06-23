@@ -1,0 +1,164 @@
+/* Dashboard Layout Styles */
+.dashboard-container {
+    min-height: 100vh;
+    padding: 10px;
+    background-color: #f8f9fa;
+  }
+  
+  .dashboard-card {
+    max-width: 900px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    min-height: calc(100vh - 20px);
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .dashboard-header {
+    background: #8C1515;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .user-info span {
+    font-size: 12px;
+    opacity: 0.9;
+  }
+  
+  .logout-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+  
+  .logout-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .dashboard-content {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .header-section {
+    flex-shrink: 0;
+  }
+  
+  .dashboard-content h2 {
+    color: #8C1515;
+    margin-bottom: 8px;
+    font-size: 18px;
+  }
+  
+  .dashboard-content > p {
+    color: #666;
+    margin-bottom: 15px;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+  
+  .submitted-notice {
+    background: #d4edda;
+    color: #155724;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+    font-weight: 500;
+    margin-top: 8px;
+    font-size: 14px;
+  }
+  
+  /* User info styles */
+  .user-details {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .profile-pic {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .user-name {
+    font-weight: 600;
+    font-size: 12px;
+  }
+  
+  .user-email {
+    font-size: 10px;
+    opacity: 0.8;
+  }
+  
+  /* Instructions list styling */
+  .instructions {
+    margin-bottom: 15px;
+  }
+  
+  .instructions ol {
+    padding-left: 20px;
+    margin: 0;
+  }
+  
+  .instructions li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+    font-size: 14px;
+    color: #666;
+  }
+  
+  .instructions em {
+    font-style: italic;
+    color: #8C1515;
+    font-weight: 600;
+  }
+  
+  /* Class indicator improvements */
+  .class-indicator {
+    margin-bottom: 15px;
+    text-align: center;
+  }
+  
+  .class-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #8C1515 0%, #B83A4B 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(140, 21, 21, 0.3);
+  }

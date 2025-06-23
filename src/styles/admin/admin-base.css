@@ -1,0 +1,189 @@
+/* Admin Base Styles */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .admin-toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+  
+  .admin-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .admin-section {
+    padding: 20px 0;
+  }
+  
+  .admin-section h3 {
+    color: #8C1515;
+    margin-bottom: 20px;
+    font-size: 18px;
+  }
+  
+  /* Enhanced Admin Header */
+  .admin-header-section {
+    margin-bottom: 20px;
+  }
+  
+  .admin-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  
+  .admin-refresh-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  
+  .admin-refresh-btn:hover:not(:disabled) {
+    background: #218838;
+    transform: translateY(-1px);
+  }
+  
+  .admin-refresh-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+  }
+  
+  /* Navigation */
+  .admin-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  
+  .admin-nav-btn {
+    background: #f8f9fa;
+    color: #8C1515;
+    border: 2px solid #e1e5e9;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    min-width: 140px;
+    text-align: center;
+  }
+  
+  .admin-nav-btn:hover:not(:disabled) {
+    background: #e9ecef;
+    border-color: #8C1515;
+  }
+  
+  .admin-nav-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .admin-nav-btn.active {
+    background: #8C1515;
+    color: white;
+    border-color: #8C1515;
+  }
+  
+  /* Access Denied Styles */
+  .admin-access-denied {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 60vh;
+    padding: 20px;
+  }
+  
+  .access-denied-card {
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+    border-left: 4px solid #dc3545;
+  }
+  
+  .access-denied-card h2 {
+    color: #dc3545;
+    margin: 0 0 15px 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  
+  .access-denied-card p {
+    color: #666;
+    margin: 10px 0;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  
+  .access-denied-card p:last-child {
+    margin-bottom: 0;
+    font-weight: 500;
+  }
+  
+  /* Loading states */
+  .admin-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+  }
+  
+  .admin-loading::after {
+    content: '...';
+    animation: loading-dots 1.5s infinite;
+  }
+  
+  @keyframes loading-dots {
+    0%, 20% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  
+  /* Focus styles for keyboard navigation */
+  .admin-nav-btn:focus,
+  .admin-refresh-btn:focus {
+    outline: 2px solid #8C1515;
+    outline-offset: 2px;
+  }
+  
+  /* Accessibility improvements */
+  @media (prefers-reduced-motion: reduce) {
+    .admin-refresh-btn:hover:not(:disabled) {
+      transform: none;
+    }
+  }
+  
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .admin-nav-btn, .admin-refresh-btn {
+      border: 2px solid #000;
+    }
+    
+    .admin-nav .admin-nav-btn.active {
+      border: 3px solid #000;
+    }
+  }

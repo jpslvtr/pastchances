@@ -3,97 +3,100 @@
 # Exit on any error
 set -e
 
-echo "🚀 Starting deployment with robust file copying..."
+echo "🚀 Starting comprehensive deployment..."
 
 cd .. 
 
-# Clean everything first
-echo "🧹 Cleaning previous builds..."
+# Clean everything
+echo "🧹 Cleaning..."
 rm -rf dist
 rm -rf .vercel
-rm -rf node_modules/.vite
 
-# Verify source images exist
-echo "📋 Verifying source images exist..."
-for file in "stanford.png" "stanford.svg" "share.png" "robots.txt" "sitemap.xml"; do
+# Verify source files
+echo "📋 Verifying source files..."
+for file in stanford.png stanford.svg share.png robots.txt sitemap.xml; do
     if [ ! -f "public/$file" ]; then
-        echo "❌ ERROR: public/$file not found!"
+        echo "❌ Missing: public/$file"
         exit 1
-    else
-        echo "✅ Found public/$file"
     fi
+    echo "✅ Found: public/$file ($(ls -lh "public/$file" | awk '{print $5}'))"
 done
 
-# Install dependencies
-echo "📦 Installing dependencies..."
-npm install
-
-# Build the project
-echo "🔨 Building project..."
+# Build
+echo "🔨 Building..."
 npm run build
 
-# Verify dist directory was created
+# Verify dist was created
 if [ ! -d "dist" ]; then
-    echo "❌ ERROR: dist directory not created!"
+    echo "❌ dist directory not created!"
     exit 1
 fi
 
-# Double-check and force copy critical files
-echo "📁 Ensuring all critical files are in dist..."
-for file in "stanford.png" "stanford.svg" "share.png" "robots.txt" "sitemap.xml" "_headers"; do
+# Force copy files manually with bash
+echo "📁 Force copying files..."
+for file in stanford.png stanford.svg share.png robots.txt sitemap.xml; do
     if [ -f "public/$file" ]; then
         cp "public/$file" "dist/$file"
         if [ -f "dist/$file" ]; then
-            echo "✅ Copied $file to dist"
+            echo "✅ Copied $file ($(ls -lh "dist/$file" | awk '{print $5}'))"
         else
-            echo "❌ Failed to copy $file to dist"
+            echo "❌ Failed to copy $file"
             exit 1
         fi
     fi
 done
 
-# List all files in dist for debugging
-echo "📄 All files in dist directory:"
-find dist -type f -name "*.png" -o -name "*.svg" -o -name "*.txt" -o -name "*.xml" -o -name "_headers" | sort
+# Verify all critical files are in dist
+echo "🔍 Final verification..."
+ls -la dist/
 
-# Verify critical files exist in dist
-echo "🔍 Final verification of critical files in dist..."
-for file in "stanford.png" "stanford.svg" "share.png"; do
-    if [ ! -f "dist/$file" ]; then
-        echo "❌ CRITICAL ERROR: dist/$file is missing!"
-        exit 1
+echo "📏 Critical files in dist:"
+for file in stanford.png stanford.svg share.png; do
+    if [ -f "dist/$file" ]; then
+        ls -lh "dist/$file"
     else
-        echo "✅ Verified dist/$file exists"
-        ls -la "dist/$file"
+        echo "❌ CRITICAL: dist/$file missing!"
+        exit 1
     fi
 done
 
-# Deploy to Firebase (functions and Firestore only)
-echo "🔥 Deploying Firebase functions and Firestore..."
+# Deploy to Firebase
+echo "🔥 Firebase deploy..."
 firebase deploy --only functions,firestore
 
 # Deploy to Vercel
-echo "☁️ Deploying to Vercel..."
+echo "☁️ Vercel deploy..."
 npx vercel --prod --public --yes
 
-# Wait for propagation
-echo "⏰ Waiting for deployment to propagate..."
-sleep 15
+# Get the latest deployment URL
+echo "🔍 Getting latest deployment URL..."
+sleep 3
+LATEST_URL=$(npx vercel ls | grep "https://" | head -1 | awk '{print $2}')
+echo "Latest deployment: $LATEST_URL"
 
-# Test critical files
-echo "🧪 Testing deployed files..."
-for file in "stanford.png" "stanford.svg" "share.png"; do
-    echo "Testing https://pastchances.com/$file"
-    curl -s -o /dev/null -w "Status: %{http_code}\n" "https://pastchances.com/$file"
+# Test files on both URLs
+echo "🧪 Testing files..."
+sleep 5
+
+echo "Testing on latest deployment URL:"
+for file in stanford.png stanford.svg share.png; do
+    echo -n "  $file: "
+    curl -s -o /dev/null -w "HTTP %{http_code} (%{size_download} bytes)" "$LATEST_URL/$file"
+    echo ""
 done
 
-# Git operations
+echo "Testing on custom domain:"
+for file in stanford.png stanford.svg share.png; do
+    echo -n "  $file: "
+    curl -s -o /dev/null -w "HTTP %{http_code} (%{size_download} bytes)" "https://pastchances.com/$file"
+    echo ""
+done
+
+# Git commit
 echo "📝 Committing changes..."
 git add .
-
 if ! git diff --staged --quiet; then
-    TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
-    git commit -m "Deploy with verified static file deployment - $TIMESTAMP"
+    git commit -m "Deploy with verified static files - $(date '+%Y-%m-%d %H:%M:%S')"
     git push
     echo "📤 Changes pushed to git"
 else
@@ -102,10 +105,9 @@ fi
 
 echo ""
 echo "🎉 Deployment complete!"
-echo "Frontend: https://pastchances.com"
 echo ""
 echo "🔧 Next steps:"
 echo "1. Wait 30 seconds for full propagation"
 echo "2. Run: cd scripts/tools && node test-images.js"
-echo "3. Clear browser cache completely"
+echo "3. Clear browser cache and test favicon"
 echo "4. Test social media previews"

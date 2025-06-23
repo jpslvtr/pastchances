@@ -26,4 +26,5 @@ export interface UserWithId extends UserData {
 export interface MatchInfo {
     name: string;
     email: string;
+    matchedAt?: any; // Firebase Timestamp or Date - now optional
 }

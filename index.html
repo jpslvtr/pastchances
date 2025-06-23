@@ -4,11 +4,19 @@
 <head>
   <meta charset="UTF-8" />
 
-  <!-- Simplified favicon declarations -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/stanford.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/stanford.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/stanford.png" />
-  <link rel="shortcut icon" href="/stanford.png" />
+  <!-- Multiple favicon sizes for better display -->
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
+
+  <!-- Fallback favicon -->
+  <link rel="shortcut icon" href="/favicon.ico" />
+
+  <!-- SVG favicon for modern browsers (maintains vector quality) -->
+  <link rel="icon" type="image/svg+xml" href="/stanford.svg" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Past Chances - Stanford Class of 2025</title>
@@ -39,7 +47,6 @@
   <meta name="author" content="Stanford Class of 2025" />
 
   <!-- Preload critical images -->
-  <link rel="preload" as="image" href="/stanford.png" />
   <link rel="preload" as="image" href="/share.png" />
 </head>
 

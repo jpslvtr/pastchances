@@ -3,6 +3,7 @@ export type UserClass = 'gsb' | 'undergrad';
 export interface MatchInfo {
     name: string;
     email: string;
+    matchedAt?: any; // Firebase Timestamp or Date
 }
 
 export interface UserData {
