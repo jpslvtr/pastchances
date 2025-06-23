@@ -254,9 +254,9 @@ export async function processUpdatedCrushes(): Promise<void> {
 
 // Helper function to determine if a match should have a timestamp
 function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
-    // Check if either user is James Park (by document ID containing jpark22@stanford.edu)
-    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu');
-    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu');
+    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
+    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') || user1Name === 'James Park';
+    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') || user2Name === 'James Park';
 
     // Skip timestamp for ANY James Park matches (GSB or undergrad)
     if (isUser1JamesPark || isUser2JamesPark) {
@@ -290,6 +290,7 @@ export async function fixAllMatchTimestampsToNow(): Promise<void> {
                 if (matches.length > 0) {
                     let needsUpdate = false;
                     const updatedMatches = matches.map((match: any) => {
+                        // Check both the document owner AND the match partner for James Park
                         const shouldHaveTimestamp = shouldMatchHaveTimestamp(userId, '', userName, match.name || '');
 
                         if (shouldHaveTimestamp) {
