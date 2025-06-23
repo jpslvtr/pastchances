@@ -230,17 +230,17 @@ function shouldMatchHaveTimestamp(
     const isUser1JamesParkGSB = user1Id.includes('jpark22@stanford.edu') && user1Class === 'gsb';
     const isUser2JamesParkGSB = user2Id.includes('jpark22@stanford.edu') && user2Class === 'gsb';
 
-    // Check if either user is Test Account (GSB) (by name)
-    const isUser1TestAccount = user1Name === 'Test Account (GSB)';
-    const isUser2TestAccount = user2Name === 'Test Account (GSB)';
+    // Check if either user is Test Account (by name)
+    const isUser1TestAccount = user1Name === 'Test Account';
+    const isUser2TestAccount = user2Name === 'Test Account';
 
-    // Only skip timestamp for James Park GSB account ↔ Test Account (GSB) matches
-    const isJamesParkGSBVsTestAccountGSB =
+    // Only skip timestamp for James Park GSB account ↔ Test Account matches
+    const isJamesParkGSBVsTestAccount =
         (isUser1JamesParkGSB && isUser2TestAccount) ||
         (isUser2JamesParkGSB && isUser1TestAccount);
 
-    if (isJamesParkGSBVsTestAccountGSB) {
-        console.log(`🚫 Skipping timestamp for James Park (GSB) ↔ Test Account (GSB) match`);
+    if (isJamesParkGSBVsTestAccount) {
+        console.log(`🚫 Skipping timestamp for James Park (GSB) ↔ Test Account match`);
         return false;
     }
 
