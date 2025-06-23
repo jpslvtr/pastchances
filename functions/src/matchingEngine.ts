@@ -154,7 +154,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                         const crushedUserIdentityName = getUserIdentityName(crushedUser);
 
                         // Determine if this match should have a timestamp
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userIdentityName, crushedUserIdentityName);
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(user, crushedUser, userIdentityName, crushedUserIdentityName);
 
                         const matchInfo: MatchInfo = {
                             name: crushedUserIdentityName,
@@ -219,14 +219,22 @@ export async function processUpdatedCrushes(): Promise<void> {
 }
 
 // Helper function to determine if a match should have a timestamp
-function shouldMatchHaveTimestamp(user1Name: string, user2Name: string): boolean {
-    // Check if this is a match between James Park and Test Account (GSB)
-    const isJamesVsTestAccount =
-        (user1Name === 'James Park' && user2Name === 'Test Account (GSB)') ||
-        (user1Name === 'Test Account (GSB)' && user2Name === 'James Park');
+function shouldMatchHaveTimestamp(user1: UserWithId, user2: UserWithId, user1Name: string, user2Name: string): boolean {
+    // Check if either user is James Park (by email)
+    const isUser1JamesPark = user1.email === 'jpark22@stanford.edu';
+    const isUser2JamesPark = user2.email === 'jpark22@stanford.edu';
 
-    // Skip timestamp for James Park vs Test Account (GSB)
-    if (isJamesVsTestAccount) {
+    // Check if either user is Test Account (GSB) (by name)
+    const isUser1TestAccount = user1Name === 'Test Account (GSB)';
+    const isUser2TestAccount = user2Name === 'Test Account (GSB)';
+
+    // Only skip timestamp for James Park ↔ Test Account (GSB) matches
+    const isJamesVsTestAccountGSB =
+        (isUser1JamesPark && isUser2TestAccount) ||
+        (isUser2JamesPark && isUser1TestAccount);
+
+    if (isJamesVsTestAccountGSB) {
+        console.log(`🚫 Skipping timestamp for James Park ↔ Test Account (GSB) match`);
         return false;
     }
 
@@ -265,11 +273,16 @@ export async function fixAllMatchTimestampsOnce(): Promise<void> {
                 const matches = userData.matches || [];
                 const userId = doc.id;
                 const userName = userData.name || userData.verifiedName || userData.displayName || userData.email;
+                const userEmail = userData.email;
 
                 if (matches.length > 0) {
                     let needsUpdate = false;
                     const updatedMatches = matches.map((match: any) => {
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userName, match.name);
+                        // Create mock user objects for the timestamp check
+                        const mockUser1 = { email: userEmail, name: userName } as UserWithId;
+                        const mockUser2 = { email: match.email || '', name: match.name || '' } as UserWithId;
+
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(mockUser1, mockUser2, userName, match.name);
 
                         if (shouldHaveTimestamp) {
                             // Add or update timestamp for matches that should have one
