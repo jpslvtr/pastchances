@@ -60,6 +60,17 @@ for file in stanford.png stanford.svg share.png; do
     fi
 done
 
+# Git commit and push BEFORE deployment
+echo "📝 Committing changes..."
+git add .
+if ! git diff --staged --quiet; then
+    git commit -m "Deploy with verified static files - $(date '+%Y-%m-%d %H:%M:%S')"
+    git push
+    echo "📤 Changes pushed to git"
+else
+    echo "📝 No changes to commit"
+fi
+
 # Deploy to Firebase
 echo "🔥 Firebase deploy..."
 firebase deploy --only functions,firestore
@@ -88,20 +99,9 @@ done
 echo "Testing on custom domain:"
 for file in stanford.png stanford.svg share.png; do
     echo -n "  $file: "
-    curl -s -o /dev/null -w "HTTP %{http_code} (%{size_download} bytes)" "https://pastchances.com/$file"
+    curl -s -o /dev/null -w "HTTP %{size_download} bytes)" "https://pastchances.com/$file"
     echo ""
 done
-
-# Git commit
-echo "📝 Committing changes..."
-git add .
-if ! git diff --staged --quiet; then
-    git commit -m "Deploy with verified static files - $(date '+%Y-%m-%d %H:%M:%S')"
-    git push
-    echo "📤 Changes pushed to git"
-else
-    echo "📝 No changes to commit"
-fi
 
 echo ""
 echo "🎉 Deployment complete!"
