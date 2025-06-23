@@ -2,7 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { UserData, UserWithId } from './types';
 import { findUserByName, getUserIdentityName } from './utils';
-import { processUpdatedCrushes, fixAllCrushCounts, fixMissingMatchTimestamps, fixAllMatchTimestampsOnce } from './matchingEngine';
+import { processUpdatedCrushes, fixAllCrushCounts, fixAllMatchTimestampsToNow } from './matchingEngine';
 
 export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
 
@@ -102,11 +102,26 @@ export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, 
     }
 });
 
-// NEW: Function to fix missing match timestamps ONCE
+// NEW: Function to fix all match timestamps to now (one-time)
+export const fixMatchTimestampsToNow = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Setting all existing match timestamps to now...');
+        await fixAllMatchTimestampsToNow();
+        res.json({
+            success: true,
+            message: 'Successfully set all existing match timestamps to now (except James Park matches)'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing match timestamps:', error);
+        res.status(500).json({ error: 'Failed to fix match timestamps' });
+    }
+});
+
+// Legacy timestamp function
 export const fixMatchTimestamps = functions.https.onRequest(async (req, res) => {
     try {
         console.log('🔧 Starting one-time fix for missing match timestamps...');
-        await fixAllMatchTimestampsOnce();
+        await fixAllMatchTimestampsToNow();
         res.json({
             success: true,
             message: 'Successfully fixed missing match timestamps'

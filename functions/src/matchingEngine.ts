@@ -112,9 +112,6 @@ export async function processUpdatedCrushes(): Promise<void> {
             const allMatches = new Map<string, MatchInfo[]>();
             const allLockedCrushes = new Map<string, string[]>();
 
-            // Use actual Firestore Timestamp for all new matches
-            const currentTimestamp = admin.firestore.Timestamp.now();
-
             // Process both classes together but only allow matches within same class
             for (const user of allUsers) {
                 const userMatches: MatchInfo[] = [];
@@ -132,6 +129,15 @@ export async function processUpdatedCrushes(): Promise<void> {
 
                 // Get users from the same class only
                 const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
+
+                // Get existing matches to preserve timestamps (CRITICAL: preserve exact timestamp objects)
+                const existingMatches = user.matches || [];
+                const existingMatchMap = new Map<string, any>();
+                existingMatches.forEach(match => {
+                    if (match.name) {
+                        existingMatchMap.set(match.name, match);
+                    }
+                });
 
                 // Find mutual matches with enhanced name matching within same class
                 for (const crushName of userCrushes) {
@@ -153,17 +159,41 @@ export async function processUpdatedCrushes(): Promise<void> {
                     if (hasMutualCrush) {
                         const crushedUserIdentityName = getUserIdentityName(crushedUser);
 
-                        // Determine if this match should have a timestamp
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(
-                            user.id, user.userClass || 'gsb', userIdentityName,
-                            crushedUser.id, crushedUser.userClass || 'gsb', crushedUserIdentityName
-                        );
+                        // Check if this is an existing match to preserve timestamp
+                        const existingMatch = existingMatchMap.get(crushedUserIdentityName);
 
-                        const matchInfo: MatchInfo = {
-                            name: crushedUserIdentityName,
-                            email: crushedUser.email,
-                            ...(shouldHaveTimestamp && { matchedAt: currentTimestamp })
-                        };
+                        // Determine if this match should have a timestamp
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(user.id, crushedUser.id, userIdentityName, crushedUserIdentityName);
+
+                        let matchInfo: MatchInfo;
+
+                        if (shouldHaveTimestamp) {
+                            if (existingMatch && existingMatch.matchedAt) {
+                                // PRESERVE the exact existing timestamp object - don't convert it
+                                matchInfo = {
+                                    name: crushedUserIdentityName,
+                                    email: crushedUser.email,
+                                    matchedAt: existingMatch.matchedAt
+                                };
+                                console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                            } else {
+                                // NEW MATCH - Create timestamp at the exact moment this match is discovered
+                                matchInfo = {
+                                    name: crushedUserIdentityName,
+                                    email: crushedUser.email,
+                                    matchedAt: admin.firestore.Timestamp.now() // Real-time timestamp for new matches
+                                };
+                                console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                            }
+                        } else {
+                            // No timestamp for James Park matches
+                            matchInfo = {
+                                name: crushedUserIdentityName,
+                                email: crushedUser.email
+                                // No matchedAt field
+                            };
+                            console.log(`🚫 No timestamp for James Park match: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                        }
 
                         userMatches.push(matchInfo);
 
@@ -172,8 +202,9 @@ export async function processUpdatedCrushes(): Promise<void> {
                             userLockedCrushes.push(crushName);
                         }
 
-                        const timestampStatus = shouldHaveTimestamp ? 'WITH_TIMESTAMP' : 'NO_TIMESTAMP';
-                        console.log(`💕 ${userClass.toUpperCase()} Match (${timestampStatus}): ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                        const isNewMatch = !existingMatchMap.has(crushedUserIdentityName);
+                        const timestampStatus = shouldHaveTimestamp ? (isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING') : 'NO_TIMESTAMP';
+                        console.log(`💕 ${userClass.toUpperCase()} Match ${isNewMatch ? 'NEW' : 'EXISTING'} (${timestampStatus}): ${userIdentityName} ↔ ${crushedUserIdentityName}`);
                     }
                 }
 
@@ -222,25 +253,14 @@ export async function processUpdatedCrushes(): Promise<void> {
 }
 
 // Helper function to determine if a match should have a timestamp
-function shouldMatchHaveTimestamp(
-    user1Id: string, user1Class: string, user1Name: string,
-    user2Id: string, user2Class: string, user2Name: string
-): boolean {
-    // Check if either user is your GSB account (by document ID and class)
-    const isUser1JamesParkGSB = user1Id.includes('jpark22@stanford.edu') && user1Class === 'gsb';
-    const isUser2JamesParkGSB = user2Id.includes('jpark22@stanford.edu') && user2Class === 'gsb';
+function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
+    // Check if either user is James Park (by document ID containing jpark22@stanford.edu)
+    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu');
+    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu');
 
-    // Check if either user is Test Account (by name)
-    const isUser1TestAccount = user1Name === 'Test Account';
-    const isUser2TestAccount = user2Name === 'Test Account';
-
-    // Only skip timestamp for James Park GSB account ↔ Test Account matches
-    const isJamesParkGSBVsTestAccount =
-        (isUser1JamesParkGSB && isUser2TestAccount) ||
-        (isUser2JamesParkGSB && isUser1TestAccount);
-
-    if (isJamesParkGSBVsTestAccount) {
-        console.log(`🚫 Skipping timestamp for James Park (GSB) ↔ Test Account match`);
+    // Skip timestamp for ANY James Park matches (GSB or undergrad)
+    if (isUser1JamesPark || isUser2JamesPark) {
+        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
         return false;
     }
 
@@ -248,22 +268,9 @@ function shouldMatchHaveTimestamp(
     return true;
 }
 
-// New function to manually fix all crush count discrepancies
-export async function fixAllCrushCounts(): Promise<void> {
-    console.log('🔧 Starting manual fix of all crush count discrepancies...');
-
-    try {
-        await processUpdatedCrushes();
-        console.log('✅ All crush counts have been synchronized');
-    } catch (error) {
-        console.error('❌ Error fixing crush counts:', error);
-        throw error;
-    }
-}
-
-// One-time function to fix all timestamp issues permanently
-export async function fixAllMatchTimestampsOnce(): Promise<void> {
-    console.log('🔧 Starting one-time fix for all match timestamps...');
+// One-time function to set current timestamp for all existing matches (except James Park)
+export async function fixAllMatchTimestampsToNow(): Promise<void> {
+    console.log('🔧 Setting all existing match timestamps to now (except James Park matches)...');
 
     try {
         await db.runTransaction(async (transaction) => {
@@ -279,31 +286,27 @@ export async function fixAllMatchTimestampsOnce(): Promise<void> {
                 const matches = userData.matches || [];
                 const userId = doc.id;
                 const userName = userData.name || userData.verifiedName || userData.displayName || userData.email;
-                const userClass = userData.userClass || 'gsb';
 
                 if (matches.length > 0) {
                     let needsUpdate = false;
                     const updatedMatches = matches.map((match: any) => {
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(
-                            userId, userClass, userName,
-                            '', '', match.name || '' // We don't have the match user's ID/class, but the logic should still work
-                        );
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userId, '', userName, match.name || '');
 
                         if (shouldHaveTimestamp) {
-                            // Add or update timestamp for matches that should have one
+                            // Set timestamp to now for all non-James Park matches
                             needsUpdate = true;
                             fixedMatches++;
-                            console.log(`🔧 Setting timestamp for match: ${match.name} ↔ ${userName}`);
+                            console.log(`🔧 Setting timestamp to now for match: ${match.name} ↔ ${userName}`);
                             return {
                                 name: match.name || 'Unknown',
                                 email: match.email || 'unknown@stanford.edu',
                                 matchedAt: currentTimestamp
                             };
                         } else {
-                            // Remove timestamp for matches that shouldn't have one
+                            // Remove timestamp for James Park matches
                             if (match.matchedAt) {
                                 needsUpdate = true;
-                                console.log(`🔧 Removing timestamp for match: ${match.name} ↔ ${userName}`);
+                                console.log(`🔧 Removing timestamp for James Park match: ${match.name} ↔ ${userName}`);
                             }
                             return {
                                 name: match.name || 'Unknown',
@@ -332,7 +335,25 @@ export async function fixAllMatchTimestampsOnce(): Promise<void> {
     }
 }
 
+// New function to manually fix all crush count discrepancies
+export async function fixAllCrushCounts(): Promise<void> {
+    console.log('🔧 Starting manual fix of all crush count discrepancies...');
+
+    try {
+        await processUpdatedCrushes();
+        console.log('✅ All crush counts have been synchronized');
+    } catch (error) {
+        console.error('❌ Error fixing crush counts:', error);
+        throw error;
+    }
+}
+
+// Legacy function - keeping for backward compatibility
+export async function fixAllMatchTimestampsOnce(): Promise<void> {
+    await fixAllMatchTimestampsToNow();
+}
+
 // Legacy function - keeping for backward compatibility
 export async function fixMissingMatchTimestamps(): Promise<void> {
-    await fixAllMatchTimestampsOnce();
+    await fixAllMatchTimestampsToNow();
 }
