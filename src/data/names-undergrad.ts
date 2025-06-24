@@ -886,6 +886,7 @@ export const UNDERGRAD_CLASS_NAMES = [
     "Rhea Kapur",
     "Sweta Karki",
     "Lekchok Tenzin Kartsang",
+    "Riya Karumanchi",
     "David Richard Kasemervisz",
     "Ryan Ariel Kashanchi",
     "Parker Thomas Kasiewicz",
