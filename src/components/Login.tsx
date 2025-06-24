@@ -13,7 +13,7 @@ const Login: React.FC = () => {
         <div className="login-container">
             <div className="login-card">
                 <h1>Past Chances</h1>
-                <h2>Class of 2025</h2>
+                <br></br>
                 <p>
                     Share your crushes anonymously and see if there's a mutual connection 👀
                     <br></br>
