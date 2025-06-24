@@ -17,7 +17,7 @@ function getUserDocumentId(user: any, userData: any): string {
 
 const Home: React.FC = () => {
     const { user, userData, logout, refreshUserData } = useAuth();
-    const [imageError, setImageError] = useState(false);
+    const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
     const [savedNames, setSavedNames] = useState<string[]>([]);
@@ -80,16 +80,30 @@ const Home: React.FC = () => {
         loadData();
     }, [user, userData, loadUserSelections]);
 
-    const handleImageError = useCallback(() => {
-        setImageError(true);
+    // Improved image error handling that prevents flickering
+    const handleImageError = useCallback((imageUrl: string) => {
+        console.log('Image failed to load:', imageUrl);
+        setFailedImageUrls(prev => new Set(prev).add(imageUrl));
     }, []);
 
+    // Get profile image URL with proper fallback logic
     const getProfileImageUrl = useCallback(() => {
-        if (imageError) {
-            return '/files/default-profile.png';
+        const googlePhotoUrl = userData?.photoURL;
+        const fallbackUrl = '/files/default-profile.png';
+
+        // If we don't have a Google photo URL, use fallback
+        if (!googlePhotoUrl) {
+            return fallbackUrl;
         }
-        return userData?.photoURL || '/files/default-profile.png';
-    }, [imageError, userData?.photoURL]);
+
+        // If this specific Google photo URL has failed before, use fallback
+        if (failedImageUrls.has(googlePhotoUrl)) {
+            return fallbackUrl;
+        }
+
+        // Try the Google photo URL
+        return googlePhotoUrl;
+    }, [userData?.photoURL, failedImageUrls]);
 
     const handleNameToggle = useCallback((name: string) => {
         if (updating) return;
@@ -195,6 +209,8 @@ const Home: React.FC = () => {
         );
     }
 
+    const currentImageUrl = getProfileImageUrl();
+
     return (
         <div className="dashboard-container">
             <div className="dashboard-card">
@@ -203,11 +219,11 @@ const Home: React.FC = () => {
                     <div className="user-info">
                         <div className="user-details">
                             <img
-                                src={getProfileImageUrl()}
+                                src={currentImageUrl}
                                 alt="Profile"
                                 className="profile-pic"
-                                onError={handleImageError}
-                                onLoad={() => setImageError(false)}
+                                onError={() => handleImageError(currentImageUrl)}
+                                loading="lazy"
                             />
                             <div>
                                 <div className="user-name">{userData?.name || user?.displayName}</div>
