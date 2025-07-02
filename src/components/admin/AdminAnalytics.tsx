@@ -31,8 +31,21 @@ interface AdminAnalyticsProps {
     allUsers: any[];
 }
 
+// Helper function to check if a match should have a timestamp (consistent with backend logic)
+const shouldMatchHaveTimestamp = (user1Name: string, user2Name: string): boolean => {
+    const isUser1JamesPark = user1Name === 'James Park';
+    const isUser2JamesPark = user2Name === 'James Park';
+
+    return !(isUser1JamesPark || isUser2JamesPark);
+};
+
 // Enhanced helper function to format match timestamp for analytics
-const formatAnalyticsMatchTimestamp = (matchedAt: any): string => {
+const formatAnalyticsMatchTimestamp = (matchedAt: any, user1Name: string, user2Name: string): string => {
+    // Check if this match should have a timestamp
+    if (!shouldMatchHaveTimestamp(user1Name, user2Name)) {
+        return 'James Park match';
+    }
+
     if (!matchedAt) {
         return 'No timestamp';
     }
@@ -130,8 +143,20 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplay
 
         // Sort matches: those with timestamps first (by most recent), then those without
         return matches.sort((a, b) => {
-            const aHasTimestamp = !!a.timestamp;
-            const bHasTimestamp = !!b.timestamp;
+            const aHasTimestamp = shouldMatchHaveTimestamp(a.users[0], a.users[1]) && !!a.timestamp;
+            const bHasTimestamp = shouldMatchHaveTimestamp(b.users[0], b.users[1]) && !!b.timestamp;
+
+            // James Park matches always go to the end
+            const aIsJamesPark = !shouldMatchHaveTimestamp(a.users[0], a.users[1]);
+            const bIsJamesPark = !shouldMatchHaveTimestamp(b.users[0], b.users[1]);
+
+            if (aIsJamesPark && !bIsJamesPark) return 1;
+            if (!aIsJamesPark && bIsJamesPark) return -1;
+
+            // If both are James Park matches, sort alphabetically
+            if (aIsJamesPark && bIsJamesPark) {
+                return a.pair.localeCompare(b.pair);
+            }
 
             // If one has timestamp and other doesn't, prioritize the one with timestamp
             if (aHasTimestamp && !bHasTimestamp) return -1;
@@ -225,7 +250,7 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplay
                                         {index + 1}. {match.pair}
                                     </div>
                                     <div className="admin-match-time">
-                                        {formatAnalyticsMatchTimestamp(match.timestamp)}
+                                        {formatAnalyticsMatchTimestamp(match.timestamp, match.users[0], match.users[1])}
                                     </div>
                                 </div>
                             ))}

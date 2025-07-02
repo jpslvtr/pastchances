@@ -9,6 +9,29 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+// Helper function to determine if a match should have a timestamp
+function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
+    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
+    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') ||
+        user1Name === 'James Park' ||
+        user1Id.includes('_gsb') && user1Id.includes('jpark22@stanford.edu') ||
+        user1Id.includes('_undergrad') && user1Id.includes('jpark22@stanford.edu');
+
+    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') ||
+        user2Name === 'James Park' ||
+        user2Id.includes('_gsb') && user2Id.includes('jpark22@stanford.edu') ||
+        user2Id.includes('_undergrad') && user2Id.includes('jpark22@stanford.edu');
+
+    // Skip timestamp for ANY James Park matches (GSB or undergrad)
+    if (isUser1JamesPark || isUser2JamesPark) {
+        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
+        return false;
+    }
+
+    // All other matches should have timestamps
+    return true;
+}
+
 // Enhanced function to recalculate all matches and crush counts with better name matching
 // Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
 export async function processUpdatedCrushes(): Promise<void> {
@@ -250,22 +273,6 @@ export async function processUpdatedCrushes(): Promise<void> {
         console.error('❌ Error in enhanced processUpdatedCrushes:', error);
         throw error;
     }
-}
-
-// Helper function to determine if a match should have a timestamp
-function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
-    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
-    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') || user1Name === 'James Park';
-    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') || user2Name === 'James Park';
-
-    // Skip timestamp for ANY James Park matches (GSB or undergrad)
-    if (isUser1JamesPark || isUser2JamesPark) {
-        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
-        return false;
-    }
-
-    // All other matches should have timestamps
-    return true;
 }
 
 // One-time function to set current timestamp for all existing matches (except James Park)
