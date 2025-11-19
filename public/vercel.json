@@ -1,0 +1,28 @@
+{
+    "routes": [
+        {
+            "src": "/stanford.png",
+            "dest": "/stanford.png",
+            "headers": {
+                "Content-Type": "image/png",
+                "Cache-Control": "public, max-age=86400"
+            }
+        },
+        {
+            "src": "/stanford.svg",
+            "dest": "/stanford.svg",
+            "headers": {
+                "Content-Type": "image/svg+xml",
+                "Cache-Control": "public, max-age=86400"
+            }
+        },
+        {
+            "src": "/share.png",
+            "dest": "/share.png",
+            "headers": {
+                "Content-Type": "image/png",
+                "Cache-Control": "public, max-age=86400"
+            }
+        }
+    ]
+}
