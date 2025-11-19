@@ -1,0 +1,23 @@
+# Cache static assets with CORS support
+/stanford.svg
+  Cache-Control: public, max-age=86400
+  Content-Type: image/svg+xml
+  Access-Control-Allow-Origin: *
+  X-Content-Type-Options: nosniff
+
+/stanford.png
+  Cache-Control: public, max-age=86400
+  Content-Type: image/png
+  Access-Control-Allow-Origin: *
+  X-Content-Type-Options: nosniff
+
+/share.png
+  Cache-Control: public, max-age=86400
+  Content-Type: image/png
+  Access-Control-Allow-Origin: *
+  X-Content-Type-Options: nosniff
+
+# Security headers for all files
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
