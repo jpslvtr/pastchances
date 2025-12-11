@@ -4,6 +4,7 @@ export const GSB_CLASS_NAMES = [
     "Layla Aboukhater",
     "Kate Kabat (Adams)",
     "Max Adams",
+    "Peter Adelson",
     "Krupa Adusumilli",
     "Sabrina Afroz",
     "Megha Agarwal",

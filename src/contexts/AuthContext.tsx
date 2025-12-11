@@ -1,25 +1,35 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
-import type { User } from 'firebase/auth';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { auth, googleProvider, db } from '../config/firebase';
-import { useAuthHelpers } from '../hooks/useAuthHelpers';
-import { useUserDocumentManager } from '../hooks/useUserDocumentManager';
-import type { UserData, UserClass } from '../types/userTypes';
+import type { User as FirebaseUser } from 'firebase/auth';
+import {
+    signInWithPopup,
+    GoogleAuthProvider,
+    signOut as firebaseSignOut,
+    onAuthStateChanged
+} from 'firebase/auth';
+import { doc, getDoc, collection, getDocs, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
+import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail, getEmailPrefix, generateAlumniEmails } from '../utils/emailUtils';
+import type { UserData, UserClass } from '../types';
+import { getClassNames } from '../utils';
 
 interface AuthContextType {
-    user: User | null;
+    user: FirebaseUser | null;
     userData: UserData | null;
     loading: boolean;
+    needsOnboarding: boolean;
+    needsAccountLinking: boolean;
     nameOptions: string[] | null;
-    signInWithGoogle: (userClass: UserClass) => Promise<void>;
-    selectName: (selectedName: string) => Promise<void>;
+    signInWithGoogle: () => Promise<void>;
+    signOut: () => Promise<void>;
     logout: () => Promise<void>;
     refreshUserData: () => Promise<void>;
+    selectName: (name: string) => Promise<void>;
+    completeAccountLinking: () => void;
+    startNewAccount: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
@@ -33,247 +43,294 @@ interface AuthProviderProps {
     children: ReactNode;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null);
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+    const [user, setUser] = useState<FirebaseUser | null>(null);
     const [userData, setUserData] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [needsOnboarding, setNeedsOnboarding] = useState(false);
+    const [needsAccountLinking, setNeedsAccountLinking] = useState(false);
     const [nameOptions, setNameOptions] = useState<string[] | null>(null);
     const [pendingUserClass, setPendingUserClass] = useState<UserClass | null>(null);
 
-    const {
-        normalizeMatches,
-        getUserDocumentId,
-        getLastUsedClass,
-        setLastUsedClass
-    } = useAuthHelpers();
+    // Prevent concurrent fetches
+    const fetchingUserData = useRef(false);
 
-    const { createOrUpdateUserDocument } = useUserDocumentManager(
-        setNameOptions,
-        setPendingUserClass,
-        setLastUsedClass
-    );
+    const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
+        // Prevent race conditions from concurrent calls
+        if (fetchingUserData.current) {
+            console.log('Already fetching user data, skipping...');
+            return null;
+        }
 
-    const selectName = async (selectedName: string) => {
-        if (!user?.uid || !nameOptions || !pendingUserClass) return;
+        fetchingUserData.current = true;
 
         try {
-            const actualUid = getUserDocumentId(user, pendingUserClass);
-            const userRef = doc(db, 'users', actualUid);
+            const email = firebaseUser.email;
+            if (!email) return null;
 
-            await setDoc(userRef, {
-                name: selectedName,
-                userClass: pendingUserClass,
-                updatedAt: serverTimestamp()
-            }, { merge: true });
+            const normalizedEmail = normalizeEmail(email);
 
-            // Remember which class was selected
-            setLastUsedClass(pendingUserClass);
+            // First check by Firebase UID
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
 
-            setNameOptions(null);
-            setPendingUserClass(null);
-            // Real-time listener will handle the update
+            if (userDocSnap.exists()) {
+                console.log('Found user by Firebase UID');
+                return userDocSnap.data() as UserData;
+            }
+
+            // If alumni email, check if it exists in emailAlumni or emailAlumniGSB fields
+            if (isAlumniEmail(normalizedEmail)) {
+                const existingUserId = await checkExistingUserByAlumniEmail(normalizedEmail);
+                if (existingUserId) {
+                    const existingUserRef = doc(db, 'users', existingUserId);
+                    const existingUserSnap = await getDoc(existingUserRef);
+                    if (existingUserSnap.exists()) {
+                        console.log('Found user by alumni email lookup');
+                        return existingUserSnap.data() as UserData;
+                    }
+                }
+            }
+
+            return null;
         } catch (error) {
-            console.error('Error selecting name:', error);
+            console.error('Error fetching user data:', error);
+            return null;
+        } finally {
+            fetchingUserData.current = false;
+        }
+    };
+
+    const checkExistingUserByAlumniEmail = async (email: string): Promise<string | null> => {
+        try {
+            const normalizedEmail = normalizeEmail(email);
+            const usersRef = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersRef);
+
+            for (const docSnap of usersSnapshot.docs) {
+                const data = docSnap.data();
+
+                // Case-insensitive comparison for all email fields
+                const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
+                const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
+
+                if (alumniMatch || alumniGSBMatch) {
+                    console.log('Found existing user by alumni email:', docSnap.id);
+                    return docSnap.id;
+                }
+            }
+
+            console.log('No existing user found with alumni email');
+            return null;
+        } catch (error) {
+            console.error('Error checking alumni email:', error);
+            return null;
+        }
+    };
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            console.log('Auth state changed:', firebaseUser?.email);
+            setUser(firebaseUser);
+
+            if (firebaseUser) {
+                const data = await fetchUserData(firebaseUser);
+                setUserData(data);
+
+                const email = firebaseUser.email;
+                if (!email) {
+                    setLoading(false);
+                    return;
+                }
+
+                // Check if email is valid Stanford-related
+                if (!isValidStanfordRelatedEmail(email)) {
+                    console.error('Invalid email domain');
+                    await firebaseSignOut(auth);
+                    setLoading(false);
+                    return;
+                }
+
+                // Handle onboarding and account linking flows
+                if (!data) {
+                    if (isAlumniEmail(email)) {
+                        // Alumni email not found in database - show account linking
+                        setNeedsAccountLinking(true);
+                        setNeedsOnboarding(false);
+                        setNameOptions(null);
+                        setPendingUserClass('gsb');
+                    } else {
+                        // Stanford email not found - show name selection
+                        setNeedsAccountLinking(false);
+                        setNeedsOnboarding(true);
+                        await handleNewStanfordUser(firebaseUser, 'gsb');
+                    }
+                } else {
+                    // User found - clear all onboarding states
+                    setNeedsAccountLinking(false);
+                    setNeedsOnboarding(false);
+                    setNameOptions(null);
+                }
+            } else {
+                setUserData(null);
+                setNeedsOnboarding(false);
+                setNeedsAccountLinking(false);
+                setNameOptions(null);
+            }
+
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
+        try {
+            const allNames = await getClassNames(userClass);
+            const displayName = firebaseUser.displayName || '';
+            const nameParts = displayName.trim().split(' ');
+
+            let matchingNames: string[] = [];
+
+            if (nameParts.length >= 2) {
+                const firstName = nameParts[0].toLowerCase();
+                const lastName = nameParts[nameParts.length - 1].toLowerCase();
+
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return lowerName.includes(firstName) && lowerName.includes(lastName);
+                });
+            }
+
+            if (matchingNames.length === 0) {
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return nameParts.some(part =>
+                        part.length > 2 && lowerName.includes(part.toLowerCase())
+                    );
+                });
+            }
+
+            if (matchingNames.length === 1) {
+                // Auto-create with single match
+                await createUserDocument(firebaseUser, matchingNames[0], userClass);
+                const data = await fetchUserData(firebaseUser);
+                setUserData(data);
+                setNeedsOnboarding(false);
+                setNameOptions(null);
+            } else {
+                // Show name selection
+                setNameOptions(matchingNames.length > 0 ? matchingNames : allNames);
+                setPendingUserClass(userClass);
+            }
+        } catch (error) {
+            console.error('Error handling new Stanford user:', error);
+        }
+    };
+
+    const createUserDocument = async (firebaseUser: FirebaseUser, name: string, userClass: UserClass) => {
+        const normalizedEmail = normalizeEmail(firebaseUser.email || '');
+
+        // Determine document ID based on user
+        let docId = firebaseUser.uid;
+        if (firebaseUser.email === 'jpark22@stanford.edu') {
+            docId = `${firebaseUser.uid}_${userClass}`;
+        }
+
+        const userRef = doc(db, 'users', docId);
+
+        await setDoc(userRef, {
+            uid: firebaseUser.uid,
+            email: normalizedEmail,
+            emailAlumni: '',
+            emailAlumniGSB: '',
+            name: name,
+            photoURL: firebaseUser.photoURL || '',
+            crushes: [],
+            lockedCrushes: [],
+            matches: [],
+            crushCount: 0,
+            userClass: userClass,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastLogin: serverTimestamp()
+        });
+    };
+
+    const selectName = async (name: string) => {
+        if (!user || !pendingUserClass) {
+            throw new Error('No user or pending class');
+        }
+
+        await createUserDocument(user, name, pendingUserClass);
+        const data = await fetchUserData(user);
+        setUserData(data);
+        setNeedsOnboarding(false);
+        setNameOptions(null);
+    };
+
+    const completeAccountLinking = () => {
+        // Called after successful account linking
+        setNeedsAccountLinking(false);
+        setNeedsOnboarding(false);
+        setNameOptions(null);
+        // Force refresh
+        if (user) {
+            refreshUserData();
+        }
+    };
+
+    const startNewAccount = () => {
+        // Switch from account linking to name selection
+        setNeedsAccountLinking(false);
+        setNeedsOnboarding(true);
+        if (user && pendingUserClass) {
+            handleNewStanfordUser(user, pendingUserClass);
+        }
+    };
+
+    const signInWithGoogle = async () => {
+        try {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({
+                prompt: 'select_account'
+            });
+
+            await signInWithPopup(auth, provider);
+        } catch (error) {
+            console.error('Error signing in with Google:', error);
             throw error;
         }
     };
 
-    // Set up real-time listener for user data
-    useEffect(() => {
-        if (!user?.uid) return;
-
-        let unsubscribe: (() => void) | null = null;
-
-        const setupListener = async () => {
-            try {
-                // For test user, check both documents and prefer based on last used class
-                if (user.email === 'jpark22@stanford.edu') {
-                    const gsbDocId = `${user.uid}_gsb`;
-                    const undergradDocId = `${user.uid}_undergrad`;
-
-                    const gsbRef = doc(db, 'users', gsbDocId);
-                    const undergradRef = doc(db, 'users', undergradDocId);
-
-                    const [gsbDoc, undergradDoc] = await Promise.all([
-                        getDoc(gsbRef),
-                        getDoc(undergradRef)
-                    ]);
-
-                    let targetDocId = gsbDocId;
-                    let detectedClass: UserClass = 'gsb';
-
-                    // Get the last used class from localStorage
-                    const lastUsedClass = getLastUsedClass();
-
-                    // Prefer the last used class if both documents exist and have names
-                    if (lastUsedClass === 'undergrad' && undergradDoc.exists() && undergradDoc.data().name) {
-                        targetDocId = undergradDocId;
-                        detectedClass = 'undergrad';
-                    } else if (lastUsedClass === 'gsb' && gsbDoc.exists() && gsbDoc.data().name) {
-                        targetDocId = gsbDocId;
-                        detectedClass = 'gsb';
-                    } else if (gsbDoc.exists() && gsbDoc.data().name) {
-                        // Fallback to GSB if no preference or preference doesn't exist
-                        targetDocId = gsbDocId;
-                        detectedClass = 'gsb';
-                    } else if (undergradDoc.exists() && undergradDoc.data().name) {
-                        targetDocId = undergradDocId;
-                        detectedClass = 'undergrad';
-                    } else if (gsbDoc.exists()) {
-                        // Fall back to GSB if neither has a name
-                        targetDocId = gsbDocId;
-                        detectedClass = 'gsb';
-                    } else if (undergradDoc.exists()) {
-                        targetDocId = undergradDocId;
-                        detectedClass = 'undergrad';
-                    }
-
-                    // Set up real-time listener for the target document
-                    const targetRef = doc(db, 'users', targetDocId);
-                    unsubscribe = onSnapshot(targetRef, (doc) => {
-                        if (doc.exists()) {
-                            const data = doc.data();
-                            const userData: UserData = {
-                                uid: data.uid,
-                                email: data.email,
-                                name: data.name || data.verifiedName || data.displayName || '',
-                                photoURL: data.photoURL,
-                                crushes: data.crushes || [],
-                                lockedCrushes: data.lockedCrushes || [],
-                                matches: normalizeMatches(data.matches),
-                                crushCount: data.crushCount || 0,
-                                userClass: data.userClass || detectedClass,
-                                createdAt: data.createdAt,
-                                updatedAt: data.updatedAt,
-                                lastLogin: data.lastLogin
-                            };
-                            setUserData(userData);
-
-                            // Update localStorage with the class we're actually using
-                            setLastUsedClass(detectedClass);
-                        } else {
-                            setUserData(null);
-                        }
-                    }, (error) => {
-                        console.error('Error in real-time user data listener:', error);
-                        setUserData(null);
-                    });
-
-                } else {
-                    // Regular user logic - set up real-time listener
-                    const userRef = doc(db, 'users', user.uid);
-                    unsubscribe = onSnapshot(userRef, (doc) => {
-                        if (doc.exists()) {
-                            const data = doc.data();
-                            const userData: UserData = {
-                                uid: data.uid,
-                                email: data.email,
-                                name: data.name || data.verifiedName || data.displayName || '',
-                                photoURL: data.photoURL,
-                                crushes: data.crushes || [],
-                                lockedCrushes: data.lockedCrushes || [],
-                                matches: normalizeMatches(data.matches),
-                                crushCount: data.crushCount || 0,
-                                userClass: data.userClass || 'gsb',
-                                createdAt: data.createdAt,
-                                updatedAt: data.updatedAt,
-                                lastLogin: data.lastLogin
-                            };
-                            setUserData(userData);
-                        } else {
-                            setUserData(null);
-                        }
-                    }, (error) => {
-                        console.error('Error in real-time user data listener:', error);
-                        setUserData(null);
-                    });
-                }
-            } catch (error) {
-                console.error('Error setting up real-time listener:', error);
-                setUserData(null);
-            }
-        };
-
-        setupListener();
-
-        // Cleanup function
-        return () => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
-        };
-    }, [user?.uid, user?.email, normalizeMatches, getLastUsedClass, setLastUsedClass]);
-
-    const refreshUserData = async () => {
-        // With real-time listeners, manual refresh is not needed
-        // The listener will automatically update when data changes
-        console.log('Real-time listener active - manual refresh not needed');
-    };
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                if (!user.email?.endsWith('@stanford.edu')) {
-                    await signOut(auth);
-                    setUser(null);
-                    setUserData(null);
-                    setLoading(false);
-                    alert('Only @stanford.edu email addresses are allowed. Please sign in with your Stanford account.');
-                } else {
-                    setUser(user);
-                    setLoading(false);
-                    // Real-time listener will be set up in the useEffect above
-                }
-            } else {
-                setUser(null);
-                setUserData(null);
-                setNameOptions(null);
-                setPendingUserClass(null);
-                setLoading(false);
-            }
-        });
-
-        return unsubscribe;
-    }, []);
-
-    const signInWithGoogle = async (userClass: UserClass) => {
+    const signOut = async () => {
         try {
-            const result = await signInWithPopup(auth, googleProvider);
-
-            if (!result.user.email?.endsWith('@stanford.edu')) {
-                await signOut(auth);
-                throw new Error('Only @stanford.edu email addresses are allowed');
-            }
-
-            // Create or update user document with the selected class
-            await createOrUpdateUserDocument(result.user, userClass);
-        } catch (error: any) {
-            console.error('Login error:', error);
-
-            if (error.code === 'auth/popup-closed-by-user') {
-                console.log('Sign-in popup was closed by user');
-            } else if (error.code === 'auth/cancelled-popup-request') {
-                console.log('Another sign-in popup is already open');
-            } else {
-                alert('Login failed. Please make sure you\'re using a @stanford.edu email address.');
-            }
+            await firebaseSignOut(auth);
+            setUser(null);
+            setUserData(null);
+            setNeedsOnboarding(false);
+            setNeedsAccountLinking(false);
+            setNameOptions(null);
+        } catch (error) {
+            console.error('Error signing out:', error);
+            throw error;
         }
     };
 
-    const logout = async () => {
-        try {
-            await signOut(auth);
-            setUserData(null);
-            setNameOptions(null);
-            setPendingUserClass(null);
-            // Clear the last used class on logout
-            try {
-                localStorage.removeItem('lastUsedClass');
-            } catch {
-                // Ignore localStorage errors
+    // Alias for backwards compatibility
+    const logout = signOut;
+
+    const refreshUserData = async () => {
+        if (user) {
+            const data = await fetchUserData(user);
+            setUserData(data);
+
+            // Clear all onboarding states if data is now available
+            if (data) {
+                setNeedsAccountLinking(false);
+                setNeedsOnboarding(false);
+                setNameOptions(null);
             }
-        } catch (error) {
-            console.error('Logout error:', error);
         }
     };
 
@@ -281,11 +338,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         userData,
         loading,
+        needsOnboarding,
+        needsAccountLinking,
         nameOptions,
         signInWithGoogle,
-        selectName,
+        signOut,
         logout,
-        refreshUserData
+        refreshUserData,
+        selectName,
+        completeAccountLinking,
+        startNewAccount
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

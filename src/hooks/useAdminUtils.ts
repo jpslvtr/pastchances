@@ -25,7 +25,6 @@ export const useAdminUtils = (allUsers: (UserData | InactiveUser | GhostUser)[])
         allUsers.forEach(u => {
             if (u.uid === targetUser.uid || (u as InactiveUser).isInactive || (u as GhostUser).isGhost) return;
 
-            // Only consider crushes from users in the same class
             const userClass = u.userClass || 'gsb';
             if (userClass !== targetClass) return;
 

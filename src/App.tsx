@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Home from './components/Home';
 import NameSelection from './components/NameSelection';
+import AccountLinking from './components/AccountLinking';
 import './App.css';
 
 interface ProtectedRouteProps {
@@ -12,7 +13,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, userData, loading, nameOptions } = useAuth();
+  const { user, userData, loading, nameOptions, needsAccountLinking, completeAccountLinking, startNewAccount, logout } = useAuth();
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -22,64 +23,52 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
+  // Check account linking first, before checking userData
+  if (needsAccountLinking) {
+    return (
+      <AccountLinking
+        user={user}
+        userClass="gsb"
+        onLinkingComplete={completeAccountLinking}
+        onStartNewAccount={startNewAccount}
+        logout={logout}
+      />
+    );
+  }
+
   if (!userData) {
     return <div className="loading">Setting up your account...</div>;
   }
 
-  // Show name selection if user has multiple name options
   if (nameOptions && nameOptions.length > 0) {
     return <NameSelection />;
   }
 
-  // Show name selection if user doesn't have a name set yet
-  if (!userData.name || userData.name.trim() === '') {
-    return <NameSelection />;
+  if (!userData.name) {
+    return <div className="loading">Completing setup...</div>;
   }
 
   return <>{children}</>;
 };
 
-interface PublicRouteProps {
-  children: ReactNode;
-}
-
-const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
-
-  return !user ? <>{children}</> : <Navigate to="/" />;
-};
-
-function App() {
+const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Home />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </div>
-      </Router>
-    </AuthProvider>
+    <Router>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
+    </Router>
   );
-}
+};
 
 export default App;

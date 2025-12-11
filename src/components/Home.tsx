@@ -1,24 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import AdminView from './AdminView';
-import UserDashboard from './UserDashboard';
+import AdminView from '../components/AdminView';
+import UserDashboard from '../components/UserDashboard';
+import { db } from '../config/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { isAdminUser } from '../utils/adminUtils';
+import { getUserDocumentId } from '../utils';
 
-// Helper function to get the correct document ID for user class
-function getUserDocumentId(user: any, userData: any): string {
-    if (user?.email === 'jpark22@stanford.edu') {
-        // For test user, use class-specific UIDs
-        const userClass = userData?.userClass || 'gsb';
-        return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
-    }
-    return user?.uid || '';
-}
-
-const Home: React.FC = () => {
-    const { user, userData, logout, refreshUserData } = useAuth();
-    const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
+const Home = () => {
+    const { user, userData, signOut, refreshUserData } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
+    const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
     const [savedNames, setSavedNames] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -27,39 +19,20 @@ const Home: React.FC = () => {
     const [isAdminMode, setIsAdminMode] = useState(false);
     const [adminAccessError, setAdminAccessError] = useState(false);
 
-    // Strict admin check - only jpark22@stanford.edu can access admin mode
-    const isAdmin = user?.email === 'jpark22@stanford.edu';
+    const isAdmin = isAdminUser(user, userData);
 
-    // Get the class display name based on user's class
     const getClassDisplayName = useCallback(() => {
         const userClass = userData?.userClass || 'gsb';
         return userClass === 'gsb' ? 'GSB MBA Class of 2025' : 'Undergrad Class of 2025';
     }, [userData?.userClass]);
 
-    const loadUserSelections = useCallback(async () => {
-        if (!user || !userData) return;
+    const loadUserSelections = useCallback(() => {
+        if (!userData) return;
 
-        try {
-            const actualUid = getUserDocumentId(user, userData);
-            const userRef = doc(db, 'users', actualUid);
-            const userDoc = await getDoc(userRef);
-
-            if (userDoc.exists()) {
-                const data = userDoc.data();
-                const crushes = data.crushes && Array.isArray(data.crushes) ? data.crushes : [];
-                setSelectedNames(crushes);
-                setSavedNames(crushes);
-            } else {
-                setSelectedNames([]);
-                setSavedNames([]);
-            }
-        } catch (error) {
-            console.error('Error loading user selections:', error);
-            setError('Failed to load your previous selections.');
-            setSelectedNames([]);
-            setSavedNames([]);
-        }
-    }, [user, userData]);
+        const crushes = userData.crushes && Array.isArray(userData.crushes) ? userData.crushes : [];
+        setSelectedNames(crushes);
+        setSavedNames(crushes);
+    }, [userData]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -67,7 +40,7 @@ const Home: React.FC = () => {
                 setError(null);
                 setAdminAccessError(false);
                 if (user && userData) {
-                    await loadUserSelections();
+                    loadUserSelections();
                 }
             } catch (error) {
                 console.error('Error loading data:', error);
@@ -80,28 +53,23 @@ const Home: React.FC = () => {
         loadData();
     }, [user, userData, loadUserSelections]);
 
-    // Improved image error handling that prevents flickering
     const handleImageError = useCallback((imageUrl: string) => {
         console.log('Image failed to load:', imageUrl);
         setFailedImageUrls(prev => new Set(prev).add(imageUrl));
     }, []);
 
-    // Get profile image URL with proper fallback logic
     const getProfileImageUrl = useCallback(() => {
         const googlePhotoUrl = userData?.photoURL;
         const fallbackUrl = '/files/default-profile.png';
 
-        // If we don't have a Google photo URL, use fallback
         if (!googlePhotoUrl) {
             return fallbackUrl;
         }
 
-        // If this specific Google photo URL has failed before, use fallback
         if (failedImageUrls.has(googlePhotoUrl)) {
             return fallbackUrl;
         }
 
-        // Try the Google photo URL
         return googlePhotoUrl;
     }, [userData?.photoURL, failedImageUrls]);
 
@@ -186,7 +154,6 @@ const Home: React.FC = () => {
         }
     }, [user, userData, updating, selectedNames, refreshUserData]);
 
-    // Enhanced admin mode toggle with proper error handling
     const handleAdminToggle = useCallback(() => {
         if (!isAdmin) {
             setAdminAccessError(true);
@@ -239,7 +206,7 @@ const Home: React.FC = () => {
                                     {isAdminMode ? 'Exit Admin View' : 'Admin View'}
                                 </button>
                             )}
-                            <button className="logout-btn" onClick={logout}>Logout</button>
+                            <button className="logout-btn" onClick={signOut}>Logout</button>
                         </div>
                     </div>
                 </div>

@@ -1,0 +1,269 @@
+
+=== GSB users by lastLogin (desc) ===
+Found 263 users
+
+name                       email                           emailAlumni                     emailAlumniGSB                  lastLogin                
+------------------------------------------------------------------------------------------------------------------------------------------------------
+James Park                 jpark22@stanford.edu            jamespark@alumni.stanford.edu   jamespark@alumni.gsb.stanford.  2025-12-10T22:47:07.949Z 
+Floriane Ngako Kameni      fnkameni@stanford.edu                                                                           2025-11-29T07:39:34.120Z 
+Conor Leen                 cleen@stanford.edu                                                                              2025-11-16T19:50:31.440Z 
+Mubarak Alliyu             mballiyu@stanford.edu                                                                           2025-11-14T21:17:32.541Z 
+Sakshi Khanna              skhanna7@stanford.edu           sakshikhanna@alumni.stanford.e  sakshikhanna@alumni.gsb.stanfo  2025-11-08T17:15:12.652Z 
+Devika Chatwani            devikac@stanford.edu            devikac@alumni.stanford.edu     devikac@alumni.gsb.stanford.ed  2025-11-08T09:30:34.625Z 
+Brendan Kim                bhkim@stanford.edu              bhkim@alumni.stanford.edu       bhkim@alumni.gsb.stanford.edu   2025-11-08T02:51:12.586Z 
+Will Agathis               wagathis@stanford.edu                                                                           2025-10-19T00:55:14.685Z 
+Shelly Ngo                 ngos@stanford.edu               shellyngo@alumni.stanford.edu   shellyngo@alumni.gsb.stanford.  2025-10-15T06:36:31.970Z 
+Krupa Adusumilli           krupaadu@stanford.edu           krupaadu@alumni.stanford.edu    krupaadu@alumni.gsb.stanford.e  2025-10-12T05:33:00.951Z 
+Gloria Odoemelam           gloriao@stanford.edu            gloriao@alumni.stanford.edu     gloriao@alumni.gsb.stanford.ed  2025-10-09T05:37:55.752Z 
+Dru Nkansah                aknkans@stanford.edu            aknkans@alumni.stanford.edu     aknkans@alumni.gsb.stanford.ed  2025-09-27T19:35:49.728Z 
+Sydney Tomlinson           sydneyrt@stanford.edu           sydneyrtomlinson@alumni.stanfo  sydneyrtomlinson@alumni.gsb.st  2025-09-20T21:47:21.390Z 
+Megha Agarwal              meghaaga@stanford.edu           meghaaga@alumni.stanford.edu    meghaaga@alumni.gsb.stanford.e  2025-09-14T00:14:07.659Z 
+Katie Van Dyk              kvandyk@stanford.edu            kvandyk@alumni.stanford.edu     kvandyk@alumni.gsb.stanford.ed  2025-09-14T00:12:42.754Z 
+Pablo Golac                pgolac@stanford.edu                                                                             2025-09-12T16:41:22.296Z 
+Sandhya Jetty              sanjetty@stanford.edu           sanjetty@alumni.stanford.edu    sanjetty@alumni.gsb.stanford.e  2025-09-11T17:30:16.551Z 
+Alex Lubkin                alubkin@stanford.edu            alubkin@alumni.stanford.edu     alubkin@alumni.gsb.stanford.ed  2025-09-11T00:42:32.938Z 
+Lydia Tahraoui             tahraoui@stanford.edu           ltahraoui@alumni.stanford.edu   ltahraoui@alumni.gsb.stanford.  2025-09-06T23:41:15.562Z 
+Danielle Nguyen            dnguyen0@stanford.edu           dnguyen0@alumni.stanford.edu    dnguyen0@alumni.gsb.stanford.e  2025-09-05T18:00:46.884Z 
+Mia Amin                   mdamin@stanford.edu             mdamin@alumni.stanford.edu      mdamin@alumni.gsb.stanford.edu  2025-09-02T04:36:58.360Z 
+Richa Chaturvedi           rchat@stanford.edu                                                                              2025-08-29T05:08:59.777Z 
+Cyrus Kharche              cyruspk@stanford.edu            cyruspk@alumni.stanford.edu     cyruspk@alumni.gsb.stanford.ed  2025-08-26T17:57:18.440Z 
+Joshua Davis               jfd61@stanford.edu              joshuafdavis@alumni.stanford.e  joshuafdavis@alumni.gsb.stanfo  2025-08-20T05:23:26.112Z 
+Preetam Soundararajan      psoundar@stanford.edu           psoundar@alumni.stanford.edu    psoundar@alumni.gsb.stanford.e  2025-08-16T07:00:42.079Z 
+Kathryn Bacher             kbacher@stanford.edu            kathryn_bacher@alumni.stanford  kathryn_bacher@alumni.gsb.stan  2025-08-16T06:38:55.038Z 
+Joel Johnson               jajohn@stanford.edu             jajohn@alumni.stanford.edu      jajohn@alumni.gsb.stanford.edu  2025-08-10T16:21:55.872Z 
+Elliot Nell                enell@stanford.edu                                                                              2025-08-10T05:57:31.540Z 
+Munim Moiz                 mmoiz@stanford.edu              mmoiz@alumni.stanford.edu       mmoiz@alumni.gsb.stanford.edu   2025-08-09T07:37:19.624Z 
+Sofia Figueroa             sofiafr@stanford.edu                                                                            2025-08-08T20:15:42.251Z 
+Chloe Jin                  chloejin@stanford.edu                                                                           2025-08-08T18:31:24.027Z 
+Daniel Sheppard            danshep@stanford.edu            daniel.sheppard@alumni.stanfor  daniel.sheppard@alumni.gsb.sta  2025-07-31T19:02:42.541Z 
+Mariami Chikovani          mariamch@stanford.edu           mariamchikovani@alumni.stanfor  mariamchikovani@alumni.gsb.sta  2025-07-22T15:05:23.201Z 
+Jack Stone                 jvstone@stanford.edu            jackstone@alumni.stanford.edu   jackstone@alumni.gsb.stanford.  2025-07-18T07:14:24.041Z 
+Ian De Luna                irdeluna@stanford.edu           irdeluna@alumni.stanford.edu    irdeluna@alumni.gsb.stanford.e  2025-07-17T06:18:35.717Z 
+Callie Walker              calliew@stanford.edu            calliewalker@alumni.stanford.e  calliewalker@alumni.gsb.stanfo  2025-07-14T22:40:09.926Z 
+SimoneTess Aisiks          simonea@stanford.edu            simonea@alumni.stanford.edu     simonea@alumni.gsb.stanford.ed  2025-07-12T16:31:51.689Z 
+Alan Balson                abalson@stanford.edu                                                                            2025-07-12T15:48:22.241Z 
+Lydia Deneen               ldeneen@stanford.edu            ldeneen@alumni.stanford.edu     ldeneen@alumni.gsb.stanford.ed  2025-07-12T02:09:52.706Z 
+Michael Bakan              mgb64@stanford.edu              mbakan@alumni.stanford.edu      mbakan@alumni.gsb.stanford.edu  2025-07-10T16:59:01.968Z 
+Niranjan Balachandar       niranja9@stanford.edu           niranjanb@alumni.stanford.edu   niranjanb@alumni.gsb.stanford.  2025-07-09T16:42:44.498Z 
+Cayo Gonzalez              cgonzal@stanford.edu                                                                            2025-07-07T12:51:59.213Z 
+Andrew Raffi Ansell        aansell@stanford.edu            andrewansell@alumni.stanford.e  andrewansell@alumni.gsb.stanfo  2025-07-05T07:42:10.396Z 
+Daniela Camargo Carrillo   dani2025@stanford.edu           danielacamargoc@alumni.stanfor  danielacamargoc@alumni.gsb.sta  2025-07-04T04:50:38.756Z 
+Katharina Rohr             karohr@stanford.edu             karohr@alumni.stanford.edu      karohr@alumni.gsb.stanford.edu  2025-07-03T23:28:28.111Z 
+Farha Khan                 farha@stanford.edu                                                                              2025-07-03T19:58:52.818Z 
+Tushar Krishnan            tushar21@stanford.edu           tusharkrishnan@alumni.stanford  tusharkrishnan@alumni.gsb.stan  2025-07-03T09:28:24.215Z 
+Priyanka Seegobin          priy@stanford.edu                                                                               2025-07-03T00:25:12.220Z 
+Jake Waskowitz             jwasko@stanford.edu             jwasko@alumni.stanford.edu      jwasko@alumni.gsb.stanford.edu  2025-07-02T13:51:42.871Z 
+Layla Aboukhater           laylaa@stanford.edu                                                                             2025-07-02T04:59:30.215Z 
+Eliana Field-Marsham       sfieldma@stanford.edu                                                                           2025-07-01T14:43:01.516Z 
+Olivia Peniston            peniston@stanford.edu           peniston@alumni.stanford.edu    peniston@alumni.gsb.stanford.e  2025-07-01T14:40:58.595Z 
+Cyrus Buckman              cbuckman@stanford.edu                                                                           2025-07-01T00:02:02.465Z 
+Mark Garo Ansell           mansell@stanford.edu            markgansell@alumni.stanford.ed  markgansell@alumni.gsb.stanfor  2025-06-29T17:36:30.871Z 
+Lucy Ma                    lucywma@stanford.edu                                                                            2025-06-29T08:31:16.729Z 
+Kelsey Klein               kjklein@stanford.edu            kelseyjklein@alumni.stanford.e  kelseyjklein@alumni.gsb.stanfo  2025-06-29T07:14:59.663Z 
+Steven Koh                 jwkoh@stanford.edu                                                                              2025-06-28T03:56:09.355Z 
+Gherardo Morona            gmorona@stanford.edu            gmorona@alumni.stanford.edu     gmorona@alumni.gsb.stanford.ed  2025-06-28T02:17:40.604Z 
+Andrew Paulmeno            paulmeno@stanford.edu           paulmeno@alumni.stanford.edu    paulmeno@alumni.gsb.stanford.e  2025-06-28T02:16:11.757Z 
+Joan Nolla Suárez          jnollasu@stanford.edu           jnollasu@alumni.stanford.edu    jnollasu@alumni.gsb.stanford.e  2025-06-27T04:03:36.541Z 
+Carmen Gordon              cgordong@stanford.edu           cgordong@alumni.stanford.edu    cgordong@alumni.gsb.stanford.e  2025-06-25T18:57:06.431Z 
+Aria Rodli                 aria@stanford.edu                                                                               2025-06-25T04:01:49.637Z 
+Andreas Fatschel           afatsche@stanford.edu           afatsche@alumni.stanford.edu    afatsche@alumni.gsb.stanford.e  2025-06-24T19:49:41.198Z 
+Carson Muscat              cmuscat@stanford.edu                                                                            2025-06-24T12:09:35.380Z 
+Harshi Murthy              harshi@stanford.edu             harshi@alumni.stanford.edu      harshi@alumni.gsb.stanford.edu  2025-06-24T06:33:21.357Z 
+John Onderdonk             jwonder@stanford.edu            jonderdonk@alumni.stanford.edu  jonderdonk@alumni.gsb.stanford  2025-06-24T03:46:09.332Z 
+Isabel Vallina Garcia      isabelvg@stanford.edu           isabelvg@alumni.stanford.edu    isabelvg@alumni.gsb.stanford.e  2025-06-23T11:54:15.583Z 
+Zooey Wilkinson            zooeycw@stanford.edu            zooeycw@alumni.stanford.edu     zooeycw@alumni.gsb.stanford.ed  2025-06-23T05:57:21.137Z 
+Kiera Peltz                kiera@stanford.edu                                                                              2025-06-23T01:51:57.277Z 
+Colter Corish              ccorish@stanford.edu            ccorish@alumni.stanford.edu     ccorish@alumni.gsb.stanford.ed  2025-06-23T01:32:54.330Z 
+Melanie Weinsten           mweins@stanford.edu             mweins@alumni.stanford.edu      mweins@alumni.gsb.stanford.edu  2025-06-22T23:18:26.530Z 
+João Pedro Almeida         jpbda@stanford.edu                                                                              2025-06-22T21:26:53.404Z 
+Fatma Elshenawy            fatma@stanford.edu              fatma.sh@alumni.stanford.edu    fatma.sh@alumni.gsb.stanford.e  2025-06-22T18:14:28.009Z 
+Madison Minsk              mcminsk@stanford.edu            mcminsk@alumni.stanford.edu     mcminsk@alumni.gsb.stanford.ed  2025-06-22T16:29:52.091Z 
+Javi Rodriguez             javirod@stanford.edu            javirod@alumni.stanford.edu     javirod@alumni.gsb.stanford.ed  2025-06-22T15:09:36.364Z 
+Meredith Slifkin           mslifkin@stanford.edu           mslifkin@alumni.stanford.edu    mslifkin@alumni.gsb.stanford.e  2025-06-22T13:31:07.748Z 
+Elizabeth McNally          emcnally@stanford.edu           emcnally@alumni.stanford.edu    emcnally@alumni.gsb.stanford.e  2025-06-22T12:25:21.207Z 
+Mark Lee                   mshlee@stanford.edu             mshlee@alumni.stanford.edu      mshlee@alumni.gsb.stanford.edu  2025-06-22T11:29:38.901Z 
+Noelle Eveland             ncevelan@stanford.edu           ncevelan@alumni.stanford.edu    ncevelan@alumni.gsb.stanford.e  2025-06-22T06:01:51.510Z 
+Jackson Simon              jsimon23@stanford.edu                                                                           2025-06-22T03:36:31.277Z 
+Sonja Anton                sonja1@stanford.edu             sonja1@alumni.stanford.edu      sonja1@alumni.gsb.stanford.edu  2025-06-22T02:33:24.207Z 
+Itai Barsade               barsadei@stanford.edu           itaibarsade@alumni.stanford.ed  itaibarsade@alumni.gsb.stanfor  2025-06-22T02:29:14.425Z 
+Sean Sellers               sellers2@stanford.edu           ssellers@alumni.stanford.edu    ssellers@alumni.gsb.stanford.e  2025-06-22T02:15:20.132Z 
+Olivia Christensen         oliviacn@stanford.edu           oliviacn@alumni.stanford.edu    oliviacn@alumni.gsb.stanford.e  2025-06-22T01:46:34.913Z 
+Claire Thompson            clairet2@stanford.edu           clairet2@alumni.stanford.edu    clairet2@alumni.gsb.stanford.e  2025-06-22T01:22:29.952Z 
+Bruno Koba                 bkoba@stanford.edu              bkoba@alumni.stanford.edu       bkoba@alumni.gsb.stanford.edu   2025-06-22T01:12:39.565Z 
+Ankita Kodavoor            ankita25@stanford.edu           ankitakodavoor@alumni.stanford  ankitakodavoor@alumni.gsb.stan  2025-06-22T01:07:56.994Z 
+Emily Tench                etench@stanford.edu             tench@alumni.stanford.edu       tench@alumni.gsb.stanford.edu   2025-06-22T00:58:53.648Z 
+Kailash Sundaram           kailashs@stanford.edu           ksundaram@alumni.stanford.edu   ksundaram@alumni.gsb.stanford.  2025-06-22T00:57:57.824Z 
+Laura Vanessa Kiehl        lvkiehl@stanford.edu            lvkiehl@alumni.stanford.edu     lvkiehl@alumni.gsb.stanford.ed  2025-06-22T00:51:14.313Z 
+Meera Doshi                mkdoshi@stanford.edu            mkdoshi@alumni.stanford.edu     mkdoshi@alumni.gsb.stanford.ed  2025-06-22T00:49:34.978Z 
+Paul Sédille               psedille@stanford.edu           paul.sedille@alumni.stanford.e  paul.sedille@alumni.gsb.stanfo  2025-06-22T00:44:34.525Z 
+Sarah Brown                skbrown@stanford.edu            skbrown@alumni.stanford.edu     skbrown@alumni.gsb.stanford.ed  2025-06-22T00:36:05.376Z 
+Sam Braunseis              sbraun25@stanford.edu                                                                           2025-06-22T00:34:34.310Z 
+Anthony Mattar El Raachin  raachini@stanford.edu           raachini@alumni.stanford.edu    raachini@alumni.gsb.stanford.e  2025-06-22T00:14:42.309Z 
+Naza Aibar                 nazerke@stanford.edu            nazerke@alumni.stanford.edu     nazerke@alumni.gsb.stanford.ed  2025-06-22T00:09:57.714Z 
+Alvaro Baleato Varela      alvarobv@stanford.edu           abv@alumni.stanford.edu         abv@alumni.gsb.stanford.edu     2025-06-22T00:09:29.890Z 
+Ana Gonzalez Galindo       anagg@stanford.edu              anagg@alumni.stanford.edu       anagg@alumni.gsb.stanford.edu   2025-06-22T00:07:39.977Z 
+Catherine Lacy             cslacy@stanford.edu                                                                             2025-06-22T00:06:22.812Z 
+Max Zhou                   maxzhou@stanford.edu            maxzhou@alumni.stanford.edu     maxzhou@alumni.gsb.stanford.ed  2025-06-22T00:03:48.075Z 
+Allison Kaslow             arkaslow@stanford.edu           arkaslow@alumni.stanford.edu    arkaslow@alumni.gsb.stanford.e  2025-06-22T00:01:36.157Z 
+Matt Rojas                 mjrojas@stanford.edu            mjrojas@alumni.stanford.edu     mjrojas@alumni.gsb.stanford.ed  2025-06-22T00:00:53.512Z 
+Sabrina (Namato) Bukenya   snamato@stanford.edu            sbukenya@alumni.stanford.edu    sbukenya@alumni.gsb.stanford.e  2025-06-22T00:00:13.597Z 
+Jack Shumway               shumwayj@stanford.edu           shumwayj@alumni.stanford.edu    shumwayj@alumni.gsb.stanford.e  2025-06-22T00:00:01.754Z 
+Cariana Morales            cariana@stanford.edu            cariana@alumni.stanford.edu     cariana@alumni.gsb.stanford.ed  2025-06-21T23:55:00.086Z 
+Khalid Alajlan             kalajlan@stanford.edu           kalajlan@alumni.stanford.edu    kalajlan@alumni.gsb.stanford.e  2025-06-21T23:54:09.915Z 
+Caden Broussard            civie@stanford.edu              civie@alumni.stanford.edu       civie@alumni.gsb.stanford.edu   2025-06-21T23:54:06.793Z 
+Erin Barrett               ekb6ee@stanford.edu             ekb6ee@alumni.stanford.edu      ekb6ee@alumni.gsb.stanford.edu  2025-06-21T23:53:15.029Z 
+Madison Hughes             hughesmj@stanford.edu           hughesmj@alumni.stanford.edu    hughesmj@alumni.gsb.stanford.e  2025-06-21T23:53:04.976Z 
+Holley McShan              hmcshan@stanford.edu            mcshan@alumni.stanford.edu      mcshan@alumni.gsb.stanford.edu  2025-06-21T23:53:02.547Z 
+Nico deLuna                ndeluna@stanford.edu                                                                            2025-06-21T21:25:56.498Z 
+Henry Townley              htownley@stanford.edu           htownley@alumni.stanford.edu    htownley@alumni.gsb.stanford.e  2025-06-21T20:11:33.600Z 
+Camila Cordara             ccordara@stanford.edu           ccordara@alumni.stanford.edu    ccordara@alumni.gsb.stanford.e  2025-06-21T18:18:52.060Z 
+Keita Matsumoto            keitacm@stanford.edu            kcmatsumoto@alumni.stanford.ed  kcmatsumoto@alumni.gsb.stanfor  2025-06-21T17:06:16.347Z 
+Annie Klosowicz            aklos@stanford.edu              aklos@alumni.stanford.edu       aklos@alumni.gsb.stanford.edu   2025-06-21T16:59:22.790Z 
+Abu Rogers                 aburog@stanford.edu                                                                             2025-06-21T16:53:30.102Z 
+Joseph Wise                jjwise@stanford.edu             josephwise@alumni.stanford.edu  josephwise@alumni.gsb.stanford  2025-06-21T16:43:03.670Z 
+Ndirangu (Bryan) Maina     bmaina@stanford.edu                                                                             2025-06-21T16:00:45.866Z 
+Zhi Huang                  zhih@stanford.edu               zhih@alumni.stanford.edu        zhih@alumni.gsb.stanford.edu    2025-06-21T15:18:32.326Z 
+Sonia Sarda                sardas@stanford.edu             sardas@alumni.stanford.edu      sardas@alumni.gsb.stanford.edu  2025-06-21T15:05:07.016Z 
+Sophie Schick              sschick@stanford.edu            sschick@alumni.stanford.edu     sschick@alumni.gsb.stanford.ed  2025-06-21T14:18:37.693Z 
+Tireni Ajilore             tajilore@stanford.edu                                                                           2025-06-21T05:14:07.510Z 
+Shailee Samar              shailee@stanford.edu            shailee@alumni.stanford.edu     shailee@alumni.gsb.stanford.ed  2025-06-21T04:02:24.765Z 
+Talha Yousaf               tyousaf@stanford.edu                                                                            2025-06-21T02:02:12.738Z 
+Tyler Erb                  tylererb@stanford.edu           tylererb@alumni.stanford.edu    tylererb@alumni.gsb.stanford.e  2025-06-21T01:12:50.695Z 
+James Ramsay               jramsay1@stanford.edu           jtframsay@alumni.stanford.edu   jtframsay@alumni.gsb.stanford.  2025-06-21T00:54:48.962Z 
+Amir Chain Nemtala         amircn@stanford.edu             amircn@alumni.stanford.edu      amircn@alumni.gsb.stanford.edu  2025-06-21T00:08:46.890Z 
+Mckenna Miller             mmiller0@stanford.edu           mmiller0@alumni.stanford.edu    mmiller0@alumni.gsb.stanford.e  2025-06-21T00:04:09.853Z 
+Andre Xiong                andrex@stanford.edu             andrex@alumni.stanford.edu      andrex@alumni.gsb.stanford.edu  2025-06-20T21:39:50.456Z 
+Madi Harvey                emharvey@stanford.edu                                                                           2025-06-20T21:23:08.871Z 
+Imren Johar                imrenj@stanford.edu             imrenj@alumni.stanford.edu      imrenj@alumni.gsb.stanford.edu  2025-06-20T20:11:46.613Z 
+Travis Anderson            travisa@stanford.edu            travisa@alumni.stanford.edu     travisa@alumni.gsb.stanford.ed  2025-06-20T18:54:56.095Z 
+Maria Cano                 cano@stanford.edu               cano@alumni.stanford.edu        cano@alumni.gsb.stanford.edu    2025-06-20T16:33:05.041Z 
+Ila Shon                   ilashon@stanford.edu            ilashon@alumni.stanford.edu     ilashon@alumni.gsb.stanford.ed  2025-06-20T16:30:17.879Z 
+Noelle Durkin              ndurkin@stanford.edu            ndurkin@alumni.stanford.edu     ndurkin@alumni.gsb.stanford.ed  2025-06-20T15:30:09.609Z 
+Chad Kanoff                ckanoff@stanford.edu            ckanoff@alumni.stanford.edu     ckanoff@alumni.gsb.stanford.ed  2025-06-20T14:27:46.186Z 
+Ryan Davis                 rydavis@stanford.edu                                                                            2025-06-20T14:25:31.838Z 
+Faisal Alhindi             falhindi@stanford.edu           falhindi@alumni.stanford.edu    falhindi@alumni.gsb.stanford.e  2025-06-20T02:17:49.964Z 
+Stephanie Pham             spham18@stanford.edu            stephaniepham@alumni.stanford.  stephaniepham@alumni.gsb.stanf  2025-06-20T00:46:03.625Z 
+Conor Harrity              harrityc@stanford.edu           conorharrity@alumni.stanford.e  conorharrity@alumni.gsb.stanfo  2025-06-19T23:35:15.436Z 
+Stefano Schiappacasse      chapa4@stanford.edu                                                                             2025-06-19T20:19:52.339Z 
+Joseph Robillard           jrobill@stanford.edu                                                                            2025-06-19T19:51:32.459Z 
+Eliza Teach                eteach@stanford.edu             eteach@alumni.stanford.edu      eteach@alumni.gsb.stanford.edu  2025-06-19T19:26:07.723Z 
+Adam Starr                 astarr@stanford.edu             astarr@alumni.stanford.edu      astarr@alumni.gsb.stanford.edu  2025-06-19T19:18:31.692Z 
+Anna Rowe                  annarowe@stanford.edu           annarowe@alumni.stanford.edu    annarowe@alumni.gsb.stanford.e  2025-06-19T19:12:28.961Z 
+Santiago García Vargas     sgarciav@stanford.edu           sgarciav@alumni.stanford.edu    sgarciav@alumni.gsb.stanford.e  2025-06-19T19:01:25.826Z 
+Tess Hartigan              tesshart@stanford.edu           tesshart@alumni.stanford.edu    tesshart@alumni.gsb.stanford.e  2025-06-19T15:58:26.195Z 
+Tamara Kawash              tkawash@stanford.edu                                                                            2025-06-19T15:28:45.929Z 
+Isa Haegg                  ihaegg@stanford.edu             ihaegg@alumni.stanford.edu      ihaegg@alumni.gsb.stanford.edu  2025-06-19T15:05:06.456Z 
+Hob Du                     hobdu@stanford.edu                                                                              2025-06-19T06:58:45.072Z 
+Ayesha Karnik              aykarnik@stanford.edu           aykarnik@alumni.stanford.edu    aykarnik@alumni.gsb.stanford.e  2025-06-19T04:35:57.537Z 
+Mikos Legrand              mlegrand@stanford.edu           mikoslegrand@alumni.stanford.e  mikoslegrand@alumni.gsb.stanfo  2025-06-19T02:50:30.907Z 
+Arnav Mehta                arnavm96@stanford.edu                                                                           2025-06-19T02:43:17.911Z 
+Kelli Pedersen             kellip@stanford.edu             kellip@alumni.stanford.edu      kellip@alumni.gsb.stanford.edu  2025-06-19T02:35:26.638Z 
+Farrukh Hamza              fhamza@stanford.edu             fhamza@alumni.stanford.edu      fhamza@alumni.gsb.stanford.edu  2025-06-19T01:42:48.907Z 
+Chris Shim                 chbshim@stanford.edu            chbshim@alumni.stanford.edu     chbshim@alumni.gsb.stanford.ed  2025-06-19T01:39:40.576Z 
+Michelle Han               mmhan@stanford.edu              mmhan@alumni.stanford.edu       mmhan@alumni.gsb.stanford.edu   2025-06-18T23:18:50.609Z 
+Evelyn Shao                eshao117@stanford.edu           evelyn.shao@alumni.stanford.ed  evelyn.shao@alumni.gsb.stanfor  2025-06-18T22:39:46.345Z 
+Pedro Benoit               pbenoit@stanford.edu            pedro.benoit@alumni.stanford.e  pedro.benoit@alumni.gsb.stanfo  2025-06-18T22:33:55.197Z 
+Jake Jordaan               jjordaan@stanford.edu           jjordaan@alumni.stanford.edu    jjordaan@alumni.gsb.stanford.e  2025-06-18T22:33:05.074Z 
+Anli Chen                  anlichen@stanford.edu           anlichen@alumni.stanford.edu    anlichen@alumni.gsb.stanford.e  2025-06-18T22:22:14.331Z 
+Zach Dyce                  zdyce@stanford.edu                                                                              2025-06-18T22:14:09.980Z 
+Joon Seo                   joonseo@stanford.edu            joonseo@alumni.stanford.edu     joonseo@alumni.gsb.stanford.ed  2025-06-18T19:42:51.641Z 
+Priscilla Russo            pkrusso@stanford.edu            pkrusso@alumni.stanford.edu     pkrusso@alumni.gsb.stanford.ed  2025-06-18T14:48:34.516Z 
+Claire Rafson              crafson@stanford.edu            claire.rafson@alumni.stanford.  claire.rafson@alumni.gsb.stanf  2025-06-18T14:35:28.996Z 
+Karn Nahata                karn@stanford.edu               karn@alumni.stanford.edu        karn@alumni.gsb.stanford.edu    2025-06-18T13:18:14.934Z 
+Theresa Yu                 ytheresa@stanford.edu                                                                           2025-06-18T09:33:02.496Z 
+Bryce Mitchell             bwmitch@stanford.edu            bwmitchell@alumni.stanford.edu  bwmitchell@alumni.gsb.stanford  2025-06-18T07:36:33.333Z 
+Lizzie Hunpatin            hunpatin@stanford.edu           ehunpatin@alumni.stanford.edu   ehunpatin@alumni.gsb.stanford.  2025-06-18T07:06:44.331Z 
+Chase Navellier            chasen@stanford.edu             chasenavellier@alumni.stanford  chasenavellier@alumni.gsb.stan  2025-06-18T05:47:03.945Z 
+Vibha Puri                 vibhap@stanford.edu             vibhap@alumni.stanford.edu      vibhap@alumni.gsb.stanford.edu  2025-06-18T03:28:26.108Z 
+Mia Lee                    miaslee@stanford.edu                                                                            2025-06-18T03:03:36.184Z 
+Carolyn Bruckmann          cbruck@stanford.edu             cbruckmann@alumni.stanford.edu  cbruckmann@alumni.gsb.stanford  2025-06-18T02:11:54.928Z 
+Vasundhara Rakesh          vrakesh@stanford.edu                                                                            2025-06-18T01:53:56.922Z 
+Henry Iseman               hiseman@stanford.edu                                                                            2025-06-18T00:35:22.358Z 
+Xixi Chen                  xixichen@stanford.edu           xixichen@alumni.stanford.edu    xixichen@alumni.gsb.stanford.e  2025-06-17T21:02:05.385Z 
+Zhenyan (Jane) Li          zhenyanl@stanford.edu           zhenyanl@alumni.stanford.edu    zhenyanl@alumni.gsb.stanford.e  2025-06-17T19:35:13.998Z 
+Lauren Maymar              lmaymar@stanford.edu            lmaymar@alumni.stanford.edu     lmaymar@alumni.gsb.stanford.ed  2025-06-17T15:49:05.079Z 
+Jake Blank                 jlblank@stanford.edu            jlblank@alumni.stanford.edu     jlblank@alumni.gsb.stanford.ed  2025-06-17T13:10:05.612Z 
+Mira Bodek (Mibo)          mbodek@stanford.edu             mbodek@alumni.stanford.edu      mbodek@alumni.gsb.stanford.edu  2025-06-17T09:44:16.526Z 
+Anirudh Garg               anigarg@stanford.edu            anigarg@alumni.stanford.edu     anigarg@alumni.gsb.stanford.ed  2025-06-17T08:24:49.287Z 
+Mahek Vara                 mahek@stanford.edu                                                                              2025-06-17T07:55:48.418Z 
+Agustin Villarreal         agustinv@stanford.edu                                                                           2025-06-17T06:26:22.009Z 
+Batu Demir                 batuhan@stanford.edu            batu@alumni.stanford.edu        batu@alumni.gsb.stanford.edu    2025-06-17T05:34:51.410Z 
+Doug Phipps                dhp995@stanford.edu             doug.phipps@alumni.stanford.ed  doug.phipps@alumni.gsb.stanfor  2025-06-17T05:29:31.380Z 
+Akshita Jain               ajain14@stanford.edu                                                                            2025-06-17T05:20:27.389Z 
+Nofel Teldjoune            nofelt@stanford.edu             nofelt@alumni.stanford.edu      nofelt@alumni.gsb.stanford.edu  2025-06-17T00:56:55.870Z 
+Lexie Lin                  lexielin@stanford.edu           lexielin@alumni.stanford.edu    lexielin@alumni.gsb.stanford.e  2025-06-16T23:33:31.215Z 
+Philipp Schellhaas         pschell@stanford.edu            pschellhaas@alumni.stanford.ed  pschellhaas@alumni.gsb.stanfor  2025-06-16T21:34:18.400Z 
+Michelle Shen              michshen@stanford.edu           michshen@alumni.stanford.edu    michshen@alumni.gsb.stanford.e  2025-06-16T21:24:24.256Z 
+Maisie Lynton              mlynton@stanford.edu            mlynton@alumni.stanford.edu     mlynton@alumni.gsb.stanford.ed  2025-06-16T21:14:50.810Z 
+Bobby O'Reilly             roreilly@stanford.edu           roreilly@alumni.stanford.edu    roreilly@alumni.gsb.stanford.e  2025-06-16T19:22:21.746Z 
+Maria Rojas                mrojas15@stanford.edu           mariacrojas@alumni.stanford.ed  mariacrojas@alumni.gsb.stanfor  2025-06-16T16:18:48.829Z 
+Stephen Chu                schu23@stanford.edu             stephenchu@alumni.stanford.edu  stephenchu@alumni.gsb.stanford  2025-06-16T06:29:08.445Z 
+Aislin Roth                aislin@stanford.edu             aislin@alumni.stanford.edu      aislin@alumni.gsb.stanford.edu  2025-06-16T05:25:40.280Z 
+Tom Carroll                tomcarr@stanford.edu                                                                            2025-06-16T04:46:06.054Z 
+Christina Puccinelli       cpucci@stanford.edu             cpucci@alumni.stanford.edu      cpucci@alumni.gsb.stanford.edu  2025-06-16T04:17:20.338Z 
+Philip Balson              pob25@stanford.edu                                                                              2025-06-16T02:34:48.165Z 
+Noor Alsharif              ntsharif@stanford.edu           ntsharif@alumni.stanford.edu    ntsharif@alumni.gsb.stanford.e  2025-06-16T02:19:37.362Z 
+Caroline Blanck            cblanck@stanford.edu            cblanck@alumni.stanford.edu     cblanck@alumni.gsb.stanford.ed  2025-06-16T02:02:54.788Z 
+Devan Trammel              devant@stanford.edu             devant@alumni.stanford.edu      devant@alumni.gsb.stanford.edu  2025-06-16T00:08:47.548Z 
+Amee Kapadia               akapadia@stanford.edu           ameekapadia@alumni.stanford.ed  ameekapadia@alumni.gsb.stanfor  2025-06-16T00:08:32.333Z 
+Saman Siddiqui             samans@stanford.edu             samans_2023@alumni.stanford.ed  samans_2023@alumni.gsb.stanfor  2025-06-15T23:57:42.871Z 
+Shikhar Sood               sood22@stanford.edu             shikharsood@alumni.stanford.ed  shikharsood@alumni.gsb.stanfor  2025-06-15T23:57:26.652Z 
+Hiroaki Minoo              hmino@stanford.edu              hmino@alumni.stanford.edu       hmino@alumni.gsb.stanford.edu   2025-06-15T23:33:50.872Z 
+Georgia Carroll            georgiac@stanford.edu                                                                           2025-06-15T22:55:58.063Z 
+Michelle Nguyen            micheng@stanford.edu            michelle.nguyen@alumni.stanfor  michelle.nguyen@alumni.gsb.sta  2025-06-15T22:32:58.846Z 
+Catherine Cheng            catcheng@stanford.edu           catcheng@alumni.stanford.edu    catcheng@alumni.gsb.stanford.e  2025-06-15T22:22:26.450Z 
+Khaled Abdulkarim          kabdulka@stanford.edu           kabdulkarim@alumni.stanford.ed  kabdulkarim@alumni.gsb.stanfor  2025-06-15T22:21:53.473Z 
+Jack Strauss               jack8@stanford.edu              jackstrauss@alumni.stanford.ed  jackstrauss@alumni.gsb.stanfor  2025-06-15T21:11:32.627Z 
+Marc-Aurele Stark          mnstark@stanford.edu            mnstark@alumni.stanford.edu     mnstark@alumni.gsb.stanford.ed  2025-06-15T16:55:23.601Z 
+Leif Frey                  lfrey@stanford.edu                                                                              2025-06-15T16:47:12.581Z 
+Nicholas Tobin             tobin1@stanford.edu                                                                             2025-06-15T16:44:24.319Z 
+Amit Shimshi               ashimshi@stanford.edu           ashimshi25@alumni.stanford.edu  ashimshi25@alumni.gsb.stanford  2025-06-15T16:19:02.731Z 
+Mehek Mohan                mmehek@stanford.edu                                                                             2025-06-15T16:01:46.304Z 
+Shreya Shah                shreya20@stanford.edu           shreya20@alumni.stanford.edu    shreya20@alumni.gsb.stanford.e  2025-06-15T14:18:16.074Z 
+Chanwoo Park               cpark01@stanford.edu            cpark0130@alumni.stanford.edu   cpark0130@alumni.gsb.stanford.  2025-06-15T10:58:04.501Z 
+Bastiaan Zwanenburg        bastiaan@stanford.edu                                                                           2025-06-15T05:21:24.912Z 
+Jude Alawa                 jalawa@stanford.edu             judealawa@alumni.stanford.edu   judealawa@alumni.gsb.stanford.  2025-06-14T07:44:47.329Z 
+Ishir Seth                 iseth@stanford.edu              iseth@alumni.stanford.edu       iseth@alumni.gsb.stanford.edu   2025-06-13T23:19:08.103Z 
+Arushi Sharma              arushis@stanford.edu            arushis@alumni.stanford.edu     arushis@alumni.gsb.stanford.ed  2025-06-13T22:24:15.361Z 
+Michael Liu                mliuy@stanford.edu              mliuy@alumni.stanford.edu       mliuy@alumni.gsb.stanford.edu   2025-06-13T21:37:10.509Z 
+Olivia Rosen               orosen@stanford.edu             orosen@alumni.stanford.edu      orosen@alumni.gsb.stanford.edu  2025-06-13T18:54:12.594Z 
+Amir Donath                amirdo@stanford.edu                                                                             2025-06-13T16:58:04.106Z 
+David Goehring             davidsg@stanford.edu            davidgoehring@alumni.stanford.  davidgoehring@alumni.gsb.stanf  2025-06-13T16:47:38.216Z 
+Nicolas Abad               nabad@stanford.edu              nabad@alumni.stanford.edu       nabad@alumni.gsb.stanford.edu   2025-06-13T16:03:07.710Z 
+Anya Bharadwaj             anyab97@stanford.edu            anyabharadwaj@alumni.stanford.  anyabharadwaj@alumni.gsb.stanf  2025-06-13T15:47:34.667Z 
+Rakiya Cunningham          rakiyac@stanford.edu            rakiyac@alumni.stanford.edu     rakiyac@alumni.gsb.stanford.ed  2025-06-13T15:09:28.316Z 
+Esther Gross               esthereg@stanford.edu                                                                           2025-06-13T14:01:39.785Z 
+Haoxiang (Mike) Yang       yanghx@stanford.edu             yanghx@alumni.stanford.edu      yanghx@alumni.gsb.stanford.edu  2025-06-13T09:38:50.653Z 
+Sophia Chen                sophiajc@stanford.edu           sophia.chen@alumni.stanford.ed  sophia.chen@alumni.gsb.stanfor  2025-06-13T07:56:22.831Z 
+Chris Bradbury             cjbrad@stanford.edu             chrisbradbury@alumni.stanford.  chrisbradbury@alumni.gsb.stanf  2025-06-13T06:36:59.027Z 
+Julia Sun                  juliasun@stanford.edu           juliasun@alumni.stanford.edu    juliasun@alumni.gsb.stanford.e  2025-06-13T06:36:40.948Z 
+Alice Liu                  liualice@stanford.edu           aliceliu@alumni.stanford.edu    aliceliu@alumni.gsb.stanford.e  2025-06-13T06:35:04.866Z 
+Yoshimi Muneta             yoshimnt@stanford.edu           yoshimi.muneta@alumni.stanford  yoshimi.muneta@alumni.gsb.stan  2025-06-13T06:32:00.266Z 
+Zac Maslia                 zmaslia@stanford.edu                                                                            2025-06-13T05:40:52.975Z 
+Eli Stern                  emstern@stanford.edu            emstern@alumni.stanford.edu     emstern@alumni.gsb.stanford.ed  2025-06-13T05:15:47.994Z 
+Cam McWatt                 cmcwatt@stanford.edu            cammcwatt@alumni.stanford.edu   cammcwatt@alumni.gsb.stanford.  2025-06-13T05:15:13.022Z 
+Jay Shah                   shahjay@stanford.edu            shahjay@alumni.stanford.edu     shahjay@alumni.gsb.stanford.ed  2025-06-13T05:03:26.308Z 
+Ana Laginha                laginha@stanford.edu            laginha@alumni.stanford.edu     laginha@alumni.gsb.stanford.ed  2025-06-13T05:03:06.274Z 
+Tom Gorman                 tagorman@stanford.edu           tagorman@alumni.stanford.edu    tagorman@alumni.gsb.stanford.e  2025-06-13T04:59:00.812Z 
+Michael Paretzky           paretzky@stanford.edu                                                                           2025-06-13T04:57:02.972Z 
+Caroline Chen              carochen@stanford.edu           carochen@alumni.stanford.edu    carochen@alumni.gsb.stanford.e  2025-06-13T04:54:21.226Z 
+Katie Gudeman              gudeman@stanford.edu            gudeman@alumni.stanford.edu     gudeman@alumni.gsb.stanford.ed  2025-06-13T04:45:52.736Z 
+Esther Kamgaing            estherk1@stanford.edu           esther.kamgaing@alumni.stanfor  esther.kamgaing@alumni.gsb.sta  2025-06-13T04:44:03.187Z 
+Valerie Fanelle            vfanelle@stanford.edu           vfanelle@alumni.stanford.edu    vfanelle@alumni.gsb.stanford.e  2025-06-13T04:33:18.547Z 
+Fernando Mata              fmata@stanford.edu              fmata@alumni.stanford.edu       fmata@alumni.gsb.stanford.edu   2025-06-12T21:34:24.242Z 
+Rachel Hersh               rhersh@stanford.edu             rhersh@alumni.stanford.edu      rhersh@alumni.gsb.stanford.edu  2025-06-12T17:35:52.327Z 
+Katharine Jessiman-Ketcha  kwjk@stanford.edu                                                                               2025-06-12T16:17:38.731Z 
+Mason Montgomery           mmont@stanford.edu              mmont@alumni.stanford.edu       mmont@alumni.gsb.stanford.edu   2025-06-12T14:57:50.140Z 
+Anirudh Pennathur          anipenn@stanford.edu            anipenn@alumni.stanford.edu     anipenn@alumni.gsb.stanford.ed  2025-06-12T07:44:30.137Z 
+Avis Chan                  chanavis@stanford.edu           chanavis@alumni.stanford.edu    chanavis@alumni.gsb.stanford.e  2025-06-12T03:02:38.107Z 
+Jessica Garcia             jessga@stanford.edu             jessga@alumni.stanford.edu      jessga@alumni.gsb.stanford.edu  2025-06-12T02:59:12.715Z 
+Matt Murphy                murphymd@stanford.edu           murphymd@alumni.stanford.edu    murphymd@alumni.gsb.stanford.e  2025-06-12T02:04:59.200Z 
+Caroline Levy              clevy25@stanford.edu            clevy25@alumni.stanford.edu     clevy25@alumni.gsb.stanford.ed  2025-06-12T01:42:27.123Z 
+Walter Woo                 woow@stanford.edu               woow@alumni.stanford.edu        woow@alumni.gsb.stanford.edu    2025-06-12T01:32:53.480Z 
+Savannah Baum              savbaum@stanford.edu                                                                            2025-06-12T01:25:02.035Z 
+Pragati Rastogi            pragatir@stanford.edu           pragatir@alumni.stanford.edu    pragatir@alumni.gsb.stanford.e  2025-06-12T01:22:14.606Z 
+Omer Doron                 omerd@stanford.edu              omerd@alumni.stanford.edu       omerd@alumni.gsb.stanford.edu   2025-06-12T01:12:53.106Z 
+Mohammed Azhari            moazhari@stanford.edu           moazhari@alumni.stanford.edu    moazhari@alumni.gsb.stanford.e  2025-06-12T00:59:18.416Z 
+Toshi Imamura              imatoshi@stanford.edu           imatoshi@alumni.stanford.edu    imatoshi@alumni.gsb.stanford.e  2025-06-12T00:16:17.671Z 
+Maha Al Fahim              mfahim@stanford.edu             mfahim@alumni.stanford.edu      mfahim@alumni.gsb.stanford.edu  2025-06-12T00:15:25.335Z 
+Test Account               testaccount@stanford.edu                                                                        N/A                      
