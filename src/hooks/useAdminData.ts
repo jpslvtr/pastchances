@@ -3,8 +3,8 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import { findUserByName } from '../utils/adminUtils';
 import type { UserData, UserClass } from '../types/userTypes';
+import { findUserByName, isAdminEmail } from '../utils/adminUtils';
 
 interface CrusherInfo {
     name: string;
@@ -35,7 +35,7 @@ interface ClassAnalyticsData {
     topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
     topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
     inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }>;
-    activeUsersLast24h: number; // Percentage of active users who were active in last 24h
+    activeUsersLast24h: number;
 }
 
 export const useAdminData = (user: any, currentClassView: UserClass, refreshKey: number) => {
@@ -81,7 +81,6 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
             }
         });
 
-        // Percentage of active users (signed-up students) who were active in last 24h
         return Number((recentlyActiveCount / activeUsers.length * 100).toFixed(2));
     }, []);
 
@@ -90,16 +89,12 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
             !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
         ) as UserData[];
 
-        // Filter users by class - these are the "active users" (signed up students)
         const classUsers = realUsers.filter(user => (user.userClass || 'gsb') === targetClass);
 
-        // Get class size
         const totalClassSize = targetClass === 'gsb' ? GSB_CLASS_NAMES.length : UNDERGRAD_CLASS_NAMES.length;
 
-        // Basic stats
         const totalUsers = classUsers.length;
 
-        // Calculate matches within class
         const classPairs = new Set<string>();
 
         classUsers.forEach(user => {
@@ -116,7 +111,6 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
         const totalMatches = classPairs.size;
         const matchedPairs = Array.from(classPairs).sort();
 
-        // Calculate crush statistics for class
         let totalCrushes = 0;
 
         classUsers.forEach(user => {
@@ -154,15 +148,12 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
         const peopleWithCrushes = Array.from(crushCounts.keys()).filter(name => crushCounts.get(name)! > 0).length;
         const avgCrushes = totalUsers > 0 ? totalCrushes / totalUsers : 0;
 
-        // User activity stats
         const usersWithCrushes = classUsers.filter(user => user.crushes.length > 0).length;
         const usersWithMatches = classUsers.filter(user => user.matches.length > 0).length;
 
-        // Participation rates
         const participationRate = totalUsers > 0 ? (usersWithCrushes / totalUsers * 100) : 0;
         const classParticipationRate = totalClassSize > 0 ? (usersWithCrushes / totalClassSize * 100) : 0;
 
-        // Find orphaned crushes
         const orphanedCrushes: string[] = [];
         const allCrushNames = new Set<string>();
 
@@ -180,7 +171,6 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
             }
         });
 
-        // Top crush receivers (limit for performance)
         const topCrushReceivers = Array.from(crushCounts.entries())
             .map(([name, count]) => ({
                 name,
@@ -190,7 +180,6 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
             .sort((a, b) => b.count - a.count)
             .slice(0, 25);
 
-        // Top crush senders (limit for performance)
         const topCrushSenders = classUsers
             .map(user => ({
                 name: user.name,
@@ -200,7 +189,6 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
             .sort((a, b) => b.count - a.count)
             .slice(0, 25);
 
-        // Inactive receivers
         const inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }> = [];
 
         classUsers.forEach(user => {
@@ -263,7 +251,7 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
     }, [allUsers, calculateRealTime24hActiveUsers]);
 
     const loadAllUsers = useCallback(async () => {
-        if (user?.email !== 'jpark22@stanford.edu') {
+        if (!isAdminEmail(user?.email)) {
             return;
         }
 
@@ -281,12 +269,10 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
                 });
             });
 
-            // Create inactive and ghost users only for the current class
             const realUserNames = new Set(realUsers.map(u => u.name).filter(Boolean));
             const inactiveUsers: InactiveUser[] = [];
             const ghostUsers: GhostUser[] = [];
 
-            // Only process the current class roster
             const currentClassNames = currentClassView === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
 
             currentClassNames.forEach(className => {
@@ -343,25 +329,21 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
                 }
             });
 
-            // Filter all users to only include the current class
             const currentClassRealUsers = realUsers.filter(user => (user.userClass || 'gsb') === currentClassView);
             const allUsersArray = [...currentClassRealUsers, ...inactiveUsers, ...ghostUsers];
 
-            // Sort alphabetically within each type
             allUsersArray.sort((a, b) => {
                 const aIsInactive = (a as InactiveUser).isInactive || false;
                 const bIsInactive = (b as InactiveUser).isInactive || false;
                 const aIsGhost = (a as GhostUser).isGhost || false;
                 const bIsGhost = (b as GhostUser).isGhost || false;
 
-                // Active users first, then inactive, then ghost
                 if (!aIsInactive && !aIsGhost && (bIsInactive || bIsGhost)) return -1;
                 if ((aIsInactive || aIsGhost) && !bIsInactive && !bIsGhost) return 1;
 
                 if (aIsInactive && !bIsInactive && bIsGhost) return -1;
                 if (!aIsInactive && aIsGhost && bIsInactive) return 1;
 
-                // Then alphabetically
                 const nameA = a.name || a.email || '';
                 const nameB = b.name || b.email || '';
                 return nameA.localeCompare(nameB);
@@ -377,14 +359,13 @@ export const useAdminData = (user: any, currentClassView: UserClass, refreshKey:
     }, [normalizeName, user?.email, currentClassView]);
 
     useEffect(() => {
-        if (user?.email === 'jpark22@stanford.edu') {
+        if (isAdminEmail(user?.email)) {
             loadAllUsers();
         }
     }, [user, loadAllUsers]);
 
-    // Calculate analytics for current class only
     useEffect(() => {
-        if (allUsers.length > 0 && user?.email === 'jpark22@stanford.edu') {
+        if (allUsers.length > 0 && isAdminEmail(user?.email)) {
             setLoadingAnalytics(true);
 
             const timeoutId = setTimeout(() => {

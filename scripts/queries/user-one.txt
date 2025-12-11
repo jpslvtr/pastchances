@@ -1,0 +1,49 @@
+
+=== User detail for name: "james park" ===
+
+--- Summary ---
+id          : oGkvzhQB9qeYAxC5irU7jDFf5P32_gsb
+name        : James Park
+email       : jpark22@stanford.edu
+userClass   : gsb
+lastLogin   : 2025-12-10T22:25:23.907Z
+crushCount  : 5
+matchCount  : 1
+
+--- Full document ---
+{
+  "uid": "oGkvzhQB9qeYAxC5irU7jDFf5P32_gsb",
+  "email": "jpark22@stanford.edu",
+  "photoURL": "https://lh3.googleusercontent.com/a/ACg8ocJWOpw_gLwVMWkxA00Br9A_QpLaetV4vDpiH4RC78uXen5pHgTv=s96-c",
+  "userClass": "gsb",
+  "createdAt": {
+    "_seconds": 1750535857,
+    "_nanoseconds": 542000000
+  },
+  "name": "James Park",
+  "lockedCrushes": [
+    "Test Account"
+  ],
+  "crushes": [
+    "Max Zhou",
+    "Stefano Schiappacasse",
+    "Test Account"
+  ],
+  "matches": [
+    {
+      "name": "Test Account",
+      "email": "testaccount@stanford.edu"
+    }
+  ],
+  "crushCount": 5,
+  "updatedAt": {
+    "_seconds": 1764436883,
+    "_nanoseconds": 564000000
+  },
+  "emailAlumniGSB": "jamespark@alumni.gsb.stanford.edu",
+  "emailAlumni": "jamespark@alumni.stanford.edu",
+  "lastLogin": {
+    "_seconds": 1765405523,
+    "_nanoseconds": 907000000
+  }
+}

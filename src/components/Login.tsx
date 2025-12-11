@@ -1,31 +1,49 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import type { UserClass } from '../types/userTypes';
 
 const Login: React.FC = () => {
-    const { signInWithGoogle } = useAuth();
+    const { signInWithGoogle, user, loading } = useAuth();
+    const navigate = useNavigate();
 
-    const handleSignIn = (userClass: UserClass) => {
-        signInWithGoogle(userClass);
+    useEffect(() => {
+        if (!loading && user) {
+            console.log('User authenticated, redirecting to app');
+            navigate('/');
+        }
+    }, [user, loading, navigate]);
+
+    const handleSignIn = async () => {
+        await signInWithGoogle();
     };
 
     return (
         <div className="login-container">
             <div className="login-card">
                 <h1>Past Chances</h1>
-                <br></br>
+                <h2>Stanford GSB MBA & Undergraduate Class of 2025</h2>
                 <p>
-                    Share your crushes anonymously and see if there's a mutual connection 👀
-                    <br></br>
-                    <br></br>
-                    The site will remain active until our Stanford accounts expire in October 2025
+                    Share your crushes anonymously and see if there's a mutual connection.
                 </p>
+
+                <div className="class-indicator">
+                    {/* <div className="class-badge">Select Your Class</div> */}
+                </div>
+
                 <div className="login-content">
-                    <p>Select your class:</p>
+                    <p style={{
+                        fontSize: '13px',
+                        color: '#666',
+                        marginBottom: '16px',
+                        lineHeight: '1.4'
+                    }}>
+                        Feel free to sign in with your @stanford.edu if you still have access,
+                        or your @alumni.stanford.edu or @alumni.gsb.stanford.edu
+                    </p>
 
                     <button
                         className="google-signin-btn"
-                        onClick={() => handleSignIn('gsb')}
+                        onClick={handleSignIn}
                     >
                         <svg className="google-icon" viewBox="0 0 24 24">
                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -36,9 +54,9 @@ const Login: React.FC = () => {
                         GSB MBA Class of 2025
                     </button>
 
-                    <button
+                    {/* <button
                         className="google-signin-btn"
-                        onClick={() => handleSignIn('undergrad')}
+                        onClick={handleSignIn}
                     >
                         <svg className="google-icon" viewBox="0 0 24 24">
                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -47,7 +65,7 @@ const Login: React.FC = () => {
                             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                         </svg>
                         Undergraduate Class of 2025
-                    </button>
+                    </button> */}
                 </div>
             </div>
         </div>

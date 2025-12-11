@@ -1,4 +1,40 @@
+import type { User } from 'firebase/auth';
 import type { UserData, UserClass } from '../types/userTypes';
+
+const ADMIN_EMAILS = [
+    'jpark22@stanford.edu',
+    'jamespark@alumni.stanford.edu',
+    'jamespark@alumni.gsb.stanford.edu'
+];
+
+export const isAdminUser = (user: User | null, userData: UserData | null): boolean => {
+    if (!user) return false;
+
+    const currentEmail = user.email?.toLowerCase() || '';
+
+    if (ADMIN_EMAILS.includes(currentEmail)) {
+        return true;
+    }
+
+    if (userData) {
+        const dbEmail = userData.email?.toLowerCase() || '';
+        const dbEmailAlumni = userData.emailAlumni?.toLowerCase() || '';
+        const dbEmailAlumniGSB = userData.emailAlumniGSB?.toLowerCase() || '';
+
+        return ADMIN_EMAILS.includes(dbEmail) ||
+            ADMIN_EMAILS.includes(dbEmailAlumni) ||
+            ADMIN_EMAILS.includes(dbEmailAlumniGSB);
+    }
+
+    return false;
+};
+
+export const isAdminEmail = (email: string | undefined | null): boolean => {
+    if (!email) return false;
+
+    const normalized = email.toLowerCase();
+    return ADMIN_EMAILS.includes(normalized);
+};
 
 interface InactiveUser extends UserData {
     isInactive: boolean;
@@ -8,8 +44,7 @@ interface GhostUser extends UserData {
     isGhost: boolean;
 }
 
-// Helper function to normalize names for case-insensitive comparison
-export function normalizeName(name: string): string {
+function normalizeName(name: string): string {
     if (!name || typeof name !== 'string') return '';
 
     return name
@@ -22,7 +57,6 @@ export function normalizeName(name: string): string {
         .trim();
 }
 
-// Enhanced function to find the best matching user for a crush name
 export function findUserByName(
     crushName: string,
     allUsers: (UserData | InactiveUser | GhostUser)[],
@@ -32,12 +66,10 @@ export function findUserByName(
 
     const normalizedCrush = normalizeName(crushName);
 
-    // Filter by class if specified
     const filteredUsers = userClass
         ? allUsers.filter(user => (user.userClass || 'gsb') === userClass)
         : allUsers;
 
-    // Try exact match on name field
     let match = filteredUsers.find(user =>
         user.name &&
         normalizeName(user.name) === normalizedCrush
@@ -45,7 +77,6 @@ export function findUserByName(
 
     if (match) return match;
 
-    // Try partial match (first and last name only)
     const crushParts = normalizedCrush.split(' ');
     if (crushParts.length >= 2) {
         const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
@@ -65,7 +96,31 @@ export function findUserByName(
     return match || null;
 }
 
-// Helper function to get user's identity name
-export function getUserIdentityName(user: UserData | InactiveUser | GhostUser): string {
-    return user.name || '';
-}
+export const formatDate = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
+export const calculateStats = (users: UserData[]) => {
+    const totalUsers = users.length;
+    const usersWithCrushes = users.filter(u => u.crushes && u.crushes.length > 0).length;
+    const usersWithMatches = users.filter(u => u.matches && u.matches.length > 0).length;
+    const totalCrushes = users.reduce((sum, u) => sum + (u.crushes?.length || 0), 0);
+    const totalMatches = users.reduce((sum, u) => sum + (u.matches?.length || 0), 0);
+
+    return {
+        totalUsers,
+        usersWithCrushes,
+        usersWithMatches,
+        totalCrushes,
+        totalMatches,
+        avgCrushesPerUser: totalUsers > 0 ? (totalCrushes / totalUsers).toFixed(2) : '0.00',
+        avgMatchesPerUser: totalUsers > 0 ? (totalMatches / totalUsers).toFixed(2) : '0.00'
+    };
+};

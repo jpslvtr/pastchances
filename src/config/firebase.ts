@@ -19,10 +19,10 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const analytics = getAnalytics(app);
 
-// Configure Google provider to only allow stanford.edu emails
+// Configure Google provider to show account picker
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
-    hd: 'stanford.edu' // This restricts to stanford.edu domain
+    prompt: 'select_account' // Force account picker instead of auto-selecting
 });
 
 // Additional configuration for cross-domain compatibility

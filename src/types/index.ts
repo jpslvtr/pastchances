@@ -9,6 +9,8 @@ export interface MatchInfo {
 export interface UserData {
     uid: string;
     email: string;
+    emailAlumni?: string;
+    emailAlumniGSB?: string;
     name: string;
     photoURL: string;
     crushes: string[];
@@ -45,23 +47,6 @@ export interface ClassAnalyticsData {
     matchedPairs: string[];
     totalCrushes: number;
     peopleWithCrushes: number;
-    avgCrushes: number;
-    usersWithCrushes: number;
-    usersWithMatches: number;
-    participationRate: number;
-    classParticipationRate: number;
-    orphanedCrushes: string[];
-    topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
-    topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
-    inactiveReceivers: Array<{
-        name: string;
-        email: string;
-        crushCount: number;
-        reason: string;
-        crushers: CrusherInfo[]
-    }>;
-    activeUsersLast24h: number;
+    matchRate: number;
+    crushRate: number;
 }
-
-export type ViewMode = 'analytics' | 'users';
-export type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';

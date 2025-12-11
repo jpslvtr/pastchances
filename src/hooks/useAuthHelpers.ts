@@ -17,7 +17,8 @@ export const useAuthHelpers = () => {
             } else if (match && typeof match === 'object' && match.name && match.email) {
                 return {
                     name: match.name,
-                    email: match.email
+                    email: match.email,
+                    matchedAt: match.matchedAt
                 };
             } else {
                 return {
@@ -28,16 +29,15 @@ export const useAuthHelpers = () => {
         });
     }, []);
 
-    // Helper function to get the correct document ID for user class
     const getUserDocumentId = useCallback((user: User, userClass: UserClass): string => {
-        if (user.email === 'jpark22@stanford.edu') {
-            // For test user, always use class-specific UIDs to ensure complete separation
+        if (user.email === 'jpark22@stanford.edu' ||
+            user.email === 'jamespark@alumni.stanford.edu' ||
+            user.email === 'jamespark@alumni.gsb.stanford.edu') {
             return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
         }
         return user.uid;
     }, []);
 
-    // Helper functions for localStorage to remember last used class
     const getLastUsedClass = useCallback((): UserClass | null => {
         try {
             return localStorage.getItem('lastUsedClass') as UserClass | null;
@@ -46,7 +46,7 @@ export const useAuthHelpers = () => {
         }
     }, []);
 
-    const setLastUsedClass = useCallback((userClass: UserClass): void => {
+    const setLastUsedClass = useCallback((userClass: UserClass) => {
         try {
             localStorage.setItem('lastUsedClass', userClass);
         } catch {
@@ -58,7 +58,6 @@ export const useAuthHelpers = () => {
         normalizeMatches,
         getUserDocumentId,
         getLastUsedClass,
-        setLastUsedClass,
-        DEFAULT_PROFILE_URL
+        setLastUsedClass
     };
 };

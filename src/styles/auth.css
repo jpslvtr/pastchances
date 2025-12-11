@@ -110,6 +110,280 @@
   letter-spacing: 0.5px;
 }
 
+/* Account Linking styles */
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #8C1515 0%, #B83A4B 100%);
+}
+
+.auth-card {
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  width: 100%;
+  max-width: 500px;
+}
+
+.auth-card.linking-card {
+  max-width: 900px;
+}
+
+.auth-card h1 {
+  color: #8C1515;
+  margin-bottom: 12px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.auth-email {
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.auth-email strong {
+  color: #8C1515;
+}
+
+.error-banner {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 12px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  border-left: 4px solid #dc3545;
+}
+
+.linking-banner {
+  background: #d1ecf1;
+  color: #0c5460;
+  padding: 12px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  border-left: 4px solid #17a2b8;
+}
+
+.linking-instructions {
+  color: #666;
+  margin-bottom: 24px;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.account-matches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+.account-match-card {
+  background: white;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.account-match-card:hover:not(:disabled) {
+  border-color: #8C1515;
+  background: #fff5f5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(140, 21, 21, 0.1);
+}
+
+.account-match-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.match-name {
+  font-weight: 600;
+  color: #8C1515;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.match-email {
+  font-size: 12px;
+  color: #666;
+  word-break: break-word;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 24px 0;
+  color: #999;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.divider span {
+  padding: 0 16px;
+}
+
+.new-account-btn {
+  width: 100%;
+  padding: 14px 20px;
+  background: #8C1515;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 16px;
+}
+
+.new-account-btn:hover:not(:disabled) {
+  background: #a01a1a;
+  box-shadow: 0 4px 12px rgba(140, 21, 21, 0.2);
+}
+
+.new-account-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.signout-link {
+  background: transparent;
+  color: #666;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.signout-link:hover:not(:disabled) {
+  color: #8C1515;
+}
+
+.signout-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Confirmation Screen */
+.confirmation-box {
+  background: #f8f9fa;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.confirmation-question {
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.selected-account-display {
+  background: white;
+  border: 2px solid #8C1515;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.selected-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #8C1515;
+  margin-bottom: 8px;
+}
+
+.selected-email {
+  font-size: 14px;
+  color: #666;
+}
+
+.confirmation-buttons {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.confirm-btn {
+  flex: 1;
+  padding: 14px 20px;
+  background: #8C1515;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.confirm-btn:hover:not(:disabled) {
+  background: #a01a1a;
+  box-shadow: 0 4px 12px rgba(140, 21, 21, 0.2);
+}
+
+.confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  flex: 1;
+  padding: 14px 20px;
+  background: white;
+  color: #8C1515;
+  border: 2px solid #8C1515;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: #fff5f5;
+  border-color: #a01a1a;
+  color: #a01a1a;
+}
+
+.cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Name Verification styles */
 .verification-container {
   min-height: 100vh;
@@ -241,24 +515,29 @@
   margin-top: 15px;
 }
 
-/* Mobile-specific login improvements */
+/* Mobile responsive */
 @media (max-width: 768px) {
-  .login-container {
+  .login-container,
+  .auth-container {
     min-height: 100vh;
     padding: 20px 15px;
     align-items: flex-start;
-    padding-top: 15vh;
+    padding-top: 10vh;
   }
   
-  .login-card {
+  .login-card,
+  .auth-card {
     padding: 30px 25px;
-    max-width: 380px;
-    margin: 0 auto;
+  }
+
+  .auth-card.linking-card {
+    max-width: 100%;
   }
   
-  .login-card h1 {
+  .login-card h1,
+  .auth-card h1 {
     font-size: 24px;
-    margin-bottom: 6px;
+    margin-bottom: 10px;
   }
   
   .login-card h2 {
@@ -281,20 +560,49 @@
     width: 18px;
     height: 18px;
   }
+
+  .account-matches-grid {
+    grid-template-columns: 1fr;
+    max-height: 300px;
+  }
+
+  .linking-instructions {
+    font-size: 13px;
+  }
+
+  .new-account-btn {
+    font-size: 15px;
+    padding: 12px 18px;
+  }
+
+  .confirmation-buttons {
+    flex-direction: column;
+  }
+
+  .selected-name {
+    font-size: 18px;
+  }
+
+  .confirmation-question {
+    font-size: 15px;
+  }
 }
 
 @media (max-width: 480px) {
-  .login-container {
+  .login-container,
+  .auth-container {
     padding: 15px 10px;
-    padding-top: 12vh;
+    padding-top: 8vh;
   }
   
-  .login-card {
+  .login-card,
+  .auth-card {
     padding: 25px 20px;
     border-radius: 8px;
   }
   
-  .login-card h1 {
+  .login-card h1,
+  .auth-card h1 {
     font-size: 22px;
   }
   
@@ -307,21 +615,69 @@
     margin-bottom: 20px;
   }
   
-  .google-signin-btn {
+  .google-signin-btn,
+  .new-account-btn,
+  .confirm-btn,
+  .cancel-btn {
     padding: 11px 16px;
     font-size: 13px;
+  }
+
+  .google-signin-btn {
     gap: 10px;
+  }
+
+  .auth-email {
+    font-size: 14px;
+  }
+
+  .account-matches-grid {
+    gap: 8px;
+  }
+
+  .account-match-card {
+    padding: 12px;
+  }
+
+  .match-name {
+    font-size: 14px;
+  }
+
+  .match-email {
+    font-size: 11px;
+  }
+
+  .confirmation-box {
+    padding: 20px;
+  }
+
+  .selected-account-display {
+    padding: 16px;
+  }
+
+  .selected-name {
+    font-size: 16px;
+  }
+
+  .selected-email {
+    font-size: 13px;
   }
 }
 
 @media (max-height: 600px) {
-  .login-container {
-    padding-top: 8vh;
+  .login-container,
+  .auth-container {
+    padding-top: 5vh;
+  }
+
+  .account-matches-grid {
+    max-height: 250px;
   }
 }
 
 @media (max-height: 500px) {
-  .login-container {
-    padding-top: 5vh;
+  .login-container,
+  .auth-container {
+    padding-top: 3vh;
   }
 }

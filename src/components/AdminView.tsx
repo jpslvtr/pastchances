@@ -6,6 +6,7 @@ import AdminUsers from './admin/AdminUsers';
 import { useAdminData } from '../hooks/useAdminData';
 import { useAdminUtils } from '../hooks/useAdminUtils';
 import type { UserData, UserClass } from '../types/userTypes';
+import { isAdminUser } from '../utils/adminUtils';
 
 type ViewMode = 'analytics' | 'users';
 type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
@@ -41,12 +42,12 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
 
     // Strict admin access control
     useEffect(() => {
-        if (user?.email !== 'jpark22@stanford.edu') {
+        if (!isAdminUser(user, userData)) {
             setAdminAccessDenied(true);
             return;
         }
         setAdminAccessDenied(false);
-    }, [user?.email]);
+    }, [user, userData]);
 
     // Early return for non-admin users
     if (adminAccessDenied) {
@@ -62,7 +63,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
     }
 
     // Only proceed with admin functionality if user is confirmed admin
-    if (user?.email !== 'jpark22@stanford.edu') {
+    if (!isAdminUser(user, userData)) { 
         return (
             <div className="admin-loading">
                 Verifying admin access...
@@ -72,7 +73,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
 
     // Set up real-time listener for analytics with error handling and admin check
     useEffect(() => {
-        if (user?.email !== 'jpark22@stanford.edu') return;
+        if (!isAdminUser(user, userData)) return;
 
         const analyticsQuery = query(
             collection(db, 'analytics'),

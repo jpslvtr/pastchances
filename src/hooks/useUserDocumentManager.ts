@@ -1,258 +1,218 @@
 import { useCallback } from 'react';
 import type { User } from 'firebase/auth';
-import { signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
-import { GSB_CLASS_NAMES } from '../data/names';
-import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import { useAuthHelpers } from './useAuthHelpers';
-import type { UserData, UserClass } from '../types/userTypes';
-
-// Helper function to normalize names for comparison
-function normalizeName(name: string): string {
-    if (!name || typeof name !== 'string') return '';
-
-    return name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-// Helper function to find potential name matches
-function findNameMatches(displayName: string, availableNames: string[]): { exactMatch?: string; potentialMatches: string[] } {
-    const normalizedInput = normalizeName(displayName);
-
-    // Try exact match first
-    const exactMatch = availableNames.find(name =>
-        normalizeName(name) === normalizedInput
-    );
-
-    if (exactMatch) {
-        return { exactMatch, potentialMatches: [] };
-    }
-
-    // If no exact match, look for potential matches
-    const inputParts = normalizedInput.split(' ').filter(Boolean);
-    if (inputParts.length < 2) {
-        return { potentialMatches: [] };
-    }
-
-    const inputFirst = inputParts[0];
-    const inputLast = inputParts[inputParts.length - 1];
-
-    const potentialMatches = availableNames.filter(name => {
-        const normalizedName = normalizeName(name);
-        const nameParts = normalizedName.split(' ').filter(Boolean);
-
-        if (nameParts.length < 2) return false;
-
-        const nameFirst = nameParts[0];
-        const nameLast = nameParts[nameParts.length - 1];
-
-        return nameFirst === inputFirst && nameLast === inputLast;
-    });
-
-    return { potentialMatches };
-}
+import { db } from '../config/firebase';
+import type { UserClass } from '../types/userTypes';
+import { getClassNames } from '../utils';
+import { findUserByEmail, normalizeEmail, isAlumniEmail, getEmailPrefix, generateAlumniEmails } from '../utils/emailUtils';
 
 export const useUserDocumentManager = (
     setNameOptions: (options: string[] | null) => void,
     setPendingUserClass: (userClass: UserClass | null) => void,
-    setLastUsedClass: (userClass: UserClass) => void
+    setLastUsedClass: (userClass: UserClass) => void,
+    setNeedsAccountLinking: (needs: boolean) => void,
+    setLinkedDocId: (id: string | null) => void
 ) => {
-    const { getUserDocumentId, normalizeMatches, DEFAULT_PROFILE_URL } = useAuthHelpers();
-
     const createOrUpdateUserDocument = useCallback(async (user: User, userClass: UserClass) => {
-        if (!user.uid) return null;
-
-        // Remember which class was selected for login
-        setLastUsedClass(userClass);
-
         try {
-            // Special handling for test user (you) - always use class-specific UIDs
-            if (user.email === 'jpark22@stanford.edu') {
-                const actualUid = getUserDocumentId(user, userClass);
-                const userRef = doc(db, 'users', actualUid);
-                const userDoc = await getDoc(userRef);
+            console.log('=== START createOrUpdateUserDocument ===');
+            console.log('createOrUpdateUserDocument called with:', {
+                email: user.email,
+                uid: user.uid,
+                userClass
+            });
 
-                if (!userDoc.exists()) {
-                    // Create completely new user document for this class
-                    const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
-                    const displayName = user.displayName || user.email?.split('@')[0] || '';
-
-                    const { exactMatch, potentialMatches } = findNameMatches(displayName, classNames);
-
-                    if (exactMatch) {
-                        console.log(`Creating fresh ${userClass} account with name: ${exactMatch}`);
-                        const newUserData: UserData = {
-                            uid: actualUid,
-                            email: user.email || '',
-                            name: exactMatch,
-                            photoURL: user.photoURL || DEFAULT_PROFILE_URL,
-                            crushes: [], // Start fresh - no crushes
-                            lockedCrushes: [], // Start fresh - no locked crushes
-                            matches: [], // Start fresh - no matches
-                            crushCount: 0, // Start fresh - no crush count
-                            userClass: userClass,
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp(),
-                            lastLogin: serverTimestamp()
-                        };
-
-                        await setDoc(userRef, newUserData);
-                        // Real-time listener will handle the update
-                        console.log(`Successfully created fresh ${userClass} account`);
-                        return newUserData;
-                    } else if (potentialMatches.length > 0) {
-                        console.log(`Multiple matches found for ${userClass}, showing selection`);
-                        setNameOptions(potentialMatches);
-                        setPendingUserClass(userClass);
-
-                        const incompleteUserData: UserData = {
-                            uid: actualUid,
-                            email: user.email || '',
-                            name: '', // Will be set when user selects
-                            photoURL: user.photoURL || DEFAULT_PROFILE_URL,
-                            crushes: [], // Start fresh
-                            lockedCrushes: [], // Start fresh
-                            matches: [], // Start fresh
-                            crushCount: 0, // Start fresh
-                            userClass: userClass,
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp(),
-                            lastLogin: serverTimestamp()
-                        };
-
-                        await setDoc(userRef, incompleteUserData);
-                        // Real-time listener will handle the update
-                        return incompleteUserData;
-                    } else {
-                        await signOut(auth);
-                        const className = userClass === 'gsb' ? 'GSB Class of 2025' : 'Undergraduate Class of 2025';
-                        alert(`Your name was not found in the ${className} roster. If this is a mistake, please contact jpark22@stanford.edu.`);
-                        return null;
-                    }
-                } else {
-                    // Document exists, just update login time (don't modify crushes/matches)
-                    const existingData = userDoc.data();
-                    console.log(`Using existing ${userClass} account for ${existingData.name}`);
-
-                    const updatedData: UserData = {
-                        uid: existingData.uid,
-                        email: existingData.email,
-                        name: existingData.name || existingData.verifiedName || existingData.displayName || '',
-                        photoURL: user.photoURL || existingData.photoURL || DEFAULT_PROFILE_URL,
-                        crushes: existingData.crushes || [],
-                        lockedCrushes: existingData.lockedCrushes || [],
-                        matches: normalizeMatches(existingData.matches || []),
-                        crushCount: existingData.crushCount || 0,
-                        userClass: existingData.userClass || userClass,
-                        createdAt: existingData.createdAt,
-                        updatedAt: serverTimestamp(),
-                        lastLogin: serverTimestamp()
-                    };
-
-                    await setDoc(userRef, updatedData, { merge: true });
-                    // Real-time listener will handle the update
-                    return updatedData;
-                }
-            } else {
-                // Regular user flow for everyone else
-                const userRef = doc(db, 'users', user.uid);
-                const userDoc = await getDoc(userRef);
-
-                if (!userDoc.exists()) {
-                    // New user
-                    const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
-                    const displayName = user.displayName || user.email?.split('@')[0] || '';
-                    const { exactMatch, potentialMatches } = findNameMatches(displayName, classNames);
-
-                    if (exactMatch) {
-                        const newUserData: UserData = {
-                            uid: user.uid,
-                            email: user.email || '',
-                            name: exactMatch,
-                            photoURL: user.photoURL || DEFAULT_PROFILE_URL,
-                            crushes: [],
-                            lockedCrushes: [],
-                            matches: [],
-                            crushCount: 0,
-                            userClass: userClass,
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp(),
-                            lastLogin: serverTimestamp()
-                        };
-
-                        await setDoc(userRef, newUserData);
-                        // Real-time listener will handle the update
-                        return newUserData;
-                    } else if (potentialMatches.length > 0) {
-                        setNameOptions(potentialMatches);
-                        setPendingUserClass(userClass);
-
-                        const incompleteUserData: UserData = {
-                            uid: user.uid,
-                            email: user.email || '',
-                            name: '',
-                            photoURL: user.photoURL || DEFAULT_PROFILE_URL,
-                            crushes: [],
-                            lockedCrushes: [],
-                            matches: [],
-                            crushCount: 0,
-                            userClass: userClass,
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp(),
-                            lastLogin: serverTimestamp()
-                        };
-
-                        await setDoc(userRef, incompleteUserData);
-                        // Real-time listener will handle the update
-                        return incompleteUserData;
-                    } else {
-                        await signOut(auth);
-                        const className = userClass === 'gsb' ? 'GSB Class of 2025' : 'Undergraduate Class of 2025';
-                        alert(`Your name was not found in the ${className} roster. If this is a mistake, please contact jpark22@stanford.edu.`);
-                        return null;
-                    }
-                } else {
-                    // Existing user - check if they're trying wrong class
-                    const existingData = userDoc.data();
-                    if (existingData.userClass && existingData.userClass !== userClass) {
-                        await signOut(auth);
-                        const existingClassName = existingData.userClass === 'gsb' ? 'GSB' : 'Undergraduate';
-                        alert(`You are already registered as a ${existingClassName} student. Please sign in with the ${existingClassName} option.`);
-                        return null;
-                    }
-
-                    const updatedData: UserData = {
-                        uid: existingData.uid,
-                        email: existingData.email,
-                        name: existingData.name || existingData.verifiedName || existingData.displayName || '',
-                        photoURL: user.photoURL || existingData.photoURL || DEFAULT_PROFILE_URL,
-                        crushes: existingData.crushes || [],
-                        lockedCrushes: existingData.lockedCrushes || [],
-                        matches: normalizeMatches(existingData.matches),
-                        crushCount: existingData.crushCount || 0,
-                        userClass: existingData.userClass || userClass,
-                        createdAt: existingData.createdAt,
-                        updatedAt: serverTimestamp(),
-                        lastLogin: serverTimestamp()
-                    };
-
-                    await setDoc(userRef, updatedData, { merge: true });
-                    // Real-time listener will handle the update
-                    return updatedData;
-                }
+            if (!user.email) {
+                console.log('No email, returning early');
+                return;
             }
-        } catch (error) {
-            console.error('Error creating/updating user document:', error);
-            return null;
-        }
-    }, [getUserDocumentId, normalizeMatches, DEFAULT_PROFILE_URL, setNameOptions, setPendingUserClass, setLastUsedClass]);
 
-    return { createOrUpdateUserDocument };
+            const signInEmail = normalizeEmail(user.email);
+            console.log('Normalized email:', signInEmail);
+
+            console.log('About to call findUserByEmail...');
+            const lookupResult = await findUserByEmail(signInEmail);
+            console.log('Lookup result:', lookupResult);
+
+            if (lookupResult.docId && lookupResult.userData) {
+                console.log('Found existing user, updating lastLogin');
+                const userRef = doc(db, 'users', lookupResult.docId);
+                await setDoc(userRef, {
+                    lastLogin: serverTimestamp()
+                }, { merge: true });
+                console.log('Updated lastLogin successfully');
+
+                setLastUsedClass(lookupResult.userData.userClass || userClass);
+                setNeedsAccountLinking(false);
+                console.log('=== END createOrUpdateUserDocument (existing user) ===');
+                return;
+            }
+
+            console.log('No existing user found');
+            if (isAlumniEmail(signInEmail)) {
+                console.log('Is alumni email, setting needsAccountLinking');
+                setNeedsAccountLinking(true);
+                setPendingUserClass(userClass);
+                console.log('=== END createOrUpdateUserDocument (needs linking) ===');
+                return;
+            }
+
+            console.log('Is Stanford email, checking for existing doc');
+            let actualUid: string;
+            let userRef;
+
+            if (user.email === 'jpark22@stanford.edu') {
+                actualUid = `${user.uid}_${userClass}`;
+                userRef = doc(db, 'users', actualUid);
+                console.log('Test user, using UID:', actualUid);
+            } else {
+                actualUid = user.uid;
+                userRef = doc(db, 'users', actualUid);
+                console.log('Regular user, using UID:', actualUid);
+            }
+
+            console.log('Checking if user doc exists...');
+            const userDoc = await getDoc(userRef);
+            console.log('User doc exists?', userDoc.exists());
+
+            if (userDoc.exists()) {
+                console.log('Doc exists, updating lastLogin');
+                await setDoc(userRef, {
+                    lastLogin: serverTimestamp()
+                }, { merge: true });
+
+                setLastUsedClass(userClass);
+                console.log('=== END createOrUpdateUserDocument (existing doc) ===');
+                return;
+            }
+
+            console.log('Doc does not exist, getting class names');
+            const allNames = await getClassNames(userClass);
+            console.log('Got class names, count:', allNames.length);
+
+            const displayName = user.displayName || '';
+            console.log('Display name:', displayName);
+
+            const nameParts = displayName.trim().split(' ');
+            console.log('Name parts:', nameParts);
+
+            let matchingNames: string[] = [];
+
+            if (nameParts.length >= 2) {
+                const firstName = nameParts[0].toLowerCase();
+                const lastName = nameParts[nameParts.length - 1].toLowerCase();
+                console.log('Searching for first+last:', firstName, lastName);
+
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return lowerName.includes(firstName) && lowerName.includes(lastName);
+                });
+                console.log('First+last matches:', matchingNames.length);
+            }
+
+            if (matchingNames.length === 0) {
+                console.log('No first+last matches, trying partial match');
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return nameParts.some(part =>
+                        part.length > 2 && lowerName.includes(part.toLowerCase())
+                    );
+                });
+                console.log('Partial matches:', matchingNames.length);
+            }
+
+            if (matchingNames.length === 1) {
+                console.log('Exactly one match, creating doc with name:', matchingNames[0]);
+                await setDoc(userRef, {
+                    uid: user.uid,
+                    email: signInEmail,
+                    emailAlumni: '',
+                    emailAlumniGSB: '',
+                    name: matchingNames[0],
+                    photoURL: user.photoURL || '',
+                    crushes: [],
+                    lockedCrushes: [],
+                    matches: [],
+                    crushCount: 0,
+                    userClass: userClass,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    lastLogin: serverTimestamp()
+                });
+                console.log('Doc created successfully');
+
+                setLastUsedClass(userClass);
+                console.log('=== END createOrUpdateUserDocument (new doc created) ===');
+                return;
+            }
+
+            if (matchingNames.length > 1) {
+                console.log('Multiple matches, setting nameOptions');
+                setNameOptions(matchingNames);
+                setPendingUserClass(userClass);
+                console.log('=== END createOrUpdateUserDocument (multiple matches) ===');
+                return;
+            }
+
+            console.log('No matches, showing all names');
+            setNameOptions(allNames);
+            setPendingUserClass(userClass);
+            console.log('=== END createOrUpdateUserDocument (no matches, all names) ===');
+
+        } catch (error) {
+            console.error('!!! ERROR in createOrUpdateUserDocument !!!', error);
+            throw error;
+        }
+    }, [setNameOptions, setPendingUserClass, setLastUsedClass, setNeedsAccountLinking, setLinkedDocId]);
+
+    const createNewAccountWithAlumniEmail = useCallback(async (
+        user: User,
+        userClass: UserClass,
+        selectedName: string
+    ) => {
+        if (!user.email) return;
+
+        const signInEmail = normalizeEmail(user.email);
+        const prefix = getEmailPrefix(signInEmail);
+        const { emailAlumni, emailAlumniGSB } = generateAlumniEmails(prefix);
+
+        const actualUid = user.uid;
+        const userRef = doc(db, 'users', actualUid);
+
+        const userData: any = {
+            uid: user.uid,
+            name: selectedName,
+            photoURL: user.photoURL || '',
+            crushes: [],
+            lockedCrushes: [],
+            matches: [],
+            crushCount: 0,
+            userClass: userClass,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastLogin: serverTimestamp()
+        };
+
+        if (signInEmail.endsWith('@alumni.stanford.edu')) {
+            userData.email = '';
+            userData.emailAlumni = signInEmail;
+            userData.emailAlumniGSB = emailAlumniGSB;
+        } else if (signInEmail.endsWith('@alumni.gsb.stanford.edu')) {
+            userData.email = '';
+            userData.emailAlumni = emailAlumni;
+            userData.emailAlumniGSB = signInEmail;
+        } else {
+            userData.email = signInEmail;
+            userData.emailAlumni = '';
+            userData.emailAlumniGSB = '';
+        }
+
+        await setDoc(userRef, userData);
+        setLastUsedClass(userClass);
+    }, [setLastUsedClass]);
+
+    return {
+        createOrUpdateUserDocument,
+        createNewAccountWithAlumniEmail
+    };
 };
