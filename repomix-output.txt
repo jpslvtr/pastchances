@@ -3661,343 +3661,6 @@ export const SearchInput: React.FC<SearchInputProps> = ({
 };
 
 ================
-File: src/components/AccountLinking.tsx
-================
-import { useState, useEffect } from 'react';
-import type { User as FirebaseUser } from 'firebase/auth';
-import { collection, getDocs, doc, runTransaction } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { normalizeEmail, fuzzyNameMatch, isAlumniEmail } from '../utils/emailUtils';
-import type { UserClass } from '../types';
-
-interface AccountLinkingProps {
-    user: FirebaseUser;
-    userClass: UserClass;
-    onLinkingComplete: () => void;
-    onStartNewAccount: () => void;
-    logout: () => void;
-}
-
-interface PotentialMatch {
-    id: string;
-    name: string;
-    email: string;
-}
-
-const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount, logout }: AccountLinkingProps) => {
-    const [potentialMatches, setPotentialMatches] = useState<PotentialMatch[]>([]);
-    const [filteredMatches, setFilteredMatches] = useState<PotentialMatch[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [linking, setLinking] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [selectedMatch, setSelectedMatch] = useState<PotentialMatch | null>(null);
-
-    useEffect(() => {
-        loadPotentialMatches();
-    }, []);
-
-    useEffect(() => {
-        // Validate alumni email on component mount
-        if (user?.email && !isAlumniEmail(user.email)) {
-            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
-            setLoading(false);
-        }
-    }, [user?.email]);
-
-    const loadPotentialMatches = async () => {
-        try {
-            const usersRef = collection(db, 'users');
-            const snapshot = await getDocs(usersRef);
-
-            const matches: PotentialMatch[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                // Only show users with empty alumni email fields and matching userClass
-                if (data.userClass === userClass && !data.emailAlumni && !data.emailAlumniGSB) {
-                    matches.push({
-                        id: doc.id,
-                        name: data.name,
-                        email: data.email
-                    });
-                }
-            });
-
-            setPotentialMatches(matches);
-
-            // Apply fuzzy matching
-            const googleName = user.displayName || '';
-            if (googleName) {
-                const MIN_SCORE = 60;
-                const filtered = matches
-                    .map(u => ({
-                        ...u,
-                        score: fuzzyNameMatch(googleName, u.name)
-                    }))
-                    .filter(u => u.score >= MIN_SCORE)
-                    .sort((a, b) => b.score - a.score);
-
-                setFilteredMatches(filtered);
-            } else {
-                // If no Google name available, show all (fallback)
-                setFilteredMatches(matches.sort((a, b) => a.name.localeCompare(b.name)));
-            }
-        } catch (err) {
-            console.error('Error loading potential matches:', err);
-            setError('Failed to load account options');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Check if we have a high-confidence match (score >= 75)
-    const hasHighConfidenceMatch = filteredMatches.length > 0 &&
-        filteredMatches.some(m => (m as any).score >= 75);
-
-    const handleSelectMatch = (match: PotentialMatch) => {
-        setSelectedMatch(match);
-        setError(null);
-    };
-
-    const handleConfirmLink = async () => {
-        if (!user?.email || !selectedMatch || linking) return;
-
-        // Validate alumni email before linking
-        if (!isAlumniEmail(user.email)) {
-            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
-            return;
-        }
-
-        setLinking(true);
-        setError(null);
-
-        try {
-            const alumniEmail = normalizeEmail(user.email);
-            const base = alumniEmail.split('@')[0];
-            const alumniStanford = `${base}@alumni.stanford.edu`;
-            const alumniGSB = `${base}@alumni.gsb.stanford.edu`;
-
-            // First check outside transaction if these emails are already in use
-            const usersRef = collection(db, 'users');
-            const usersSnapshot = await getDocs(usersRef);
-
-            for (const doc of usersSnapshot.docs) {
-                if (doc.id === selectedMatch.id) continue;
-
-                const data = doc.data();
-                const emailMatch = (data.emailAlumni && normalizeEmail(data.emailAlumni) === alumniEmail) ||
-                    (data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === alumniEmail);
-
-                if (emailMatch) {
-                    throw new Error('This alumni email is already linked to another account');
-                }
-            }
-
-            const userRef = doc(db, 'users', selectedMatch.id);
-
-            // Use transaction to prevent race conditions
-            await runTransaction(db, async (transaction) => {
-                const userDoc = await transaction.get(userRef);
-
-                if (!userDoc.exists()) {
-                    throw new Error('Selected account no longer exists');
-                }
-
-                const userData = userDoc.data();
-
-                // Verify the account still has empty alumni emails
-                if (userData.emailAlumni || userData.emailAlumniGSB) {
-                    throw new Error('This account has already been linked to another alumni email');
-                }
-
-                // Verify it's the correct class
-                if (userData.userClass !== userClass) {
-                    throw new Error(`Can only link to ${userClass} accounts`);
-                }
-
-                // Update both alumni email fields atomically
-                transaction.update(userRef, {
-                    emailAlumni: alumniStanford,
-                    emailAlumniGSB: alumniGSB,
-                    updatedAt: new Date()
-                });
-            });
-
-            console.log('Account linked successfully');
-            onLinkingComplete();
-        } catch (err) {
-            console.error('Error linking account:', err);
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError('Failed to link account. Please try again.');
-            }
-            await loadPotentialMatches();
-            setSelectedMatch(null);
-        } finally {
-            setLinking(false);
-        }
-    };
-
-    const handleGoBack = () => {
-        setSelectedMatch(null);
-        setError(null);
-    };
-
-    if (loading) {
-        return (
-            <div className="auth-container">
-                <div className="auth-card">
-                    <div className="loading">Loading...</div>
-                </div>
-            </div>
-        );
-    }
-
-    // Confirmation screen
-    if (selectedMatch) {
-        return (
-            <div className="auth-container">
-                <div className="auth-card">
-                    <h1>Confirm Account Link</h1>
-                    <p className="auth-email">
-                        Signing in as <strong>{user?.email}</strong>
-                    </p>
-
-                    {error && (
-                        <div className="error-banner">
-                            {error}
-                        </div>
-                    )}
-
-                    {linking && (
-                        <div className="linking-banner">
-                            Linking account...
-                        </div>
-                    )}
-
-                    <div className="confirmation-box">
-                        <p className="confirmation-question">Are you sure you want to link your alumni email to this account?</p>
-                        <div className="selected-account-display">
-                            <div className="selected-name">{selectedMatch.name}</div>
-                            <div className="selected-email">{selectedMatch.email}</div>
-                        </div>
-                    </div>
-
-                    <div className="confirmation-buttons">
-                        <button
-                            onClick={handleConfirmLink}
-                            disabled={linking}
-                            className="confirm-btn"
-                        >
-                            Yes, Link Account
-                        </button>
-                        <button
-                            onClick={handleGoBack}
-                            disabled={linking}
-                            className="cancel-btn"
-                        >
-                            Go Back
-                        </button>
-                    </div>
-
-                    <button
-                        onClick={logout}
-                        disabled={linking}
-                        className="signout-link"
-                    >
-                        Sign Out
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    // Account selection screen
-    return (
-        <div className="auth-container">
-            <div className="auth-card linking-card">
-                <h1>Link Your Alumni Email</h1>
-                <p className="auth-email">
-                    Signing in as <strong>{user?.email}</strong>
-                </p>
-                {user.displayName && (
-                    <p className="auth-email" style={{ fontSize: '0.9em', marginTop: '-8px' }}>
-                        Google account name: <strong>{user.displayName}</strong>
-                    </p>
-                )}
-
-                {error && (
-                    <div className="error-banner">
-                        {error}
-                    </div>
-                )}
-
-                {filteredMatches.length > 0 ? (
-                    <>
-                        <p className="linking-instructions">
-                            Below are Past Chances accounts that match your name and haven't been linked with an alumni email. If you see your name, click it to link your account.
-                        </p>
-
-                        <div className="account-matches-grid">
-                            {filteredMatches.map((match) => (
-                                <button
-                                    key={match.id}
-                                    onClick={() => handleSelectMatch(match)}
-                                    className="account-match-card"
-                                >
-                                    <div className="match-name">{match.name}</div>
-                                    <div className="match-email">{match.email}</div>
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="help-notice">
-                            {hasHighConfidenceMatch
-                                ? <>Don't see your account but can't create a new one? We found a strong match to your name. If none of these are yours, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
-                                : <>Don't see your account but certain you had one? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
-                            }
-                        </div>
-
-                        {!hasHighConfidenceMatch && (
-                            <div className="divider">
-                                <span>OR</span>
-                            </div>
-                        )}
-                    </>
-                ) : (
-                    <>
-                        <p className="linking-instructions">
-                            We couldn't find any existing accounts that match your name.
-                        </p>
-                        <div className="help-notice">
-                            If you previously had an account, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a>
-                        </div>
-                    </>
-                )}
-
-                {!hasHighConfidenceMatch && (
-                    <button
-                        onClick={onStartNewAccount}
-                        className="new-account-btn"
-                    >
-                        Start New Account
-                    </button>
-                )}
-
-                <button
-                    onClick={logout}
-                    className="signout-link"
-                >
-                    Sign Out
-                </button>
-            </div>
-        </div>
-    );
-};
-
-export default AccountLinking;
-
-================
 File: src/styles/admin/admin-base.css
 ================
 /* Admin Base Styles */
@@ -6562,167 +6225,6 @@ File: src/styles/base.css
   }
 
 ================
-File: src/utils/emailUtils.ts
-================
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import type { UserData } from '../types';
-
-export const isStanfordEmail = (email: string): boolean => {
-    return email.toLowerCase().endsWith('@stanford.edu');
-};
-
-export const isAlumniEmail = (email: string): boolean => {
-    const lowerEmail = email.toLowerCase();
-    return lowerEmail.endsWith('@alumni.stanford.edu') ||
-        lowerEmail.endsWith('@alumni.gsb.stanford.edu');
-};
-
-export const isValidStanfordRelatedEmail = (email: string): boolean => {
-    return isStanfordEmail(email) || isAlumniEmail(email);
-};
-
-export const normalizeEmail = (email: string): string => {
-    return email.toLowerCase().trim();
-};
-
-export const getEmailPrefix = (email: string): string => {
-    return email.split('@')[0].toLowerCase();
-};
-
-export const generateAlumniEmails = (prefix: string): { emailAlumni: string; emailAlumniGSB: string } => {
-    const normalizedPrefix = prefix.toLowerCase();
-    return {
-        emailAlumni: `${normalizedPrefix}@alumni.stanford.edu`,
-        emailAlumniGSB: `${normalizedPrefix}@alumni.gsb.stanford.edu`
-    };
-};
-
-interface EmailLookupResult {
-    docId: string | null;
-    userData: UserData | null;
-}
-
-export const findUserByEmail = async (email: string): Promise<EmailLookupResult> => {
-    try {
-        const normalizedEmail = normalizeEmail(email);
-        const usersRef = collection(db, 'users');
-        const snapshot = await getDocs(usersRef);
-
-        for (const doc of snapshot.docs) {
-            const data = doc.data() as UserData;
-
-            // Check all three email fields with case-insensitive comparison
-            const emailMatch = data.email && normalizeEmail(data.email) === normalizedEmail;
-            const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
-            const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
-
-            if (emailMatch || alumniMatch || alumniGSBMatch) {
-                return {
-                    docId: doc.id,
-                    userData: data
-                };
-            }
-        }
-
-        return { docId: null, userData: null };
-    } catch (error) {
-        console.error('Error in findUserByEmail:', error);
-        return { docId: null, userData: null };
-    }
-};
-
-// NEW: Enhanced fuzzy name matching with case-insensitive and hyphen-insensitive matching
-export const fuzzyNameMatch = (googleName: string, dbName: string): number => {
-    // Normalize: lowercase, remove hyphens, remove non-alphabetic chars except spaces
-    const normalize = (str: string) =>
-        str.toLowerCase().trim().replace(/-/g, ' ').replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ');
-
-    const normalizedGoogle = normalize(googleName);
-    const normalizedDb = normalize(dbName);
-
-    // Exact match after normalization
-    if (normalizedGoogle === normalizedDb) return 100;
-
-    // Parse name variations to handle "First Last" vs "Last, First"
-    const parseNameVariations = (name: string): string[] => {
-        const variations: string[] = [name];
-        const parts = name.split(' ').filter(p => p.length > 0);
-
-        if (parts.length >= 2) {
-            // For "First Last" or "First Middle Last", create "Last First" variation
-            const lastName = parts[parts.length - 1];
-            const firstParts = parts.slice(0, -1).join(' ');
-            variations.push(`${lastName} ${firstParts}`);
-        }
-
-        return variations;
-    };
-
-    const googleVariations = parseNameVariations(normalizedGoogle);
-    const dbVariations = parseNameVariations(normalizedDb);
-
-    let maxScore = 0;
-
-    // Check all combinations of variations
-    for (const gVar of googleVariations) {
-        for (const dVar of dbVariations) {
-            const score = calculateMatchScore(gVar, dVar);
-            maxScore = Math.max(maxScore, score);
-        }
-    }
-
-    return maxScore;
-};
-
-// Helper function to calculate match score between two normalized name strings
-const calculateMatchScore = (name1: string, name2: string): number => {
-    const parts1 = name1.split(' ').filter(p => p.length > 0);
-    const parts2 = name2.split(' ').filter(p => p.length > 0);
-
-    if (parts1.length === 0 || parts2.length === 0) return 0;
-
-    let score = 0;
-
-    // Check if all parts from the shorter name appear in the longer name
-    const shorterParts = parts1.length <= parts2.length ? parts1 : parts2;
-    const longerParts = parts1.length <= parts2.length ? parts2 : parts1;
-
-    const allPartsMatch = shorterParts.every(sPart =>
-        longerParts.some(lPart => lPart === sPart || lPart.startsWith(sPart) || sPart.startsWith(lPart))
-    );
-
-    if (allPartsMatch) score += 70;
-
-    // First name match
-    if (parts1[0] === parts2[0] ||
-        (parts1[0].length >= 3 && parts2[0].startsWith(parts1[0])) ||
-        (parts2[0].length >= 3 && parts1[0].startsWith(parts2[0]))) {
-        score += 30;
-    }
-
-    // Last name match (if both have multiple parts)
-    if (parts1.length > 1 && parts2.length > 1) {
-        const last1 = parts1[parts1.length - 1];
-        const last2 = parts2[parts2.length - 1];
-        if (last1 === last2 ||
-            (last1.length >= 3 && last2.startsWith(last1)) ||
-            (last2.length >= 3 && last1.startsWith(last2))) {
-            score += 30;
-        }
-    }
-
-    // Substring matching as fallback
-    if (score === 0) {
-        if (name1.includes(name2) || name2.includes(name1)) {
-            score = 40;
-        }
-    }
-
-    return Math.min(score, 100);
-};
-
-================
 File: .firebaserc
 ================
 {
@@ -6888,185 +6390,338 @@ export const runAnalyticsNow = functions.https.onRequest(async (req, res) => {
 });
 
 ================
-File: functions/package.json
+File: src/components/AccountLinking.tsx
 ================
-{
-  "name": "functions",
-  "scripts": {
-    "build": "tsc",
-    "build:watch": "tsc --watch",
-    "serve": "npm run build && firebase emulators:start --only functions",
-    "shell": "npm run build && firebase functions:shell",
-    "start": "npm run shell",
-    "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
-  },
-  "engines": {
-    "node": "18"
-  },
-  "main": "lib/index.js",
-  "dependencies": {
-    "firebase-admin": "^12.7.0",
-    "firebase-functions": "^4.8.0"
-  },
-  "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^5.12.0",
-    "@typescript-eslint/parser": "^5.12.0",
-    "eslint": "^8.9.0",
-    "eslint-config-google": "^0.14.0",
-    "eslint-plugin-import": "^2.25.4",
-    "typescript": "^4.9.0"
-  },
-  "private": true
+import { useState, useEffect } from 'react';
+import type { User as FirebaseUser } from 'firebase/auth';
+import { collection, getDocs, doc, runTransaction } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { normalizeEmail, fuzzyNameMatch, isAlumniEmail } from '../utils/emailUtils';
+import type { UserClass } from '../types';
+
+interface AccountLinkingProps {
+    user: FirebaseUser;
+    userClass: UserClass;
+    onLinkingComplete: () => void;
+    onStartNewAccount: () => void;
+    logout: () => void;
 }
 
-================
-File: src/components/NameSelection.tsx
-================
-import React, { useState, useMemo } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { fuzzyNameMatch } from '../utils/emailUtils';
+interface PotentialMatch {
+    id: string;
+    name: string;
+    email: string;
+}
 
-const NameSelection: React.FC = () => {
-    const { user, nameOptions, selectName, logout } = useAuth();
-    const [selecting, setSelecting] = useState(false);
+const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount, logout }: AccountLinkingProps) => {
+    const [filteredMatches, setFilteredMatches] = useState<PotentialMatch[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [linking, setLinking] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [selectedMatch, setSelectedMatch] = useState<PotentialMatch | null>(null);
 
-    // Calculate match scores and check for high-confidence matches
-    const { scoredOptions, hasHighConfidenceMatch } = useMemo(() => {
-        if (!nameOptions || !user?.displayName) {
-            return { scoredOptions: nameOptions || [], hasHighConfidenceMatch: false };
+    useEffect(() => {
+        loadPotentialMatches();
+    }, []);
+
+    useEffect(() => {
+        // Validate alumni email on component mount
+        if (user?.email && !isAlumniEmail(user.email)) {
+            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
+            setLoading(false);
         }
+    }, [user?.email]);
 
-        const googleName = user.displayName;
-        const MIN_SCORE = 60;
-        const HIGH_CONFIDENCE_SCORE = 75;
-
-        const scored = nameOptions
-            .map(name => ({
-                name,
-                score: fuzzyNameMatch(googleName, name)
-            }))
-            .filter(item => item.score >= MIN_SCORE)
-            .sort((a, b) => b.score - a.score);
-
-        const hasHighConfidence = scored.some(item => item.score >= HIGH_CONFIDENCE_SCORE);
-
-        return {
-            scoredOptions: scored.map(item => item.name),
-            hasHighConfidenceMatch: hasHighConfidence
-        };
-    }, [nameOptions, user?.displayName]);
-
-    const handleNameSelect = async (selectedName: string) => {
-        if (selecting) return;
-
-        setSelecting(true);
-        setError(null);
-
+    const loadPotentialMatches = async () => {
         try {
-            await selectName(selectedName);
-        } catch (error) {
-            console.error('Error selecting name:', error);
-            setError('Failed to save your selection. Please try again.');
+            const usersRef = collection(db, 'users');
+            const snapshot = await getDocs(usersRef);
+
+            const matches: PotentialMatch[] = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                // Only show users with empty alumni email fields and matching userClass
+                if (data.userClass === userClass && !data.emailAlumni && !data.emailAlumniGSB) {
+                    matches.push({
+                        id: doc.id,
+                        name: data.name,
+                        email: data.email
+                    });
+                }
+            });
+            
+            // Apply fuzzy matching
+            const googleName = user.displayName || '';
+            if (googleName) {
+                const MIN_SCORE = 60;
+                const filtered = matches
+                    .map(u => ({
+                        ...u,
+                        score: fuzzyNameMatch(googleName, u.name)
+                    }))
+                    .filter(u => u.score >= MIN_SCORE)
+                    .sort((a, b) => b.score - a.score);
+
+                setFilteredMatches(filtered);
+            } else {
+                // If no Google name available, show all (fallback)
+                setFilteredMatches(matches.sort((a, b) => a.name.localeCompare(b.name)));
+            }
+        } catch (err) {
+            console.error('Error loading potential matches:', err);
+            setError('Failed to load account options');
         } finally {
-            setSelecting(false);
+            setLoading(false);
         }
     };
 
-    if (!nameOptions) {
-        return <div className="loading">Loading...</div>;
+    // Check if we have a high-confidence match (score >= 75)
+    const hasHighConfidenceMatch = filteredMatches.length > 0 &&
+        filteredMatches.some(m => (m as any).score >= 75);
+
+    const handleSelectMatch = (match: PotentialMatch) => {
+        setSelectedMatch(match);
+        setError(null);
+    };
+
+    const handleConfirmLink = async () => {
+        if (!user?.email || !selectedMatch || linking) return;
+
+        // Validate alumni email before linking
+        if (!isAlumniEmail(user.email)) {
+            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
+            return;
+        }
+
+        setLinking(true);
+        setError(null);
+
+        try {
+            const alumniEmail = normalizeEmail(user.email);
+            const base = alumniEmail.split('@')[0];
+            const alumniStanford = `${base}@alumni.stanford.edu`;
+            const alumniGSB = `${base}@alumni.gsb.stanford.edu`;
+
+            // First check outside transaction if these emails are already in use
+            const usersRef = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersRef);
+
+            for (const doc of usersSnapshot.docs) {
+                if (doc.id === selectedMatch.id) continue;
+
+                const data = doc.data();
+                const emailMatch = (data.emailAlumni && normalizeEmail(data.emailAlumni) === alumniEmail) ||
+                    (data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === alumniEmail);
+
+                if (emailMatch) {
+                    throw new Error('This alumni email is already linked to another account');
+                }
+            }
+
+            const userRef = doc(db, 'users', selectedMatch.id);
+
+            // Use transaction to prevent race conditions
+            await runTransaction(db, async (transaction) => {
+                const userDoc = await transaction.get(userRef);
+
+                if (!userDoc.exists()) {
+                    throw new Error('Selected account no longer exists');
+                }
+
+                const userData = userDoc.data();
+
+                // Verify the account still has empty alumni emails
+                if (userData.emailAlumni || userData.emailAlumniGSB) {
+                    throw new Error('This account has already been linked to another alumni email');
+                }
+
+                // Verify it's the correct class
+                if (userData.userClass !== userClass) {
+                    throw new Error(`Can only link to ${userClass} accounts`);
+                }
+
+                // Update both alumni email fields atomically
+                transaction.update(userRef, {
+                    emailAlumni: alumniStanford,
+                    emailAlumniGSB: alumniGSB,
+                    updatedAt: new Date()
+                });
+            });
+
+            console.log('Account linked successfully');
+            onLinkingComplete();
+        } catch (err) {
+            console.error('Error linking account:', err);
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError('Failed to link account. Please try again.');
+            }
+            await loadPotentialMatches();
+            setSelectedMatch(null);
+        } finally {
+            setLinking(false);
+        }
+    };
+
+    const handleGoBack = () => {
+        setSelectedMatch(null);
+        setError(null);
+    };
+
+    if (loading) {
+        return (
+            <div className="auth-container">
+                <div className="auth-card">
+                    <div className="loading">Loading...</div>
+                </div>
+            </div>
+        );
     }
 
-    const displayOptions = scoredOptions.length > 0 ? scoredOptions : nameOptions;
-
-    return (
-        <div className="verification-container">
-            <div className="verification-card">
-                <div className="verification-header">
-                    <h1>Past Chances</h1>
-                    <div className="user-info">
-                        <span>{user?.email}</span>
-                        <button className="logout-btn" onClick={logout}>Logout</button>
-                    </div>
-                </div>
-
-                <div className="verification-content">
-                    <h2>Select Your Name</h2>
-                    {user?.displayName && (
-                        <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
-                            Google account name: <strong>{user.displayName}</strong>
-                        </p>
-                    )}
-                    <p>Please select which of these options matches your identity:</p>
-
-                    {displayOptions.length > 0 ? (
-                        <>
-                            <div className="names-list">
-                                <h3>Potential Matches</h3>
-                                <div className="names-verification-list">
-                                    {displayOptions.map((name) => (
-                                        <div
-                                            key={name}
-                                            onClick={() => !selecting && handleNameSelect(name)}
-                                            className={`name-verification-item ${selecting ? 'disabled' : ''}`}
-                                        >
-                                            <span className="name-text">{name}</span>
-                                            <span className="select-btn">
-                                                Select
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="help-notice" style={{
-                                marginTop: '20px',
-                                padding: '12px',
-                                background: '#f8f9fa',
-                                borderRadius: '4px',
-                                fontSize: '0.9em',
-                                color: '#666'
-                            }}>
-                                {hasHighConfidenceMatch
-                                    ? <>We found strong matches to your Google name. If none of these are correct, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
-                                    : <>Don't see your name? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance</>
-                                }
-                            </div>
-                        </>
-                    ) : (
-                        <div style={{
-                            marginTop: '20px',
-                            padding: '20px',
-                            background: '#f8f9fa',
-                            borderRadius: '4px',
-                            textAlign: 'center'
-                        }}>
-                            <p>We couldn't find any matching names.</p>
-                            <p style={{ fontSize: '0.9em', color: '#666' }}>
-                                Please email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance.
-                            </p>
-                        </div>
-                    )}
-
-                    {selecting && (
-                        <div className="saving-indicator">
-                            Saving your selection...
-                        </div>
-                    )}
+    // Confirmation screen
+    if (selectedMatch) {
+        return (
+            <div className="auth-container">
+                <div className="auth-card">
+                    <h1>Confirm Account Link</h1>
+                    <p className="auth-email">
+                        Signing in as <strong>{user?.email}</strong>
+                    </p>
 
                     {error && (
-                        <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
+                        <div className="error-banner">
                             {error}
                         </div>
                     )}
+
+                    {linking && (
+                        <div className="linking-banner">
+                            Linking account...
+                        </div>
+                    )}
+
+                    <div className="confirmation-box">
+                        <p className="confirmation-question">Are you sure you want to link your alumni email to this account?</p>
+                        <div className="selected-account-display">
+                            <div className="selected-name">{selectedMatch.name}</div>
+                            <div className="selected-email">{selectedMatch.email}</div>
+                        </div>
+                    </div>
+
+                    <div className="confirmation-buttons">
+                        <button
+                            onClick={handleConfirmLink}
+                            disabled={linking}
+                            className="confirm-btn"
+                        >
+                            Yes, Link Account
+                        </button>
+                        <button
+                            onClick={handleGoBack}
+                            disabled={linking}
+                            className="cancel-btn"
+                        >
+                            Go Back
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={logout}
+                        disabled={linking}
+                        className="signout-link"
+                    >
+                        Sign Out
+                    </button>
                 </div>
+            </div>
+        );
+    }
+
+    // Account selection screen
+    return (
+        <div className="auth-container">
+            <div className="auth-card linking-card">
+                <h1>Link Your Alumni Email</h1>
+                <p className="auth-email">
+                    Signing in as <strong>{user?.email}</strong>
+                </p>
+                {user.displayName && (
+                    <p className="auth-email" style={{ fontSize: '0.9em', marginTop: '-8px' }}>
+                        Google account name: <strong>{user.displayName}</strong>
+                    </p>
+                )}
+
+                {error && (
+                    <div className="error-banner">
+                        {error}
+                    </div>
+                )}
+
+                {filteredMatches.length > 0 ? (
+                    <>
+                        <p className="linking-instructions">
+                            Below are Past Chances accounts that match your name and haven't been linked with an alumni email. If you see your name, click it to link your account.
+                        </p>
+
+                        <div className="account-matches-grid">
+                            {filteredMatches.map((match) => (
+                                <button
+                                    key={match.id}
+                                    onClick={() => handleSelectMatch(match)}
+                                    className="account-match-card"
+                                >
+                                    <div className="match-name">{match.name}</div>
+                                    <div className="match-email">{match.email}</div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="help-notice">
+                            {hasHighConfidenceMatch
+                                ? <>Don't see your account but can't create a new one? We found a strong match to your name. If none of these are yours, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                                : <>Don't see your account but certain you had one? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                            }
+                        </div>
+
+                        {!hasHighConfidenceMatch && (
+                            <div className="divider">
+                                <span>OR</span>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <p className="linking-instructions">
+                            We couldn't find any existing accounts that match your name.
+                        </p>
+                        <div className="help-notice">
+                            If you previously had an account, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a>
+                        </div>
+                    </>
+                )}
+
+                {!hasHighConfidenceMatch && (
+                    <button
+                        onClick={onStartNewAccount}
+                        className="new-account-btn"
+                    >
+                        Start New Account
+                    </button>
+                )}
+
+                <button
+                    onClick={logout}
+                    className="signout-link"
+                >
+                    Sign Out
+                </button>
             </div>
         </div>
     );
 };
 
-export default NameSelection;
+export default AccountLinking;
 
 ================
 File: src/config/firebase.ts
@@ -7545,73 +7200,6 @@ export const useAdminUtils = (allUsers: (UserData | InactiveUser | GhostUser)[])
 };
 
 ================
-File: src/hooks/useAuthHelpers.ts
-================
-import { useCallback } from 'react';
-import type { User } from 'firebase/auth';
-import type { MatchInfo, UserClass } from '../types/userTypes';
-
-const DEFAULT_PROFILE_URL = '/files/default-profile.png';
-
-export const useAuthHelpers = () => {
-    const normalizeMatches = useCallback((matches: any[]): MatchInfo[] => {
-        if (!matches || !Array.isArray(matches)) return [];
-
-        return matches.map(match => {
-            if (typeof match === 'string') {
-                return {
-                    name: match,
-                    email: match.toLowerCase().replace(/\s+/g, '.') + '@stanford.edu'
-                };
-            } else if (match && typeof match === 'object' && match.name && match.email) {
-                return {
-                    name: match.name,
-                    email: match.email,
-                    matchedAt: match.matchedAt
-                };
-            } else {
-                return {
-                    name: 'Unknown',
-                    email: 'unknown@stanford.edu'
-                };
-            }
-        });
-    }, []);
-
-    const getUserDocumentId = useCallback((user: User, userClass: UserClass): string => {
-        if (user.email === 'jpark22@stanford.edu' ||
-            user.email === 'jamespark@alumni.stanford.edu' ||
-            user.email === 'jamespark@alumni.gsb.stanford.edu') {
-            return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
-        }
-        return user.uid;
-    }, []);
-
-    const getLastUsedClass = useCallback((): UserClass | null => {
-        try {
-            return localStorage.getItem('lastUsedClass') as UserClass | null;
-        } catch {
-            return null;
-        }
-    }, []);
-
-    const setLastUsedClass = useCallback((userClass: UserClass) => {
-        try {
-            localStorage.setItem('lastUsedClass', userClass);
-        } catch {
-            // Ignore localStorage errors
-        }
-    }, []);
-
-    return {
-        normalizeMatches,
-        getUserDocumentId,
-        getLastUsedClass,
-        setLastUsedClass
-    };
-};
-
-================
 File: src/hooks/useUserDocumentManager.ts
 ================
 import { useCallback } from 'react';
@@ -8020,64 +7608,164 @@ export const calculateStats = (users: UserData[]) => {
 };
 
 ================
-File: src/utils/index.ts
+File: src/utils/emailUtils.ts
 ================
-import type { User } from 'firebase/auth';
-import type { UserData, UserClass } from '../types';
-import { isAlumniEmail } from './emailUtils';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import type { UserData } from '../types';
 
-// This matches the logic in useAuthHelpers.ts for consistency
-export const getUserDocumentId = (user: User, userData: UserData | null): string => {
-    const email = user.email || '';
-
-    // FIRST: Check if signed in with alumni email (not @stanford.edu)
-    // This handles the case where admin signs in with alumni email
-    if (isAlumniEmail(email) && userData) {
-        // For alumni emails, use the uid from the loaded userData
-        // This is the actual document ID we found during account linking
-        return userData.uid;
-    }
-
-    // SECOND: Special handling for admin user with @stanford.edu
-    if (user.email === 'jpark22@stanford.edu') {
-        const userClass = userData?.userClass || 'gsb';
-        return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
-    }
-
-    // DEFAULT: Regular user with @stanford.edu
-    return user.uid;
+export const isStanfordEmail = (email: string): boolean => {
+    return email.toLowerCase().endsWith('@stanford.edu');
 };
 
-export const formatTimestamp = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
+export const isAlumniEmail = (email: string): boolean => {
+    const lowerEmail = email.toLowerCase();
+    return lowerEmail.endsWith('@alumni.stanford.edu') ||
+        lowerEmail.endsWith('@alumni.gsb.stanford.edu');
 };
 
-export const truncateText = (text: string, maxLength: number): string => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+export const isValidStanfordRelatedEmail = (email: string): boolean => {
+    return isStanfordEmail(email) || isAlumniEmail(email);
 };
 
-export const getClassNames = async (userClass: UserClass): Promise<string[]> => {
+export const normalizeEmail = (email: string): string => {
+    return email.toLowerCase().trim();
+};
+
+export const getEmailPrefix = (email: string): string => {
+    return email.split('@')[0].toLowerCase();
+};
+
+export const generateAlumniEmails = (prefix: string): { emailAlumni: string; emailAlumniGSB: string } => {
+    const normalizedPrefix = prefix.toLowerCase();
+    return {
+        emailAlumni: `${normalizedPrefix}@alumni.stanford.edu`,
+        emailAlumniGSB: `${normalizedPrefix}@alumni.gsb.stanford.edu`
+    };
+};
+
+interface EmailLookupResult {
+    docId: string | null;
+    userData: UserData | null;
+}
+
+export const findUserByEmail = async (email: string): Promise<EmailLookupResult> => {
     try {
+        const normalizedEmail = normalizeEmail(email);
         const usersRef = collection(db, 'users');
         const snapshot = await getDocs(usersRef);
 
-        const names: string[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data.userClass === userClass && data.name) {
-                names.push(data.name);
-            }
-        });
+        for (const doc of snapshot.docs) {
+            const data = doc.data() as UserData;
 
-        return names.sort();
+            // Check all three email fields with case-insensitive comparison
+            const emailMatch = data.email && normalizeEmail(data.email) === normalizedEmail;
+            const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
+            const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
+
+            if (emailMatch || alumniMatch || alumniGSBMatch) {
+                return {
+                    docId: doc.id,
+                    userData: data
+                };
+            }
+        }
+
+        return { docId: null, userData: null };
     } catch (error) {
-        console.error('Error fetching class names:', error);
-        return [];
+        console.error('Error in findUserByEmail:', error);
+        return { docId: null, userData: null };
     }
+};
+
+// NEW: Enhanced fuzzy name matching with case-insensitive and hyphen-insensitive matching
+export const fuzzyNameMatch = (googleName: string, dbName: string): number => {
+    // Normalize: lowercase, remove hyphens, remove non-alphabetic chars except spaces
+    const normalize = (str: string) =>
+        str.toLowerCase().trim().replace(/-/g, ' ').replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ');
+
+    const normalizedGoogle = normalize(googleName);
+    const normalizedDb = normalize(dbName);
+
+    // Exact match after normalization
+    if (normalizedGoogle === normalizedDb) return 100;
+
+    // Parse name variations to handle "First Last" vs "Last, First"
+    const parseNameVariations = (name: string): string[] => {
+        const variations: string[] = [name];
+        const parts = name.split(' ').filter(p => p.length > 0);
+
+        if (parts.length >= 2) {
+            // For "First Last" or "First Middle Last", create "Last First" variation
+            const lastName = parts[parts.length - 1];
+            const firstParts = parts.slice(0, -1).join(' ');
+            variations.push(`${lastName} ${firstParts}`);
+        }
+
+        return variations;
+    };
+
+    const googleVariations = parseNameVariations(normalizedGoogle);
+    const dbVariations = parseNameVariations(normalizedDb);
+
+    let maxScore = 0;
+
+    // Check all combinations of variations
+    for (const gVar of googleVariations) {
+        for (const dVar of dbVariations) {
+            const score = calculateMatchScore(gVar, dVar);
+            maxScore = Math.max(maxScore, score);
+        }
+    }
+
+    return maxScore;
+};
+
+// Helper function to calculate match score between two normalized name strings
+const calculateMatchScore = (name1: string, name2: string): number => {
+    const parts1 = name1.split(' ').filter(p => p.length > 0);
+    const parts2 = name2.split(' ').filter(p => p.length > 0);
+
+    if (parts1.length === 0 || parts2.length === 0) return 0;
+
+    let score = 0;
+
+    // Check if all parts from the shorter name appear in the longer name
+    const shorterParts = parts1.length <= parts2.length ? parts1 : parts2;
+    const longerParts = parts1.length <= parts2.length ? parts2 : parts1;
+
+    const allPartsMatch = shorterParts.every(sPart =>
+        longerParts.some(lPart => lPart === sPart || lPart.startsWith(sPart) || sPart.startsWith(lPart))
+    );
+
+    if (allPartsMatch) score += 70;
+
+    // First name match
+    if (parts1[0] === parts2[0] ||
+        (parts1[0].length >= 3 && parts2[0].startsWith(parts1[0])) ||
+        (parts2[0].length >= 3 && parts1[0].startsWith(parts2[0]))) {
+        score += 30;
+    }
+
+    // Last name match (if both have multiple parts)
+    if (parts1.length > 1 && parts2.length > 1) {
+        const last1 = parts1[parts1.length - 1];
+        const last2 = parts2[parts2.length - 1];
+        if (last1 === last2 ||
+            (last1.length >= 3 && last2.startsWith(last1)) ||
+            (last2.length >= 3 && last1.startsWith(last2))) {
+            score += 30;
+        }
+    }
+
+    // Substring matching as fallback
+    if (score === 0) {
+        if (name1.includes(name2) || name2.includes(name1)) {
+            score = 40;
+        }
+    }
+
+    return Math.min(score, 100);
 };
 
 ================
@@ -8161,6 +7849,252 @@ export function findUserByName(crushName: string, allUsers: UserWithId[], userCl
 export function getUserIdentityName(user: UserWithId): string {
     return user.name || user.verifiedName || user.displayName || '';
 }
+
+================
+File: functions/package.json
+================
+{
+  "name": "functions",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^4.8.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.12.0",
+    "@typescript-eslint/parser": "^5.12.0",
+    "eslint": "^8.9.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "typescript": "^4.9.0"
+  },
+  "private": true
+}
+
+================
+File: src/components/NameSelection.tsx
+================
+import React, { useState, useMemo } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { fuzzyNameMatch } from '../utils/emailUtils';
+
+const NameSelection: React.FC = () => {
+    const { user, nameOptions, selectName, logout } = useAuth();
+    const [selecting, setSelecting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Calculate match scores and check for high-confidence matches
+    const { scoredOptions, hasHighConfidenceMatch } = useMemo(() => {
+        if (!nameOptions || !user?.displayName) {
+            return { scoredOptions: nameOptions || [], hasHighConfidenceMatch: false };
+        }
+
+        const googleName = user.displayName;
+        const MIN_SCORE = 60;
+        const HIGH_CONFIDENCE_SCORE = 75;
+
+        const scored = nameOptions
+            .map(name => ({
+                name,
+                score: fuzzyNameMatch(googleName, name)
+            }))
+            .filter(item => item.score >= MIN_SCORE)
+            .sort((a, b) => b.score - a.score);
+
+        const hasHighConfidence = scored.some(item => item.score >= HIGH_CONFIDENCE_SCORE);
+
+        return {
+            scoredOptions: scored.map(item => item.name),
+            hasHighConfidenceMatch: hasHighConfidence
+        };
+    }, [nameOptions, user?.displayName]);
+
+    const handleNameSelect = async (selectedName: string) => {
+        if (selecting) return;
+
+        setSelecting(true);
+        setError(null);
+
+        try {
+            await selectName(selectedName);
+        } catch (error) {
+            console.error('Error selecting name:', error);
+            setError('Failed to save your selection. Please try again.');
+        } finally {
+            setSelecting(false);
+        }
+    };
+
+    if (!nameOptions) {
+        return <div className="loading">Loading...</div>;
+    }
+
+    const displayOptions = scoredOptions.length > 0 ? scoredOptions : nameOptions;
+
+    return (
+        <div className="verification-container">
+            <div className="verification-card">
+                <div className="verification-header">
+                    <h1>Past Chances</h1>
+                    <div className="user-info">
+                        <span>{user?.email}</span>
+                        <button className="logout-btn" onClick={logout}>Logout</button>
+                    </div>
+                </div>
+
+                <div className="verification-content">
+                    <h2>Select Your Name</h2>
+                    {user?.displayName && (
+                        <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
+                            Google account name: <strong>{user.displayName}</strong>
+                        </p>
+                    )}
+                    <p>Please select which of these options matches your identity:</p>
+
+                    {displayOptions.length > 0 ? (
+                        <>
+                            <div className="names-list">
+                                <h3>Potential Matches</h3>
+                                <div className="names-verification-list">
+                                    {displayOptions.map((name) => (
+                                        <div
+                                            key={name}
+                                            onClick={() => !selecting && handleNameSelect(name)}
+                                            className={`name-verification-item ${selecting ? 'disabled' : ''}`}
+                                        >
+                                            <span className="name-text">{name}</span>
+                                            <span className="select-btn">
+                                                Select
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="help-notice" style={{
+                                marginTop: '20px',
+                                padding: '12px',
+                                background: '#f8f9fa',
+                                borderRadius: '4px',
+                                fontSize: '0.9em',
+                                color: '#666'
+                            }}>
+                                {hasHighConfidenceMatch
+                                    ? <>We found strong matches to your Google name. If none of these are correct, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                                    : <>Don't see your name? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance</>
+                                }
+                            </div>
+                        </>
+                    ) : (
+                        <div style={{
+                            marginTop: '20px',
+                            padding: '20px',
+                            background: '#f8f9fa',
+                            borderRadius: '4px',
+                            textAlign: 'center'
+                        }}>
+                            <p>We couldn't find any matching names.</p>
+                            <p style={{ fontSize: '0.9em', color: '#666' }}>
+                                Please email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance.
+                            </p>
+                        </div>
+                    )}
+
+                    {selecting && (
+                        <div className="saving-indicator">
+                            Saving your selection...
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
+                            {error}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default NameSelection;
+
+================
+File: src/hooks/useAuthHelpers.ts
+================
+import { useCallback } from 'react';
+import type { User } from 'firebase/auth';
+import type { MatchInfo, UserClass } from '../types/userTypes';
+
+export const useAuthHelpers = () => {
+    const normalizeMatches = useCallback((matches: any[]): MatchInfo[] => {
+        if (!matches || !Array.isArray(matches)) return [];
+
+        return matches.map(match => {
+            if (typeof match === 'string') {
+                return {
+                    name: match,
+                    email: match.toLowerCase().replace(/\s+/g, '.') + '@stanford.edu'
+                };
+            } else if (match && typeof match === 'object' && match.name && match.email) {
+                return {
+                    name: match.name,
+                    email: match.email,
+                    matchedAt: match.matchedAt
+                };
+            } else {
+                return {
+                    name: 'Unknown',
+                    email: 'unknown@stanford.edu'
+                };
+            }
+        });
+    }, []);
+
+    const getUserDocumentId = useCallback((user: User, userClass: UserClass): string => {
+        if (user.email === 'jpark22@stanford.edu' ||
+            user.email === 'jamespark@alumni.stanford.edu' ||
+            user.email === 'jamespark@alumni.gsb.stanford.edu') {
+            return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
+        }
+        return user.uid;
+    }, []);
+
+    const getLastUsedClass = useCallback((): UserClass | null => {
+        try {
+            return localStorage.getItem('lastUsedClass') as UserClass | null;
+        } catch {
+            return null;
+        }
+    }, []);
+
+    const setLastUsedClass = useCallback((userClass: UserClass) => {
+        try {
+            localStorage.setItem('lastUsedClass', userClass);
+        } catch {
+            // Ignore localStorage errors
+        }
+    }, []);
+
+    return {
+        normalizeMatches,
+        getUserDocumentId,
+        getLastUsedClass,
+        setLastUsedClass
+    };
+};
 
 ================
 File: src/styles/auth.css
@@ -8882,6 +8816,67 @@ export interface UserWithId extends UserData {
 }
 
 ================
+File: src/utils/index.ts
+================
+import type { User } from 'firebase/auth';
+import type { UserData, UserClass } from '../types';
+import { isAlumniEmail } from './emailUtils';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
+
+// This matches the logic in useAuthHelpers.ts for consistency
+export const getUserDocumentId = (user: User, userData: UserData | null): string => {
+    const email = user.email || '';
+
+    // FIRST: Check if signed in with alumni email (not @stanford.edu)
+    // This handles the case where admin signs in with alumni email
+    if (isAlumniEmail(email) && userData) {
+        // For alumni emails, use the uid from the loaded userData
+        // This is the actual document ID we found during account linking
+        return userData.uid;
+    }
+
+    // SECOND: Special handling for admin user with @stanford.edu
+    if (user.email === 'jpark22@stanford.edu') {
+        const userClass = userData?.userClass || 'gsb';
+        return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
+    }
+
+    // DEFAULT: Regular user with @stanford.edu
+    return user.uid;
+};
+
+export const formatTimestamp = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+};
+
+export const truncateText = (text: string, maxLength: number): string => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+};
+
+export const getClassNames = async (userClass: UserClass): Promise<string[]> => {
+    try {
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
+
+        const names: string[] = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.userClass === userClass && data.name) {
+                names.push(data.name);
+            }
+        });
+
+        return names.sort();
+    } catch (error) {
+        console.error('Error fetching class names:', error);
+        return [];
+    }
+};
+
+================
 File: src/App.tsx
 ================
 import React from 'react';
@@ -8958,200 +8953,6 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-================
-File: firestore.rules
-================
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    
-    // Helper function to check if user is admin
-    function isAdmin() {
-      let email = request.auth.token.email;
-      return email == 'jpark22@stanford.edu' || 
-             email == 'jamespark@alumni.stanford.edu' ||
-             email == 'jamespark@alumni.gsb.stanford.edu';
-    }
-    
-    // Helper to check if this is the user's document (including admin suffix)
-    function isUserDocument(userId) {
-      return request.auth.uid == userId ||
-             (isAdmin() && (userId == request.auth.uid + '_gsb' || userId == request.auth.uid + '_undergrad'));
-    }
-    
-    // Validation functions
-    function validateAlumniLinking(existingData, newData) {
-      // Only allow updating emailAlumni and emailAlumniGSB fields
-      // All other fields must remain unchanged
-      return existingData.uid == newData.uid
-        && existingData.email == newData.email
-        && existingData.name == newData.name
-        && existingData.photoURL == newData.photoURL
-        && existingData.crushes == newData.crushes
-        && existingData.lockedCrushes == newData.lockedCrushes
-        && existingData.matches == newData.matches
-        && existingData.crushCount == newData.crushCount
-        && existingData.userClass == newData.userClass
-        && existingData.createdAt == newData.createdAt
-        && newData.emailAlumni is string
-        && newData.emailAlumniGSB is string
-        && (newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$') ||
-            newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
-    }
-    
-    // Admin unlinking validation - allows clearing emailAlumni/emailAlumniGSB
-    function validateAdminUnlinkingAlumni(existingData, newData) {
-      // All fields except emailAlumni and emailAlumniGSB must remain unchanged
-      return existingData.uid == newData.uid
-        && existingData.email == newData.email
-        && existingData.name == newData.name
-        && existingData.photoURL == newData.photoURL
-        && existingData.crushes == newData.crushes
-        && existingData.lockedCrushes == newData.lockedCrushes
-        && existingData.matches == newData.matches
-        && existingData.crushCount == newData.crushCount
-        && existingData.userClass == newData.userClass
-        && existingData.createdAt == newData.createdAt
-        && newData.emailAlumni is string
-        && newData.emailAlumniGSB is string
-        && newData.emailAlumni == ''
-        && newData.emailAlumniGSB == '';
-    }
-    
-    // Admin unlinking validation - allows clearing uid and email for TC2 case
-    function validateAdminUnlinkingClaim(existingData, newData) {
-      // All fields except uid and email must remain unchanged
-      return existingData.name == newData.name
-        && existingData.photoURL == newData.photoURL
-        && existingData.crushes == newData.crushes
-        && existingData.lockedCrushes == newData.lockedCrushes
-        && existingData.matches == newData.matches
-        && existingData.crushCount == newData.crushCount
-        && existingData.userClass == newData.userClass
-        && existingData.createdAt == newData.createdAt
-        && newData.uid is string
-        && newData.uid == ''
-        && newData.email is string
-        && newData.email == '';
-    }
-    
-    // Validate that protected fields haven't changed (for regular updates)
-    // If a field is not in the update, we don't check it
-    function validateProtectedFieldsUnchanged(existingData, newData) {
-      return (!('uid' in newData) || existingData.uid == newData.uid)
-        && (!('email' in newData) || existingData.email == newData.email)
-        && (!('name' in newData) || existingData.name == newData.name)
-        && (!('photoURL' in newData) || existingData.photoURL == newData.photoURL)
-        && (!('userClass' in newData) || existingData.userClass == newData.userClass)
-        && (!('createdAt' in newData) || existingData.createdAt == newData.createdAt)
-        && (!('emailAlumni' in newData) || !('emailAlumni' in existingData) || existingData.emailAlumni == newData.emailAlumni)
-        && (!('emailAlumniGSB' in newData) || !('emailAlumniGSB' in existingData) || existingData.emailAlumniGSB == newData.emailAlumniGSB);
-    }
-    
-    function validateUserUpdate(existingData, newData) {
-      return validateProtectedFieldsUnchanged(existingData, newData)
-        && newData.crushes is list
-        && validateCrushes(newData.crushes)
-        && validateLockedCrushes(existingData, newData);
-    }
-    
-    function validateUserCreation(newData) {
-      return newData.uid is string
-        && (
-          (newData.email is string && newData.email.matches('.*@stanford\\.edu$')) ||
-          (newData.email is string && newData.email == '' && 
-           (('emailAlumni' in newData && newData.emailAlumni is string && newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$')) ||
-            ('emailAlumniGSB' in newData && newData.emailAlumniGSB is string && newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))))
-        )
-        && newData.crushes is list
-        && newData.crushes.size() == 0
-        && newData.matches is list
-        && newData.matches.size() == 0
-        && (!('lockedCrushes' in newData) || (newData.lockedCrushes is list && newData.lockedCrushes.size() == 0));
-    }
-    
-    function validateCrushes(crushes) {
-      return crushes.toSet().size() == crushes.size();
-    }
-    
-    function validateLockedCrushes(existingData, newData) {
-      return !('lockedCrushes' in existingData) || 
-             !('lockedCrushes' in newData) ||
-             (existingData.lockedCrushes is list && 
-              newData.lockedCrushes is list &&
-              existingData.lockedCrushes.toSet().difference(newData.crushes.toSet()).size() == 0);
-    }
-    
-    // Users collection
-    match /users/{userId} {
-      // Allow any authenticated user to read any user document
-      allow read: if request.auth != null;
-      
-      // Allow users to create their own document
-      allow create: if request.auth != null 
-        && isUserDocument(userId)
-        && (request.auth.token.email.matches('.*@stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
-        && validateUserCreation(request.resource.data);
-      
-      // ADMIN UNLINKING - Allow admin to clear alumni emails (TC4/5)
-      allow update: if request.auth != null
-        && isAdmin()
-        && validateAdminUnlinkingAlumni(resource.data, request.resource.data);
-      
-      // ADMIN UNLINKING - Allow admin to clear uid and email (TC2)
-      allow update: if request.auth != null
-        && isAdmin()
-        && validateAdminUnlinkingClaim(resource.data, request.resource.data);
-      
-      // Allow linking alumni emails to accounts with empty alumni email fields
-      // IMPORTANT: This prevents hijacking by requiring emails to be empty before linking
-      allow update: if request.auth != null
-        && (request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
-        && resource.data.emailAlumni == ''
-        && resource.data.emailAlumniGSB == ''
-        && validateAlumniLinking(resource.data, request.resource.data);
-      
-      // Allow users to update documents where their email matches any email field
-      // This allows alumni email users to update their original @stanford.edu document
-      allow update: if request.auth != null 
-        && (isUserDocument(userId) ||
-            resource.data.email == request.auth.token.email ||
-            resource.data.emailAlumni == request.auth.token.email ||
-            resource.data.emailAlumniGSB == request.auth.token.email)
-        && (request.auth.token.email.matches('.*@stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
-        && validateUserUpdate(resource.data, request.resource.data);
-    }
-    
-    // Class list collection
-    match /classList/{classId} {
-      allow read: if request.auth != null && 
-        (request.auth.token.email.matches('.*@stanford\\.edu$') ||
-         request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
-         request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
-      allow write: if false;
-    }
-    
-    // Analytics collection
-    match /analytics/{analyticsDoc} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-    
-    // Account Linking Audit collection
-    match /accountLinkingAudit/{auditId} {
-      allow read: if isAdmin();
-      allow create: if false; // Only created through transactions in code
-      allow update: if isAdmin(); // Allow admin to mark as unlinked
-      allow delete: if false; // Never delete audit records
-    }
-  }
-}
 
 ================
 File: package.json
@@ -9595,6 +9396,200 @@ File: src/styles/dashboard.css
 @import './dashboard/dashboard-responsive.css';
 
 ================
+File: firestore.rules
+================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      let email = request.auth.token.email;
+      return email == 'jpark22@stanford.edu' || 
+             email == 'jamespark@alumni.stanford.edu' ||
+             email == 'jamespark@alumni.gsb.stanford.edu';
+    }
+    
+    // Helper to check if this is the user's document (including admin suffix)
+    function isUserDocument(userId) {
+      return request.auth.uid == userId ||
+             (isAdmin() && (userId == request.auth.uid + '_gsb' || userId == request.auth.uid + '_undergrad'));
+    }
+    
+    // Validation functions
+    function validateAlumniLinking(existingData, newData) {
+      // Only allow updating emailAlumni and emailAlumniGSB fields
+      // All other fields must remain unchanged
+      return existingData.uid == newData.uid
+        && existingData.email == newData.email
+        && existingData.name == newData.name
+        && existingData.photoURL == newData.photoURL
+        && existingData.crushes == newData.crushes
+        && existingData.lockedCrushes == newData.lockedCrushes
+        && existingData.matches == newData.matches
+        && existingData.crushCount == newData.crushCount
+        && existingData.userClass == newData.userClass
+        && existingData.createdAt == newData.createdAt
+        && newData.emailAlumni is string
+        && newData.emailAlumniGSB is string
+        && (newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$') ||
+            newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
+    }
+    
+    // Admin unlinking validation - allows clearing emailAlumni/emailAlumniGSB
+    function validateAdminUnlinkingAlumni(existingData, newData) {
+      // All fields except emailAlumni and emailAlumniGSB must remain unchanged
+      return existingData.uid == newData.uid
+        && existingData.email == newData.email
+        && existingData.name == newData.name
+        && existingData.photoURL == newData.photoURL
+        && existingData.crushes == newData.crushes
+        && existingData.lockedCrushes == newData.lockedCrushes
+        && existingData.matches == newData.matches
+        && existingData.crushCount == newData.crushCount
+        && existingData.userClass == newData.userClass
+        && existingData.createdAt == newData.createdAt
+        && newData.emailAlumni is string
+        && newData.emailAlumniGSB is string
+        && newData.emailAlumni == ''
+        && newData.emailAlumniGSB == '';
+    }
+    
+    // Admin unlinking validation - allows clearing uid and email for TC2 case
+    function validateAdminUnlinkingClaim(existingData, newData) {
+      // All fields except uid and email must remain unchanged
+      return existingData.name == newData.name
+        && existingData.photoURL == newData.photoURL
+        && existingData.crushes == newData.crushes
+        && existingData.lockedCrushes == newData.lockedCrushes
+        && existingData.matches == newData.matches
+        && existingData.crushCount == newData.crushCount
+        && existingData.userClass == newData.userClass
+        && existingData.createdAt == newData.createdAt
+        && newData.uid is string
+        && newData.uid == ''
+        && newData.email is string
+        && newData.email == '';
+    }
+    
+    // Validate that protected fields haven't changed (for regular updates)
+    // If a field is not in the update, we don't check it
+    function validateProtectedFieldsUnchanged(existingData, newData) {
+      return (!('uid' in newData) || existingData.uid == newData.uid)
+        && (!('email' in newData) || existingData.email == newData.email)
+        && (!('name' in newData) || existingData.name == newData.name)
+        && (!('photoURL' in newData) || existingData.photoURL == newData.photoURL)
+        && (!('userClass' in newData) || existingData.userClass == newData.userClass)
+        && (!('createdAt' in newData) || existingData.createdAt == newData.createdAt)
+        && (!('emailAlumni' in newData) || !('emailAlumni' in existingData) || existingData.emailAlumni == newData.emailAlumni)
+        && (!('emailAlumniGSB' in newData) || !('emailAlumniGSB' in existingData) || existingData.emailAlumniGSB == newData.emailAlumniGSB);
+    }
+    
+    function validateUserUpdate(existingData, newData) {
+      return validateProtectedFieldsUnchanged(existingData, newData)
+        && newData.crushes is list
+        && validateCrushes(newData.crushes)
+        && validateLockedCrushes(existingData, newData);
+    }
+    
+    function validateUserCreation(newData) {
+      return newData.uid is string
+        && (
+          (newData.email is string && newData.email.matches('.*@stanford\\.edu$')) ||
+          (newData.email is string && newData.email == '' && 
+           (('emailAlumni' in newData && newData.emailAlumni is string && newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$')) ||
+            ('emailAlumniGSB' in newData && newData.emailAlumniGSB is string && newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))))
+        )
+        && newData.crushes is list
+        && newData.crushes.size() == 0
+        && newData.matches is list
+        && newData.matches.size() == 0
+        && (!('lockedCrushes' in newData) || (newData.lockedCrushes is list && newData.lockedCrushes.size() == 0));
+    }
+    
+    function validateCrushes(crushes) {
+      return crushes.toSet().size() == crushes.size();
+    }
+    
+    function validateLockedCrushes(existingData, newData) {
+      return !('lockedCrushes' in existingData) || 
+             !('lockedCrushes' in newData) ||
+             (existingData.lockedCrushes is list && 
+              newData.lockedCrushes is list &&
+              existingData.lockedCrushes.toSet().difference(newData.crushes.toSet()).size() == 0);
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Allow any authenticated user to read any user document
+      allow read: if request.auth != null;
+      
+      // Allow users to create their own document
+      allow create: if request.auth != null 
+        && isUserDocument(userId)
+        && (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
+        && validateUserCreation(request.resource.data);
+      
+      // ADMIN UNLINKING - Allow admin to clear alumni emails (TC4/5)
+      allow update: if request.auth != null
+        && isAdmin()
+        && validateAdminUnlinkingAlumni(resource.data, request.resource.data);
+      
+      // ADMIN UNLINKING - Allow admin to clear uid and email (TC2)
+      allow update: if request.auth != null
+        && isAdmin()
+        && validateAdminUnlinkingClaim(resource.data, request.resource.data);
+      
+      // Allow linking alumni emails to accounts with empty alumni email fields
+      // IMPORTANT: This prevents hijacking by requiring emails to be empty before linking
+      allow update: if request.auth != null
+        && (request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
+        && resource.data.emailAlumni == ''
+        && resource.data.emailAlumniGSB == ''
+        && validateAlumniLinking(resource.data, request.resource.data);
+      
+      // Allow users to update documents where their email matches any email field
+      // This allows alumni email users to update their original @stanford.edu document
+      allow update: if request.auth != null 
+        && (isUserDocument(userId) ||
+            resource.data.email == request.auth.token.email ||
+            resource.data.emailAlumni == request.auth.token.email ||
+            resource.data.emailAlumniGSB == request.auth.token.email)
+        && (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
+        && validateUserUpdate(resource.data, request.resource.data);
+    }
+    
+    // Class list collection
+    match /classList/{classId} {
+      allow read: if request.auth != null && 
+        (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+         request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+         request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
+      allow write: if false;
+    }
+    
+    // Analytics collection
+    match /analytics/{analyticsDoc} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    
+    // Account Linking Audit collection
+    match /accountLinkingAudit/{auditId} {
+      allow read: if isAdmin();
+      allow create: if false; // Only created through transactions in code
+      allow update: if isAdmin(); // Allow admin to mark as unlinked
+      allow delete: if false; // Never delete audit records
+    }
+  }
+}
+
+================
 File: src/components/Login.tsx
 ================
 import React, { useEffect } from 'react';
@@ -10020,6 +10015,131 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 };
 
 export default UserDashboard;
+
+================
+File: src/App.css
+================
+@import './styles/base.css';
+@import './styles/auth.css';
+@import './styles/dashboard.css';
+@import './styles/admin.css';
+
+================
+File: vercel.json
+================
+{
+    "version": 2,
+    "public": true,
+    "buildCommand": "npm run build",
+    "outputDirectory": "dist",
+    "installCommand": "npm install",
+    "framework": "vite",
+    "redirects": [
+        {
+            "source": "/login",
+            "destination": "https://pastchances.com",
+            "permanent": true
+        }
+    ],
+    "headers": [
+        {
+            "source": "/stanford.png",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "image/png"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=86400, must-revalidate"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                }
+            ]
+        },
+        {
+            "source": "/stanford.svg",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "image/svg+xml"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=86400, must-revalidate"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                }
+            ]
+        },
+        {
+            "source": "/share.png",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "image/png"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=86400, must-revalidate"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                }
+            ]
+        },
+        {
+            "source": "/robots.txt",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "text/plain"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=3600, must-revalidate"
+                }
+            ]
+        },
+        {
+            "source": "/sitemap.xml",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/xml"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=3600, must-revalidate"
+                }
+            ]
+        },
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "X-Frame-Options",
+                    "value": "DENY"
+                },
+                {
+                    "key": "X-Content-Type-Options",
+                    "value": "nosniff"
+                }
+            ]
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/((?!.*\\.).*)",
+            "destination": "/index.html"
+        }
+    ]
+}
 
 ================
 File: src/components/admin/AdminUsers.tsx
@@ -10814,137 +10934,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
 export default AdminUsers;
 
 ================
-File: vercel.json
-================
-{
-    "version": 2,
-    "public": true,
-    "buildCommand": "npm run build",
-    "outputDirectory": "dist",
-    "installCommand": "npm install",
-    "framework": "vite",
-    "redirects": [
-        {
-            "source": "/login",
-            "destination": "https://pastchances.com",
-            "permanent": true
-        }
-    ],
-    "headers": [
-        {
-            "source": "/stanford.png",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "image/png"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=86400, must-revalidate"
-                },
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                }
-            ]
-        },
-        {
-            "source": "/stanford.svg",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "image/svg+xml"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=86400, must-revalidate"
-                },
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                }
-            ]
-        },
-        {
-            "source": "/share.png",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "image/png"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=86400, must-revalidate"
-                },
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                }
-            ]
-        },
-        {
-            "source": "/robots.txt",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "text/plain"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=3600, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/sitemap.xml",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "application/xml"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=3600, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/(.*)",
-            "headers": [
-                {
-                    "key": "X-Frame-Options",
-                    "value": "DENY"
-                },
-                {
-                    "key": "X-Content-Type-Options",
-                    "value": "nosniff"
-                }
-            ]
-        }
-    ],
-    "rewrites": [
-        {
-            "source": "/((?!.*\\.).*)",
-            "destination": "/index.html"
-        }
-    ]
-}
-
-================
 File: src/styles/admin.css
 ================
 /* Admin View Main Styles */
 @import './admin/admin-base.css';
 @import './admin/admin-layout.css';
 @import './admin/admin-responsive.css';
-
-================
-File: src/App.css
-================
-@import './styles/base.css';
-@import './styles/auth.css';
-@import './styles/dashboard.css';
-@import './styles/admin.css';
 
 ================
 File: scripts/deploy.sh
@@ -11510,7 +11505,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail, getEmailPrefix, generateAlumniEmails } from '../utils/emailUtils';
+import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils'; 
 import type { UserData, UserClass } from '../types';
 import { getClassNames, getUserDocumentId } from '../utils';
 
