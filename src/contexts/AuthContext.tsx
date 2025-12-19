@@ -9,9 +9,9 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail, getEmailPrefix, generateAlumniEmails } from '../utils/emailUtils';
+import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils'; 
 import type { UserData, UserClass } from '../types';
-import { getClassNames } from '../utils';
+import { getClassNames, getUserDocumentId } from '../utils';
 
 interface AuthContextType {
     user: FirebaseUser | null;
@@ -137,6 +137,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 const data = await fetchUserData(firebaseUser);
                 setUserData(data);
 
+                // Update lastLogin for existing users
+                if (data) {
+                    try {
+                        const docId = getUserDocumentId(firebaseUser, data);
+                        console.log('Updating lastLogin for document:', docId);
+                        const userRef = doc(db, 'users', docId);
+
+                        await runTransaction(db, async (transaction) => {
+                            const userDoc = await transaction.get(userRef);
+                            if (userDoc.exists()) {
+                                console.log('Document exists, updating lastLogin');
+                                transaction.update(userRef, {
+                                    lastLogin: serverTimestamp()
+                                });
+                            } else {
+                                console.log('Document does not exist:', docId);
+                            }
+                        });
+                        console.log('lastLogin updated successfully');
+                    } catch (error) {
+                        console.error('Error updating lastLogin:', error);
+                        // Don't block auth flow if lastLogin update fails
+                    }
+                }
+
                 const email = firebaseUser.email;
                 if (!email) {
                     setLoading(false);
@@ -240,7 +265,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const userRef = doc(db, 'users', docId);
 
         await setDoc(userRef, {
-            uid: firebaseUser.uid,
+            uid: docId,
             email: normalizedEmail,
             emailAlumni: '',
             emailAlumniGSB: '',

@@ -6,20 +6,23 @@ import { db } from '../config/firebase';
 
 // This matches the logic in useAuthHelpers.ts for consistency
 export const getUserDocumentId = (user: User, userData: UserData | null): string => {
-    // Special handling for admin user
-    if (user.email === 'jpark22@stanford.edu' ||
-        user.email === 'jamespark@alumni.stanford.edu' ||
-        user.email === 'jamespark@alumni.gsb.stanford.edu') {
+    const email = user.email || '';
+
+    // FIRST: Check if signed in with alumni email (not @stanford.edu)
+    // This handles the case where admin signs in with alumni email
+    if (isAlumniEmail(email) && userData) {
+        // For alumni emails, use the uid from the loaded userData
+        // This is the actual document ID we found during account linking
+        return userData.uid;
+    }
+
+    // SECOND: Special handling for admin user with @stanford.edu
+    if (user.email === 'jpark22@stanford.edu') {
         const userClass = userData?.userClass || 'gsb';
         return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
     }
 
-    // For alumni emails, use the userData.uid (the original document ID)
-    const email = user.email || '';
-    if (isAlumniEmail(email) && userData) {
-        return userData.uid || user.uid;
-    }
-
+    // DEFAULT: Regular user with @stanford.edu
     return user.uid;
 };
 

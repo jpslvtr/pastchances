@@ -2,8 +2,6 @@ import { useCallback } from 'react';
 import type { User } from 'firebase/auth';
 import type { MatchInfo, UserClass } from '../types/userTypes';
 
-const DEFAULT_PROFILE_URL = '/files/default-profile.png';
-
 export const useAuthHelpers = () => {
     const normalizeMatches = useCallback((matches: any[]): MatchInfo[] => {
         if (!matches || !Array.isArray(matches)) return [];

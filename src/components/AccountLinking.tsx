@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { db } from '../config/firebase';
 import { collection, getDocs, doc, runTransaction } from 'firebase/firestore';
-import { normalizeEmail } from '../utils/emailUtils';
+import { db } from '../config/firebase';
+import { normalizeEmail, fuzzyNameMatch, isAlumniEmail } from '../utils/emailUtils';
 import type { UserClass } from '../types';
 
 interface AccountLinkingProps {
@@ -20,7 +20,7 @@ interface PotentialMatch {
 }
 
 const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount, logout }: AccountLinkingProps) => {
-    const [potentialMatches, setPotentialMatches] = useState<PotentialMatch[]>([]);
+    const [filteredMatches, setFilteredMatches] = useState<PotentialMatch[]>([]);
     const [loading, setLoading] = useState(true);
     const [linking, setLinking] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -29,6 +29,14 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
     useEffect(() => {
         loadPotentialMatches();
     }, []);
+
+    useEffect(() => {
+        // Validate alumni email on component mount
+        if (user?.email && !isAlumniEmail(user.email)) {
+            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
+            setLoading(false);
+        }
+    }, [user?.email]);
 
     const loadPotentialMatches = async () => {
         try {
@@ -47,10 +55,24 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
                     });
                 }
             });
+            
+            // Apply fuzzy matching
+            const googleName = user.displayName || '';
+            if (googleName) {
+                const MIN_SCORE = 60;
+                const filtered = matches
+                    .map(u => ({
+                        ...u,
+                        score: fuzzyNameMatch(googleName, u.name)
+                    }))
+                    .filter(u => u.score >= MIN_SCORE)
+                    .sort((a, b) => b.score - a.score);
 
-            // Sort alphabetically by name
-            matches.sort((a, b) => a.name.localeCompare(b.name));
-            setPotentialMatches(matches);
+                setFilteredMatches(filtered);
+            } else {
+                // If no Google name available, show all (fallback)
+                setFilteredMatches(matches.sort((a, b) => a.name.localeCompare(b.name)));
+            }
         } catch (err) {
             console.error('Error loading potential matches:', err);
             setError('Failed to load account options');
@@ -59,6 +81,10 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
         }
     };
 
+    // Check if we have a high-confidence match (score >= 75)
+    const hasHighConfidenceMatch = filteredMatches.length > 0 &&
+        filteredMatches.some(m => (m as any).score >= 75);
+
     const handleSelectMatch = (match: PotentialMatch) => {
         setSelectedMatch(match);
         setError(null);
@@ -66,6 +92,12 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
 
     const handleConfirmLink = async () => {
         if (!user?.email || !selectedMatch || linking) return;
+
+        // Validate alumni email before linking
+        if (!isAlumniEmail(user.email)) {
+            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
+            return;
+        }
 
         setLinking(true);
         setError(null);
@@ -220,6 +252,11 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
                 <p className="auth-email">
                     Signing in as <strong>{user?.email}</strong>
                 </p>
+                {user.displayName && (
+                    <p className="auth-email" style={{ fontSize: '0.9em', marginTop: '-8px' }}>
+                        Google account name: <strong>{user.displayName}</strong>
+                    </p>
+                )}
 
                 {error && (
                     <div className="error-banner">
@@ -227,14 +264,14 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
                     </div>
                 )}
 
-                {potentialMatches.length > 0 ? (
+                {filteredMatches.length > 0 ? (
                     <>
                         <p className="linking-instructions">
-                            Below are Past Chances accounts that haven't been linked with an @alumni.stanford.edu or @alumni.gsb.stanford.edu email. If you see your name, click it to link your account.
+                            Below are Past Chances accounts that match your name and haven't been linked with an alumni email. If you see your name, click it to link your account.
                         </p>
 
                         <div className="account-matches-grid">
-                            {potentialMatches.map((match) => (
+                            {filteredMatches.map((match) => (
                                 <button
                                     key={match.id}
                                     onClick={() => handleSelectMatch(match)}
@@ -246,22 +283,38 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
                             ))}
                         </div>
 
-                        <div className="divider">
-                            <span>OR</span>
+                        <div className="help-notice">
+                            {hasHighConfidenceMatch
+                                ? <>Don't see your account but can't create a new one? We found a strong match to your name. If none of these are yours, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                                : <>Don't see your account but certain you had one? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                            }
                         </div>
+
+                        {!hasHighConfidenceMatch && (
+                            <div className="divider">
+                                <span>OR</span>
+                            </div>
+                        )}
                     </>
                 ) : (
-                    <p className="linking-instructions">
-                        No existing accounts available to link. Create a new account to continue.
-                    </p>
+                    <>
+                        <p className="linking-instructions">
+                            We couldn't find any existing accounts that match your name.
+                        </p>
+                        <div className="help-notice">
+                            If you previously had an account, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a>
+                        </div>
+                    </>
                 )}
 
-                <button
-                    onClick={onStartNewAccount}
-                    className="new-account-btn"
-                >
-                    Start New Account
-                </button>
+                {!hasHighConfidenceMatch && (
+                    <button
+                        onClick={onStartNewAccount}
+                        className="new-account-btn"
+                    >
+                        Start New Account
+                    </button>
+                )}
 
                 <button
                     onClick={logout}

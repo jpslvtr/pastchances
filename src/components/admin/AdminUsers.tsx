@@ -1,4 +1,6 @@
-import React, { useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import type { UserData, MatchInfo, UserClass } from '../../types/userTypes';
 
 interface CrusherInfo {
@@ -9,6 +11,8 @@ interface CrusherInfo {
 interface InactiveUser {
     uid: string;
     email: string;
+    emailAlumni?: string;
+    emailAlumniGSB?: string;
     name: string;
     photoURL: string;
     crushes: string[];
@@ -25,6 +29,8 @@ interface InactiveUser {
 interface GhostUser {
     uid: string;
     email: string;
+    emailAlumni?: string;
+    emailAlumniGSB?: string;
     name: string;
     photoURL: string;
     crushes: string[];
@@ -195,6 +201,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollRestoreRef = useRef<{ scrollTop: number; timestamp: number } | null>(null);
 
+    // Unlinking state
+    const [unlinkingUserId, setUnlinkingUserId] = useState<string | null>(null);
+    const [unlinkingInProgress, setUnlinkingInProgress] = useState(false);
+    const [unlinkError, setUnlinkError] = useState<string | null>(null);
+    const [unlinkSuccess, setUnlinkSuccess] = useState<string | null>(null);
+
     // Reset scroll when search term or filter changes
     useEffect(() => {
         if (containerRef.current) {
@@ -259,6 +271,59 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
             searchInputRef.current.focus();
         }
     }, [setAdminSearchTerm]);
+
+    // Handle unlink account
+    const handleUnlinkAccount = useCallback(async (userId: string, userData: UserData | InactiveUser | GhostUser) => {
+        setUnlinkingInProgress(true);
+        setUnlinkError(null);
+        setUnlinkSuccess(null);
+
+        try {
+            const userRef = doc(db, 'users', userId);
+            const hasAlumniEmails = !!(userData.emailAlumni || userData.emailAlumniGSB);
+            const hasStanfordEmail = userData.email && userData.email.endsWith('@stanford.edu');
+
+            if (hasAlumniEmails) {
+                // TC4/5 case: Unlink alumni emails
+                await updateDoc(userRef, {
+                    emailAlumni: '',
+                    emailAlumniGSB: '',
+                    updatedAt: new Date()
+                });
+                setUnlinkSuccess(`Alumni emails unlinked from ${userData.name || userData.email}`);
+            } else if (!hasStanfordEmail && userData.uid) {
+                // TC2 case: Remove UID claim (user claimed name but used alumni email)
+                await updateDoc(userRef, {
+                    uid: '',
+                    email: '',
+                    updatedAt: new Date()
+                });
+                setUnlinkSuccess(`Account claim removed from ${userData.name || userData.email}`);
+            } else {
+                setUnlinkError('This account cannot be unlinked (has @stanford.edu email and no alumni emails)');
+                setUnlinkingInProgress(false);
+                setUnlinkingUserId(null);
+                return;
+            }
+
+            // Auto-hide success message after 3 seconds
+            setTimeout(() => {
+                setUnlinkSuccess(null);
+            }, 3000);
+
+            // Refresh the page to show updated data
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+
+        } catch (error) {
+            console.error('Error unlinking account:', error);
+            setUnlinkError('Failed to unlink account. Please try again.');
+        } finally {
+            setUnlinkingInProgress(false);
+            setUnlinkingUserId(null);
+        }
+    }, []);
 
     // Use the exact same filtering logic as normal search with better debugging
     const filteredUsers = useMemo(() => {
@@ -333,6 +398,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
         const displayName = u.name || u.email;
         const hasName = !!(u.name && u.name.trim());
 
+        // Determine if account can be unlinked
+        const hasAlumniEmails = !!(u.emailAlumni || u.emailAlumniGSB);
+        const hasStanfordEmail = u.email && u.email.endsWith('@stanford.edu');
+        const canUnlink = hasAlumniEmails || (!hasStanfordEmail && u.uid);
+
         let userTypeClass = '';
         let userTypeLabel = '';
 
@@ -367,6 +437,22 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                         </div>
                         <div className="admin-user-email">
                             {highlightMatch(u.email, adminSearchTerm)}
+                            {u.emailAlumni && (
+                                <>
+                                    <br />
+                                    <span style={{ fontSize: '0.85em', color: '#666' }}>
+                                        Alumni: {u.emailAlumni}
+                                    </span>
+                                </>
+                            )}
+                            {u.emailAlumniGSB && (
+                                <>
+                                    <br />
+                                    <span style={{ fontSize: '0.85em', color: '#666' }}>
+                                        GSB: {u.emailAlumniGSB}
+                                    </span>
+                                </>
+                            )}
                         </div>
                         <div className="admin-user-stats">
                             {actualCrushCount} crushing • {u.matches?.length || 0} matches • {u.crushes?.length || 0} selected
@@ -480,6 +566,85 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                             </div>
                         </div>
 
+                        {/* Account Unlinking Section */}
+                        {canUnlink && (
+                            <div style={{
+                                marginTop: '20px',
+                                padding: '12px',
+                                background: '#fff3cd',
+                                borderRadius: '4px',
+                                border: '1px solid #ffc107'
+                            }}>
+                                <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>
+                                    Account Unlinking
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#856404', marginBottom: '10px' }}>
+                                    {hasAlumniEmails && (
+                                        <>This user has linked alumni emails. Unlinking will clear emailAlumni and emailAlumniGSB fields.</>
+                                    )}
+                                    {!hasAlumniEmails && !hasStanfordEmail && u.uid && (
+                                        <>This user claimed a name with an alumni email. Unlinking will remove the UID claim and email.</>
+                                    )}
+                                </div>
+                                {unlinkingUserId === u.uid ? (
+                                    <div>
+                                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#721c24', marginBottom: '10px' }}>
+                                            Are you sure you want to unlink this account?
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                                onClick={() => handleUnlinkAccount(u.uid, u)}
+                                                disabled={unlinkingInProgress}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    background: '#dc3545',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    fontSize: '12px',
+                                                    cursor: unlinkingInProgress ? 'not-allowed' : 'pointer',
+                                                    opacity: unlinkingInProgress ? 0.6 : 1
+                                                }}
+                                            >
+                                                {unlinkingInProgress ? 'Unlinking...' : 'Yes, Unlink'}
+                                            </button>
+                                            <button
+                                                onClick={() => setUnlinkingUserId(null)}
+                                                disabled={unlinkingInProgress}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    background: '#6c757d',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    fontSize: '12px',
+                                                    cursor: unlinkingInProgress ? 'not-allowed' : 'pointer',
+                                                    opacity: unlinkingInProgress ? 0.6 : 1
+                                                }}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setUnlinkingUserId(u.uid)}
+                                        style={{
+                                            padding: '6px 12px',
+                                            background: '#dc3545',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            fontSize: '12px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Unlink Account
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
                         {actualCrushCount === 0 && (!u.matches || u.matches.length === 0) && (!u.crushes || u.crushes.length === 0) && (
                             <div className="admin-no-activity">
                                 No activity
@@ -495,6 +660,40 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
 
     return (
         <div className="admin-users">
+            {/* Success/Error Messages */}
+            {unlinkSuccess && (
+                <div style={{
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    background: '#28a745',
+                    color: 'white',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    zIndex: 1000,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    fontSize: '14px'
+                }}>
+                    {unlinkSuccess}
+                </div>
+            )}
+            {unlinkError && (
+                <div style={{
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    background: '#dc3545',
+                    color: 'white',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    zIndex: 1000,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    fontSize: '14px'
+                }}>
+                    {unlinkError}
+                </div>
+            )}
+
             <div className="admin-class-users-header">
                 <h4>{classDisplayName} Users Management</h4>
                 <div className="admin-class-users-summary">
@@ -576,7 +775,7 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                                     </button>
                                 </>
                             ) : (
-                                `No ${classDisplayName} users available.`
+                                `No ${classDisplayName.toLowerCase()} users found.`
                             )}
                         </div>
                     )}
