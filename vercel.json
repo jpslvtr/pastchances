@@ -7,9 +7,9 @@
     "framework": "vite",
     "redirects": [
         {
-            "source": "/login",
-            "destination": "https://pastchances.com",
-            "permanent": true
+            "source": "/",
+            "destination": "/login",
+            "permanent": false
         }
     ],
     "headers": [
