@@ -65,3 +65,93 @@ export const findUserByEmail = async (email: string): Promise<EmailLookupResult>
         return { docId: null, userData: null };
     }
 };
+
+// NEW: Enhanced fuzzy name matching with case-insensitive and hyphen-insensitive matching
+export const fuzzyNameMatch = (googleName: string, dbName: string): number => {
+    // Normalize: lowercase, remove hyphens, remove non-alphabetic chars except spaces
+    const normalize = (str: string) =>
+        str.toLowerCase().trim().replace(/-/g, ' ').replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ');
+
+    const normalizedGoogle = normalize(googleName);
+    const normalizedDb = normalize(dbName);
+
+    // Exact match after normalization
+    if (normalizedGoogle === normalizedDb) return 100;
+
+    // Parse name variations to handle "First Last" vs "Last, First"
+    const parseNameVariations = (name: string): string[] => {
+        const variations: string[] = [name];
+        const parts = name.split(' ').filter(p => p.length > 0);
+
+        if (parts.length >= 2) {
+            // For "First Last" or "First Middle Last", create "Last First" variation
+            const lastName = parts[parts.length - 1];
+            const firstParts = parts.slice(0, -1).join(' ');
+            variations.push(`${lastName} ${firstParts}`);
+        }
+
+        return variations;
+    };
+
+    const googleVariations = parseNameVariations(normalizedGoogle);
+    const dbVariations = parseNameVariations(normalizedDb);
+
+    let maxScore = 0;
+
+    // Check all combinations of variations
+    for (const gVar of googleVariations) {
+        for (const dVar of dbVariations) {
+            const score = calculateMatchScore(gVar, dVar);
+            maxScore = Math.max(maxScore, score);
+        }
+    }
+
+    return maxScore;
+};
+
+// Helper function to calculate match score between two normalized name strings
+const calculateMatchScore = (name1: string, name2: string): number => {
+    const parts1 = name1.split(' ').filter(p => p.length > 0);
+    const parts2 = name2.split(' ').filter(p => p.length > 0);
+
+    if (parts1.length === 0 || parts2.length === 0) return 0;
+
+    let score = 0;
+
+    // Check if all parts from the shorter name appear in the longer name
+    const shorterParts = parts1.length <= parts2.length ? parts1 : parts2;
+    const longerParts = parts1.length <= parts2.length ? parts2 : parts1;
+
+    const allPartsMatch = shorterParts.every(sPart =>
+        longerParts.some(lPart => lPart === sPart || lPart.startsWith(sPart) || sPart.startsWith(lPart))
+    );
+
+    if (allPartsMatch) score += 70;
+
+    // First name match
+    if (parts1[0] === parts2[0] ||
+        (parts1[0].length >= 3 && parts2[0].startsWith(parts1[0])) ||
+        (parts2[0].length >= 3 && parts1[0].startsWith(parts2[0]))) {
+        score += 30;
+    }
+
+    // Last name match (if both have multiple parts)
+    if (parts1.length > 1 && parts2.length > 1) {
+        const last1 = parts1[parts1.length - 1];
+        const last2 = parts2[parts2.length - 1];
+        if (last1 === last2 ||
+            (last1.length >= 3 && last2.startsWith(last1)) ||
+            (last2.length >= 3 && last1.startsWith(last2))) {
+            score += 30;
+        }
+    }
+
+    // Substring matching as fallback
+    if (score === 0) {
+        if (name1.includes(name2) || name2.includes(name1)) {
+            score = 40;
+        }
+    }
+
+    return Math.min(score, 100);
+};
