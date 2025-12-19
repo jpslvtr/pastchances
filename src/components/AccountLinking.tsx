@@ -267,7 +267,7 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
                 {filteredMatches.length > 0 ? (
                     <>
                         <p className="linking-instructions">
-                            Below are Past Chances accounts that match your name and haven't been linked with an alumni email. If you see your name, click it to link your account.
+                            Below are Second Chances accounts that match your name and haven't been linked with an alumni email. If you see your name, click it to link your account.
                         </p>
 
                         <div className="account-matches-grid">

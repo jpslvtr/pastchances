@@ -20,7 +20,7 @@ const Login: React.FC = () => {
     return (
         <div className="login-container">
             <div className="login-card">
-                <h1>Past Chances</h1>
+                <h1>Second Chances</h1>
                 <p>
                     Share your crushes anonymously and see if there's a mutual connection.
                 </p>

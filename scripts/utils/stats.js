@@ -37,7 +37,7 @@ try {
 async function runAnalytics() {
     try {
         console.log('='.repeat(80));
-        console.log('Past Chances - ANALYTICS');
+        console.log('Second Chances - ANALYTICS');
         console.log('='.repeat(80));
 
         // Get total class size from names.ts
