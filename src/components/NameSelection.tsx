@@ -59,7 +59,7 @@ const NameSelection: React.FC = () => {
         <div className="verification-container">
             <div className="verification-card">
                 <div className="verification-header">
-                    <h1>Past Chances</h1>
+                    <h1>Second Chances</h1>
                     <div className="user-info">
                         <span>{user?.email}</span>
                         <button className="logout-btn" onClick={logout}>Logout</button>

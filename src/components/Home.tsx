@@ -182,7 +182,7 @@ const Home = () => {
         <div className="dashboard-container">
             <div className="dashboard-card">
                 <div className="dashboard-header">
-                    <h1>Past Chances: {getClassDisplayName()}</h1>
+                    <h1>Second Chances: {getClassDisplayName()}</h1>
                     <div className="user-info">
                         <div className="user-details">
                             <img
