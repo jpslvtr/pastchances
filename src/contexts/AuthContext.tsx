@@ -3,13 +3,15 @@ import type { ReactNode } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
     signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     GoogleAuthProvider,
     signOut as firebaseSignOut,
     onAuthStateChanged
 } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils'; 
+import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
 import type { UserData, UserClass } from '../types';
 import { getClassNames, getUserDocumentId } from '../utils';
 
@@ -129,6 +131,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     useEffect(() => {
+        // Only handle redirect result on mobile devices
+        const handleRedirectResult = async () => {
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            if (isMobile) {
+                try {
+                    const result = await getRedirectResult(auth);
+                    if (result) {
+                        console.log('Redirect sign-in successful:', result.user.email);
+                    }
+                } catch (error) {
+                    console.error('Error handling redirect result:', error);
+                }
+            }
+        };
+
+        handleRedirectResult();
+
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             console.log('Auth state changed:', firebaseUser?.email);
             setUser(firebaseUser);
@@ -321,7 +340,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 prompt: 'select_account'
             });
 
-            await signInWithPopup(auth, provider);
+            // Use redirect on mobile, popup on desktop
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+            if (isMobile) {
+                await signInWithRedirect(auth, provider);
+                // Auth state change will be handled when user returns from redirect
+            } else {
+                await signInWithPopup(auth, provider);
+            }
         } catch (error) {
             console.error('Error signing in with Google:', error);
             throw error;
