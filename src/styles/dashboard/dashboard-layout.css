@@ -188,3 +188,25 @@
     margin: 0 12px;
     color: #999;
   }
+
+  .header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header-title h1 {
+  margin: 0;
+}
+
+.header-subtitle {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+  .header-subtitle {
+    font-size: 12px;
+  }
+}
