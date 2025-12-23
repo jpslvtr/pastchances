@@ -51,6 +51,12 @@ const Login: React.FC = () => {
                         GSB MBA Class of 2025
                     </button>
                 </div>
+
+                <div className="login-footer">
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                    <span className="footer-separator">•</span>
+                    <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+                </div>
             </div>
         </div>
     );
