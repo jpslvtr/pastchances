@@ -16,8 +16,7 @@ const Privacy: React.FC = () => {
                     <ul>
                         <li>Your name (from Google account)</li>
                         <li>Your email address (@stanford.edu, @alumni.stanford.edu, or @alumni.gsb.stanford.edu)</li>
-                        <li>Names you select as potential matches</li>
-                        <li>Match results when mutual interest exists</li>
+                        <li>Account metadata</li>
                     </ul>
                 </section>
 
@@ -27,18 +26,14 @@ const Privacy: React.FC = () => {
                     <ul>
                         <li>Authenticate your account</li>
                         <li>Match you with other users who share mutual interest</li>
-                        <li>Notify you of matches via email</li>
-                        <li>Display basic analytics to administrators (aggregated, not individual data)</li>
+                        <li>Notify you of matches</li>
                     </ul>
                 </section>
 
                 <section>
                     <h2>Who Can See Your Information</h2>
                     <p>
-                        Your name selections remain private unless a mutual match occurs. When you and another user both select each other, both parties receive an email notification revealing the match.
-                    </p>
-                    <p>
-                        Administrators can see aggregated usage statistics but cannot view individual user selections unless a match has occurred.
+                        Your name selections remain private unless a mutual match occurs. When you and another user both select each other, both parties are made known of the match.
                     </p>
                 </section>
 
@@ -70,7 +65,6 @@ const Privacy: React.FC = () => {
                         <li>Access your data</li>
                         <li>Request data deletion</li>
                         <li>Update your information</li>
-                        <li>Opt out of email notifications</li>
                     </ul>
                 </section>
 
