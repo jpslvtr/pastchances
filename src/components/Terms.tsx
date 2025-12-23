@@ -37,7 +37,7 @@ const Terms: React.FC = () => {
                 <section>
                     <h2>How It Works</h2>
                     <p>
-                        Second Chances allows you to select other users you're interested in connecting with. If two users mutually select each other, both receive an email notification revealing the match. Selections remain private unless mutual interest exists.
+                        Second Chances allows you to select other users you're interested in connecting with. If two users mutually select each other, both parties are made known of the match. Selections remain private unless mutual interest exists.
                     </p>
                 </section>
 

@@ -243,6 +243,12 @@ const Home = () => {
                         />
                     )}
                 </div>
+
+                <div className="dashboard-footer">
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                    <span className="footer-separator">•</span>
+                    <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+                </div>
             </div>
         </div>
     );
