@@ -3,8 +3,6 @@ import type { ReactNode } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
     signInWithPopup,
-    // signInWithRedirect,
-    getRedirectResult,
     GoogleAuthProvider,
     signOut as firebaseSignOut,
     onAuthStateChanged
@@ -56,10 +54,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     // Prevent concurrent fetches
     const fetchingUserData = useRef(false);
-    const redirectChecked = useRef(false);
 
     const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
-        // Prevent race conditions from concurrent calls
         if (fetchingUserData.current) {
             console.log('Already fetching user data, skipping...');
             return null;
@@ -113,7 +109,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             for (const docSnap of usersSnapshot.docs) {
                 const data = docSnap.data();
 
-                // Case-insensitive comparison for all email fields
                 const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
                 const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
 
@@ -132,116 +127,75 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     useEffect(() => {
-        let unsubscribe: (() => void) | undefined;
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            console.log('Auth state changed:', firebaseUser?.email);
+            setUser(firebaseUser);
 
-        const initAuth = async () => {
-            // Check for redirect result first (important for mobile)
-            if (!redirectChecked.current) {
-                redirectChecked.current = true;
-                try {
-                    console.log('Checking for redirect result...');
-                    const result = await getRedirectResult(auth);
-                    if (result) {
-                        console.log('Redirect sign-in successful:', result.user.email);
-                        // Auth state change will handle the rest
+            if (firebaseUser) {
+                const data = await fetchUserData(firebaseUser);
+                setUserData(data);
+
+                // Update lastLogin for existing users
+                if (data) {
+                    try {
+                        const docId = getUserDocumentId(firebaseUser, data);
+                        const userRef = doc(db, 'users', docId);
+
+                        await runTransaction(db, async (transaction) => {
+                            const userDoc = await transaction.get(userRef);
+                            if (userDoc.exists()) {
+                                transaction.update(userRef, {
+                                    lastLogin: serverTimestamp()
+                                });
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Error updating lastLogin:', error);
                     }
-                } catch (error: any) {
-                    console.error('Error handling redirect result:', error);
-                    if (error.code !== 'auth/invalid-credential') {
-                        // Don't show error for invalid credential - just let them try again
-                        alert('Authentication failed. Please try again.');
-                    }
+                }
+
+                const email = firebaseUser.email;
+                if (!email) {
                     setLoading(false);
                     return;
                 }
-            }
 
-            // Set up auth state listener
-            unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-                console.log('Auth state changed:', firebaseUser?.email);
-                setUser(firebaseUser);
-
-                if (firebaseUser) {
-                    const data = await fetchUserData(firebaseUser);
-                    setUserData(data);
-
-                    // Update lastLogin for existing users
-                    if (data) {
-                        try {
-                            const docId = getUserDocumentId(firebaseUser, data);
-                            console.log('Updating lastLogin for document:', docId);
-                            const userRef = doc(db, 'users', docId);
-
-                            await runTransaction(db, async (transaction) => {
-                                const userDoc = await transaction.get(userRef);
-                                if (userDoc.exists()) {
-                                    console.log('Document exists, updating lastLogin');
-                                    transaction.update(userRef, {
-                                        lastLogin: serverTimestamp()
-                                    });
-                                } else {
-                                    console.log('Document does not exist:', docId);
-                                }
-                            });
-                            console.log('lastLogin updated successfully');
-                        } catch (error) {
-                            console.error('Error updating lastLogin:', error);
-                            // Don't block auth flow if lastLogin update fails
-                        }
-                    }
-
-                    const email = firebaseUser.email;
-                    if (!email) {
-                        setLoading(false);
-                        return;
-                    }
-
-                    // Check if email is valid Stanford-related
-                    if (!isValidStanfordRelatedEmail(email)) {
-                        console.error('Invalid email domain');
-                        await firebaseSignOut(auth);
-                        setLoading(false);
-                        return;
-                    }
-
-                    // Handle onboarding and account linking flows
-                    if (!data) {
-                        if (isAlumniEmail(email)) {
-                            // Alumni email not found in database - show account linking
-                            setNeedsAccountLinking(true);
-                            setNeedsOnboarding(false);
-                            setNameOptions(null);
-                            setPendingUserClass('gsb');
-                        } else {
-                            // Stanford email not found - show name selection
-                            setNeedsAccountLinking(false);
-                            setNeedsOnboarding(true);
-                            await handleNewStanfordUser(firebaseUser, 'gsb');
-                        }
-                    } else {
-                        // User found - clear all onboarding states
-                        setNeedsAccountLinking(false);
-                        setNeedsOnboarding(false);
-                        setNameOptions(null);
-                    }
-                } else {
-                    setUserData(null);
-                    setNeedsOnboarding(false);
-                    setNeedsAccountLinking(false);
-                    setNameOptions(null);
+                // Check if email is valid Stanford-related
+                if (!isValidStanfordRelatedEmail(email)) {
+                    console.error('Invalid email domain');
+                    await firebaseSignOut(auth);
+                    setLoading(false);
+                    return;
                 }
 
-                setLoading(false);
-            });
-        };
-
-        initAuth();
-
-        return () => {
-            if (unsubscribe) {
-                unsubscribe();
+                // Handle onboarding and account linking flows
+                if (!data) {
+                    if (isAlumniEmail(email)) {
+                        setNeedsAccountLinking(true);
+                        setNeedsOnboarding(false);
+                        setNameOptions(null);
+                        setPendingUserClass('gsb');
+                    } else {
+                        setNeedsAccountLinking(false);
+                        setNeedsOnboarding(true);
+                        await handleNewStanfordUser(firebaseUser, 'gsb');
+                    }
+                } else {
+                    setNeedsAccountLinking(false);
+                    setNeedsOnboarding(false);
+                    setNameOptions(null);
+                }
+            } else {
+                setUserData(null);
+                setNeedsOnboarding(false);
+                setNeedsAccountLinking(false);
+                setNameOptions(null);
             }
-        };
+
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
@@ -272,14 +226,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
 
             if (matchingNames.length === 1) {
-                // Auto-create with single match
                 await createUserDocument(firebaseUser, matchingNames[0], userClass);
                 const data = await fetchUserData(firebaseUser);
                 setUserData(data);
                 setNeedsOnboarding(false);
                 setNameOptions(null);
             } else {
-                // Show name selection
                 setNameOptions(matchingNames.length > 0 ? matchingNames : allNames);
                 setPendingUserClass(userClass);
             }
@@ -291,7 +243,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const createUserDocument = async (firebaseUser: FirebaseUser, name: string, userClass: UserClass) => {
         const normalizedEmail = normalizeEmail(firebaseUser.email || '');
 
-        // Determine document ID based on user
         let docId = firebaseUser.uid;
         if (firebaseUser.email === 'jpark22@stanford.edu') {
             docId = `${firebaseUser.uid}_${userClass}`;
@@ -330,18 +281,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     const completeAccountLinking = () => {
-        // Called after successful account linking
         setNeedsAccountLinking(false);
         setNeedsOnboarding(false);
         setNameOptions(null);
-        // Force refresh
         if (user) {
             refreshUserData();
         }
     };
 
     const startNewAccount = () => {
-        // Switch from account linking to name selection
         setNeedsAccountLinking(false);
         setNeedsOnboarding(true);
         if (user && pendingUserClass) {
@@ -356,7 +304,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 prompt: 'select_account'
             });
 
-            // Force popup mode - it works better cross-platform now
+            // Use popup for all platforms - more reliable than redirect
             console.log('Using popup for authentication');
             await signInWithPopup(auth, provider);
         } catch (error) {
@@ -379,7 +327,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
     };
 
-    // Alias for backwards compatibility
     const logout = signOut;
 
     const refreshUserData = async () => {
@@ -387,7 +334,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const data = await fetchUserData(user);
             setUserData(data);
 
-            // Clear all onboarding states if data is now available
             if (data) {
                 setNeedsAccountLinking(false);
                 setNeedsOnboarding(false);
