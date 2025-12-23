@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
     signInWithPopup,
-    signInWithRedirect,
+    // signInWithRedirect,
     getRedirectResult,
     GoogleAuthProvider,
     signOut as firebaseSignOut,
@@ -356,17 +356,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 prompt: 'select_account'
             });
 
-            // Use redirect on mobile, popup on desktop
-            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-            if (isMobile) {
-                console.log('Using redirect for mobile');
-                await signInWithRedirect(auth, provider);
-                // Auth state change will be handled when user returns from redirect
-            } else {
-                console.log('Using popup for desktop');
-                await signInWithPopup(auth, provider);
-            }
+            // Force popup mode - it works better cross-platform now
+            console.log('Using popup for authentication');
+            await signInWithPopup(auth, provider);
         } catch (error) {
             console.error('Error signing in with Google:', error);
             throw error;
