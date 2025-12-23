@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     // Prevent concurrent fetches
     const fetchingUserData = useRef(false);
+    const redirectChecked = useRef(false);
 
     const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
         // Prevent race conditions from concurrent calls
@@ -131,101 +132,116 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     useEffect(() => {
-        // Only handle redirect result on mobile devices
-        const handleRedirectResult = async () => {
-            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            if (isMobile) {
+        let unsubscribe: (() => void) | undefined;
+
+        const initAuth = async () => {
+            // Check for redirect result first (important for mobile)
+            if (!redirectChecked.current) {
+                redirectChecked.current = true;
                 try {
+                    console.log('Checking for redirect result...');
                     const result = await getRedirectResult(auth);
                     if (result) {
                         console.log('Redirect sign-in successful:', result.user.email);
+                        // Auth state change will handle the rest
                     }
-                } catch (error) {
+                } catch (error: any) {
                     console.error('Error handling redirect result:', error);
+                    if (error.code !== 'auth/invalid-credential') {
+                        // Don't show error for invalid credential - just let them try again
+                        alert('Authentication failed. Please try again.');
+                    }
+                    setLoading(false);
+                    return;
                 }
             }
-        };
 
-        handleRedirectResult();
+            // Set up auth state listener
+            unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+                console.log('Auth state changed:', firebaseUser?.email);
+                setUser(firebaseUser);
 
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            console.log('Auth state changed:', firebaseUser?.email);
-            setUser(firebaseUser);
+                if (firebaseUser) {
+                    const data = await fetchUserData(firebaseUser);
+                    setUserData(data);
 
-            if (firebaseUser) {
-                const data = await fetchUserData(firebaseUser);
-                setUserData(data);
+                    // Update lastLogin for existing users
+                    if (data) {
+                        try {
+                            const docId = getUserDocumentId(firebaseUser, data);
+                            console.log('Updating lastLogin for document:', docId);
+                            const userRef = doc(db, 'users', docId);
 
-                // Update lastLogin for existing users
-                if (data) {
-                    try {
-                        const docId = getUserDocumentId(firebaseUser, data);
-                        console.log('Updating lastLogin for document:', docId);
-                        const userRef = doc(db, 'users', docId);
-
-                        await runTransaction(db, async (transaction) => {
-                            const userDoc = await transaction.get(userRef);
-                            if (userDoc.exists()) {
-                                console.log('Document exists, updating lastLogin');
-                                transaction.update(userRef, {
-                                    lastLogin: serverTimestamp()
-                                });
-                            } else {
-                                console.log('Document does not exist:', docId);
-                            }
-                        });
-                        console.log('lastLogin updated successfully');
-                    } catch (error) {
-                        console.error('Error updating lastLogin:', error);
-                        // Don't block auth flow if lastLogin update fails
+                            await runTransaction(db, async (transaction) => {
+                                const userDoc = await transaction.get(userRef);
+                                if (userDoc.exists()) {
+                                    console.log('Document exists, updating lastLogin');
+                                    transaction.update(userRef, {
+                                        lastLogin: serverTimestamp()
+                                    });
+                                } else {
+                                    console.log('Document does not exist:', docId);
+                                }
+                            });
+                            console.log('lastLogin updated successfully');
+                        } catch (error) {
+                            console.error('Error updating lastLogin:', error);
+                            // Don't block auth flow if lastLogin update fails
+                        }
                     }
-                }
 
-                const email = firebaseUser.email;
-                if (!email) {
-                    setLoading(false);
-                    return;
-                }
+                    const email = firebaseUser.email;
+                    if (!email) {
+                        setLoading(false);
+                        return;
+                    }
 
-                // Check if email is valid Stanford-related
-                if (!isValidStanfordRelatedEmail(email)) {
-                    console.error('Invalid email domain');
-                    await firebaseSignOut(auth);
-                    setLoading(false);
-                    return;
-                }
+                    // Check if email is valid Stanford-related
+                    if (!isValidStanfordRelatedEmail(email)) {
+                        console.error('Invalid email domain');
+                        await firebaseSignOut(auth);
+                        setLoading(false);
+                        return;
+                    }
 
-                // Handle onboarding and account linking flows
-                if (!data) {
-                    if (isAlumniEmail(email)) {
-                        // Alumni email not found in database - show account linking
-                        setNeedsAccountLinking(true);
+                    // Handle onboarding and account linking flows
+                    if (!data) {
+                        if (isAlumniEmail(email)) {
+                            // Alumni email not found in database - show account linking
+                            setNeedsAccountLinking(true);
+                            setNeedsOnboarding(false);
+                            setNameOptions(null);
+                            setPendingUserClass('gsb');
+                        } else {
+                            // Stanford email not found - show name selection
+                            setNeedsAccountLinking(false);
+                            setNeedsOnboarding(true);
+                            await handleNewStanfordUser(firebaseUser, 'gsb');
+                        }
+                    } else {
+                        // User found - clear all onboarding states
+                        setNeedsAccountLinking(false);
                         setNeedsOnboarding(false);
                         setNameOptions(null);
-                        setPendingUserClass('gsb');
-                    } else {
-                        // Stanford email not found - show name selection
-                        setNeedsAccountLinking(false);
-                        setNeedsOnboarding(true);
-                        await handleNewStanfordUser(firebaseUser, 'gsb');
                     }
                 } else {
-                    // User found - clear all onboarding states
-                    setNeedsAccountLinking(false);
+                    setUserData(null);
                     setNeedsOnboarding(false);
+                    setNeedsAccountLinking(false);
                     setNameOptions(null);
                 }
-            } else {
-                setUserData(null);
-                setNeedsOnboarding(false);
-                setNeedsAccountLinking(false);
-                setNameOptions(null);
+
+                setLoading(false);
+            });
+        };
+
+        initAuth();
+
+        return () => {
+            if (unsubscribe) {
+                unsubscribe();
             }
-
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+        };
     }, []);
 
     const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
@@ -344,9 +360,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
             if (isMobile) {
+                console.log('Using redirect for mobile');
                 await signInWithRedirect(auth, provider);
                 // Auth state change will be handled when user returns from redirect
             } else {
+                console.log('Using popup for desktop');
                 await signInWithPopup(auth, provider);
             }
         } catch (error) {
