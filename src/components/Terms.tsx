@@ -6,7 +6,7 @@ const Terms: React.FC = () => {
         <div className="legal-container">
             <div className="legal-content">
                 <h1>Terms of Service</h1>
-                <p className="last-updated">Last updated: December 23, 2024</p>
+                <p className="last-updated">Last updated: December 19, 2024</p>
 
                 <section>
                     <h2>Acceptance of Terms</h2>
@@ -45,13 +45,6 @@ const Terms: React.FC = () => {
                     <h2>Account Security</h2>
                     <p>
                         You are responsible for maintaining the security of your account. Do not share your login credentials with others.
-                    </p>
-                </section>
-
-                <section>
-                    <h2>Service Availability</h2>
-                    <p>
-                        We provide the service "as is" without warranties. We may modify, suspend, or discontinue the service at any time without notice.
                     </p>
                 </section>
 
