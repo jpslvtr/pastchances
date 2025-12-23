@@ -1,11 +1,25 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
+// Dynamically determine authDomain based on current hostname
+const getAuthDomain = () => {
+    if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        if (hostname === 'www.secondchances.app' || hostname === 'secondchances.app') {
+            return hostname;
+        }
+        if (hostname === 'localhost' || hostname.includes('192.168.') || hostname.includes('10.0.0.')) {
+            return 'secondchances.app';
+        }
+    }
+    return 'secondchances.app';
+};
+
 const firebaseConfig = {
     apiKey: "AIzaSyDC_YL8wau3PKK1r2ZYYHc32TtnoXe5giQ",
-    authDomain: "stanford-lastchances.firebaseapp.com",
+    authDomain: getAuthDomain(),
     projectId: "stanford-lastchances",
     storageBucket: "stanford-lastchances.firebasestorage.app",
     messagingSenderId: "792276801448",
@@ -19,11 +33,15 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const analytics = getAnalytics(app);
 
-// Configure Google provider to show account picker
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-    prompt: 'select_account' // Force account picker instead of auto-selecting
+// Set persistence to LOCAL to ensure auth state survives redirects
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+    console.error('Error setting auth persistence:', error);
 });
 
-// Additional configuration for cross-domain compatibility
+// Configure Google provider
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+    prompt: 'select_account'
+});
+
 auth.useDeviceLanguage();
