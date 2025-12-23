@@ -7,15 +7,46 @@
     
     .dashboard-header {
       padding: 12px 15px;
-      flex-direction: column;
+      flex-direction: row;
       align-items: flex-start;
       gap: 8px;
     }
-    
+
+    .header-title {
+      flex: 1;
+    }
+
+    .header-title h1 {
+      font-size: 16px;
+    }
+
+    .header-subtitle {
+      font-size: 11px;
+    }
+
     .user-info {
-      width: 100%;
-      justify-content: space-between;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
       gap: 8px;
+      margin-left: auto;
+    }
+
+    .user-details {
+      display: none;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .logout-btn,
+    .admin-toggle-btn {
+      font-size: 10px;
+      padding: 5px 10px;
+      white-space: nowrap;
     }
     
     .dashboard-content {
@@ -42,12 +73,6 @@
       width: 28px;
       height: 28px;
       font-size: 20px;
-    }
-    
-    .user-details {
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
     }
   
     .name-chips {
@@ -182,7 +207,11 @@
     }
   
     .dashboard-header h1 {
-      font-size: 18px;
+      font-size: 14px;
+    }
+
+    .header-subtitle {
+      font-size: 10px;
     }
   
     .dashboard-content h2 {
@@ -200,6 +229,12 @@
   
     .user-email {
       font-size: 9px;
+    }
+
+    .logout-btn,
+    .admin-toggle-btn {
+      font-size: 9px;
+      padding: 4px 8px;
     }
   
     .selected-names {
