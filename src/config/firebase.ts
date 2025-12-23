@@ -3,23 +3,9 @@ import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } 
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
-// Dynamically determine authDomain based on current hostname
-const getAuthDomain = () => {
-    if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        if (hostname === 'www.secondchances.app' || hostname === 'secondchances.app') {
-            return hostname;
-        }
-        if (hostname === 'localhost' || hostname.includes('192.168.') || hostname.includes('10.0.0.')) {
-            return 'secondchances.app';
-        }
-    }
-    return 'secondchances.app';
-};
-
 const firebaseConfig = {
     apiKey: "AIzaSyDC_YL8wau3PKK1r2ZYYHc32TtnoXe5giQ",
-    authDomain: getAuthDomain(),
+    authDomain: "stanford-lastchances.firebaseapp.com",
     projectId: "stanford-lastchances",
     storageBucket: "stanford-lastchances.firebasestorage.app",
     messagingSenderId: "792276801448",
