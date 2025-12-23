@@ -6,6 +6,8 @@ import Login from './components/Login';
 import Home from './components/Home';
 import NameSelection from './components/NameSelection';
 import AccountLinking from './components/AccountLinking';
+import Privacy from './components/Privacy';
+import Terms from './components/Terms';
 import './App.css';
 
 interface ProtectedRouteProps {
@@ -57,6 +59,8 @@ const App: React.FC = () => {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
           <Route
             path="/"
             element={
