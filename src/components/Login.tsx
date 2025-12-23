@@ -21,7 +21,7 @@ const Login: React.FC = () => {
         <div className="login-container">
             <div className="login-card">
                 <div className="login-title">
-                    <img src="/logo-border.svg" alt="Second Chances Logo" className="login-logo" />
+                    <img src="/logo-border.png" alt="Second Chances Logo" className="login-logo" />
                     <h1>Second Chances</h1>
                 </div>
                 <p>
