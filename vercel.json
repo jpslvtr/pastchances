@@ -6,7 +6,7 @@
     "framework": "vite",
     "headers": [
         {
-            "source": "/logo.png",
+            "source": "/logo.svg",
             "headers": [
                 {
                     "key": "Content-Type",
@@ -23,7 +23,7 @@
             ]
         },
         {
-            "source": "/logo.png",
+            "source": "/logo.svg",
             "headers": [
                 {
                     "key": "Content-Type",
