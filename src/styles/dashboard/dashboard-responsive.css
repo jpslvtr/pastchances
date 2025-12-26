@@ -32,8 +32,10 @@
       margin-left: auto;
     }
 
-    .user-details {
-      display: none;
+    .user-profile-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .header-actions {
@@ -174,201 +176,36 @@
       padding: 5px 8px;
     }
     
-    .names-simple-list {
-      max-height: 50vh;
-      min-height: 300px;
-    }
-    
-    .name-list-item {
-      height: 52px;
-      min-height: 52px;
-      padding: 14px 12px;
-      font-size: 13px;
-    }
-    
-    .no-results {
-      padding: 15px;
-      font-size: 13px;
-    }
-    
-    .no-results small {
+    .clear-all-btn, .submit-all-btn {
       font-size: 11px;
-    }
-  }
-  
-  @media (max-width: 480px) {
-    .dashboard-card {
-      border-radius: 8px;
-      min-height: calc(100vh - 10px);
+      padding: 6px 12px;
     }
     
-    .dashboard-container {
-      padding: 5px;
+    .search-input {
+      font-size: 13px;
+      padding: 10px 40px 10px 12px;
     }
-  
-    .dashboard-header h1 {
-      font-size: 14px;
+    
+    .matches-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
     }
-
-    .header-subtitle {
+    
+    .unlock-btn {
       font-size: 10px;
-    }
-  
-    .dashboard-content h2 {
-      font-size: 15px;
-    }
-  
-    .profile-pic {
-      width: 28px;
-      height: 28px;
-    }
-  
-    .user-name {
-      font-size: 11px;
-    }
-  
-    .user-email {
-      font-size: 9px;
-    }
-
-    .logout-btn,
-    .admin-toggle-btn {
-      font-size: 9px;
       padding: 4px 8px;
     }
-  
-    .selected-names {
-      padding: 10px;
+
+    .dashboard-footer {
+      padding: 15px;
     }
-  
-    .search-input {
-      padding: 12px 15px;
-      font-size: 14px;
+
+    .dashboard-footer a {
+      font-size: 12px;
     }
-  
-    /* Optimize for small screens with large lists */
-    .names-simple-list {
-      max-height: 65vh;
+
+    .footer-separator {
+      margin: 0 8px;
     }
-  
-    .name-list-item {
-      padding: 16px 12px;
-      font-size: 14px;
-      min-height: 52px;
-    }
-  
-    .name-text {
-      font-weight: 500;
-    }
-  
-    .add-btn {
-      width: 32px;
-      height: 32px;
-      font-size: 22px;
-    }
-  
-    .name-chips {
-      grid-template-columns: 1fr;
-      gap: 6px;
-    }
-  
-    .name-chip {
-      min-height: 26px;
-      font-size: 10px;
-    }
-  
-    .action-buttons {
-      gap: 6px;
-    }
-  
-    .save-draft-btn, .submit-btn, .update-btn {
-      padding: 12px 16px;
-      font-size: 14px;
-    }
-  
-    .submitted-message h3 {
-      font-size: 15px;
-    }
-  
-    .submitted-message p {
-      font-size: 13px;
-    }
-  
-    .matches-section h2 {
-      font-size: 15px;
-    }
-  
-    .crush-count-section h2 {
-      font-size: 15px;
-    }
-  
-    .locked-badge {
-      font-size: 8px;
-    }
-  
-    .lock-icon {
-      font-size: 9px;
-    }
-  
-    .names-simple-list {
-      max-height: 45vh;
-      min-height: 280px;
-    }
-    
-    .name-list-item {
-      height: 56px;
-      min-height: 56px;
-      padding: 16px 12px;
-      font-size: 14px;
-    }
-    
-    .search-clear-btn {
-      width: 32px;
-      height: 32px;
-      font-size: 22px;
-    }
-    
-    .search-hint {
-      font-size: 9px;
-      padding: 4px 6px;
-    }
-  }
-  
-  /* Smooth scrolling optimization for touch devices */
-  @media (hover: none) and (pointer: coarse) {
-    .names-simple-list {
-      -webkit-overflow-scrolling: touch;
-      scroll-behavior: smooth;
-    }
-  
-    .name-list-item {
-      /* Larger touch targets for mobile */
-      min-height: 48px;
-      padding: 16px 15px;
-    }
-  
-    .name-list-item:active {
-      background: #e9ecef;
-      transform: scale(0.98);
-    }
-  
-    .add-btn:active {
-      transform: scale(0.9);
-    }
-  
-    .search-clear-btn:active {
-      transform: translateY(-50%) scale(0.9);
-    }
-  }
-  
-  /* Performance optimizations for large lists */
-  .names-simple-list {
-    /* Enable hardware acceleration for smooth scrolling */
-    transform: translateZ(0);
-    will-change: scroll-position;
-  }
-  
-  .name-list-item {
-    /* Optimize repaints */
-    contain: layout style paint;
   }
