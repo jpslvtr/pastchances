@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Home from './components/Home';
+import Profile from './components/Profile';
 import NameSelection from './components/NameSelection';
 import AccountLinking from './components/AccountLinking';
 import Privacy from './components/Privacy';
@@ -66,6 +67,14 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
               </ProtectedRoute>
             }
           />

@@ -13,7 +13,7 @@ src/assets/
 firebase.json
 firestore.indexes.json
 # firestore.rules
-scripts
+# scripts
 
 functions/src/serviceAccountKey.json
 .env*

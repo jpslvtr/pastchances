@@ -3,7 +3,7 @@
 // ---------------------------------------------------------
 // EDIT THIS VALUE
 // ---------------------------------------------------------
-const TARGET_NAME = 'James Park'.toLowerCase();
+const TARGET_NAME = 'Katie Van Dyk'.toLowerCase();
 // ---------------------------------------------------------
 
 const path = require('path');

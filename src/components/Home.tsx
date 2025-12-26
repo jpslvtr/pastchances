@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AdminView from '../components/AdminView';
 import UserDashboard from '../components/UserDashboard';
@@ -8,7 +9,8 @@ import { isAdminUser } from '../utils/adminUtils';
 import { getUserDocumentId } from '../utils';
 
 const Home = () => {
-    const { user, userData, signOut, refreshUserData } = useAuth();
+    const { user, userData, refreshUserData } = useAuth();
+    const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
     const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
@@ -17,9 +19,17 @@ const Home = () => {
     const [updating, setUpdating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isAdminMode, setIsAdminMode] = useState(false);
-    const [adminAccessError, setAdminAccessError] = useState(false);
 
     const isAdmin = isAdminUser(user, userData);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('admin') === 'true' && isAdmin) {
+            setIsAdminMode(true);
+            // Clean up URL
+            window.history.replaceState({}, '', '/');
+        }
+    }, [isAdmin]);
 
     const getClassDisplayName = useCallback(() => {
         const userClass = userData?.userClass || 'gsb';
@@ -38,7 +48,6 @@ const Home = () => {
         const loadData = async () => {
             try {
                 setError(null);
-                setAdminAccessError(false);
                 if (user && userData) {
                     loadUserSelections();
                 }
@@ -154,14 +163,9 @@ const Home = () => {
         }
     }, [user, userData, updating, selectedNames, refreshUserData]);
 
-    const handleAdminToggle = useCallback(() => {
-        if (!isAdmin) {
-            setAdminAccessError(true);
-            setTimeout(() => setAdminAccessError(false), 3000);
-            return;
-        }
-        setIsAdminMode(!isAdminMode);
-    }, [isAdmin, isAdminMode]);
+    const handleProfileClick = useCallback(() => {
+        navigate('/profile');
+    }, [navigate]);
 
     if (loading) {
         return <div className="loading">Loading...</div>;
@@ -187,46 +191,21 @@ const Home = () => {
                         <div className="header-subtitle">{getClassDisplayName()}</div>
                     </div>
                     <div className="user-info">
-                        <div className="user-details">
+                        <div className="user-profile-link">
                             <img
                                 src={currentImageUrl}
                                 alt="Profile"
-                                className="profile-pic"
+                                className="profile-pic clickable"
                                 onError={() => handleImageError(currentImageUrl)}
+                                onClick={handleProfileClick}
                                 loading="lazy"
                             />
-                            <div>
-                                <div className="user-name">{userData?.name || user?.displayName}</div>
-                                <div className="user-email">{user?.email}</div>
+                            <div className="user-name clickable" onClick={handleProfileClick}>
+                                {userData?.name || user?.displayName}
                             </div>
-                        </div>
-                        <div className="header-actions">
-                            {isAdmin && (
-                                <button
-                                    onClick={handleAdminToggle}
-                                    className="admin-toggle-btn"
-                                >
-                                    {isAdminMode ? 'Exit Admin View' : 'Admin View'}
-                                </button>
-                            )}
-                            <button className="logout-btn" onClick={signOut}>Logout</button>
                         </div>
                     </div>
                 </div>
-
-                {adminAccessError && (
-                    <div className="error-message" style={{
-                        background: '#f8d7da',
-                        color: '#721c24',
-                        padding: '10px',
-                        margin: '10px 20px',
-                        borderRadius: '4px',
-                        fontSize: '14px',
-                        textAlign: 'center'
-                    }}>
-                        Access denied. Admin privileges are required.
-                    </div>
-                )}
 
                 <div className="dashboard-content">
                     {isAdminMode && isAdmin ? (
