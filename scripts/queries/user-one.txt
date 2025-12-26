@@ -1,49 +1,133 @@
 
-=== User detail for name: "james park" ===
+=== User detail for name: "katie van dyk" ===
 
 --- Summary ---
-id          : oGkvzhQB9qeYAxC5irU7jDFf5P32_gsb
-name        : James Park
-email       : jpark22@stanford.edu
+id          : 0f6cD50nM1QDjns8t88tpg5vXLf2
+name        : Katie Van Dyk
+email       : kvandyk@stanford.edu
 userClass   : gsb
-lastLogin   : 2025-12-10T22:25:23.907Z
-crushCount  : 5
-matchCount  : 1
+lastLogin   : 2025-09-14T00:12:42.754Z
+crushCount  : 15
+matchCount  : 9
 
 --- Full document ---
 {
-  "uid": "oGkvzhQB9qeYAxC5irU7jDFf5P32_gsb",
-  "email": "jpark22@stanford.edu",
-  "photoURL": "https://lh3.googleusercontent.com/a/ACg8ocJWOpw_gLwVMWkxA00Br9A_QpLaetV4vDpiH4RC78uXen5pHgTv=s96-c",
-  "userClass": "gsb",
+  "photoURL": "https://lh3.googleusercontent.com/a/ACg8ocJ0pukYJ_rYDfHlgVxHp9FJ_ZY_nTgd3vndcs37eaU4X-6hx6T5=s96-c",
+  "email": "kvandyk@stanford.edu",
+  "uid": "0f6cD50nM1QDjns8t88tpg5vXLf2",
   "createdAt": {
-    "_seconds": 1750535857,
-    "_nanoseconds": 542000000
+    "_seconds": 1749673381,
+    "_nanoseconds": 311000000
   },
-  "name": "James Park",
   "lockedCrushes": [
-    "Test Account"
+    "Cayo Gonzalez",
+    "Itai Barsade",
+    "Joel Johnson",
+    "Madi Harvey",
+    "Michael Bakan",
+    "Mubarak Alliyu",
+    "Nico deLuna",
+    "Olivia Rosen",
+    "Sam Braunseis"
   ],
+  "name": "Katie Van Dyk",
+  "userClass": "gsb",
+  "lastLogin": {
+    "_seconds": 1757808762,
+    "_nanoseconds": 754000000
+  },
   "crushes": [
-    "Max Zhou",
-    "Stefano Schiappacasse",
-    "Test Account"
+    "Cayo Gonzalez",
+    "Itai Barsade",
+    "Joel Johnson",
+    "Madi Harvey",
+    "Michael Bakan",
+    "Mubarak Alliyu",
+    "Nico deLuna",
+    "Olivia Rosen",
+    "Sam Braunseis",
+    "Andrew Raffi Ansell",
+    "Mark Garo Ansell"
   ],
   "matches": [
     {
-      "name": "Test Account",
-      "email": "testaccount@stanford.edu"
+      "name": "Cayo Gonzalez",
+      "email": "cgonzal@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 444000000
+      }
+    },
+    {
+      "name": "Itai Barsade",
+      "email": "barsadei@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 445000000
+      }
+    },
+    {
+      "name": "Joel Johnson",
+      "email": "jajohn@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 446000000
+      }
+    },
+    {
+      "name": "Madi Harvey",
+      "email": "emharvey@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 446000000
+      }
+    },
+    {
+      "name": "Michael Bakan",
+      "email": "mgb64@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 447000000
+      }
+    },
+    {
+      "name": "Mubarak Alliyu",
+      "email": "mballiyu@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 448000000
+      }
+    },
+    {
+      "name": "Nico deLuna",
+      "email": "ndeluna@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 533000000
+      }
+    },
+    {
+      "name": "Olivia Rosen",
+      "email": "orosen@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 534000000
+      }
+    },
+    {
+      "name": "Sam Braunseis",
+      "email": "sbraun25@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 534000000
+      }
     }
   ],
-  "crushCount": 5,
+  "crushCount": 15,
+  "emailAlumniGSB": "kvandyk@alumni.gsb.stanford.edu",
+  "emailAlumni": "kvandyk@alumni.stanford.edu",
   "updatedAt": {
-    "_seconds": 1764436883,
-    "_nanoseconds": 564000000
-  },
-  "emailAlumniGSB": "jamespark@alumni.gsb.stanford.edu",
-  "emailAlumni": "jamespark@alumni.stanford.edu",
-  "lastLogin": {
-    "_seconds": 1765405523,
-    "_nanoseconds": 907000000
+    "_seconds": 1766470252,
+    "_nanoseconds": 471000000
   }
 }

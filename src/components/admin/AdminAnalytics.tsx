@@ -39,78 +39,6 @@ const shouldMatchHaveTimestamp = (user1Name: string, user2Name: string): boolean
     return !(isUser1JamesPark || isUser2JamesPark);
 };
 
-// Enhanced helper function to format match timestamp for analytics
-const formatAnalyticsMatchTimestamp = (matchedAt: any, user1Name: string, user2Name: string): string => {
-    // Check if this match should have a timestamp
-    if (!shouldMatchHaveTimestamp(user1Name, user2Name)) {
-        return 'James Park match';
-    }
-
-    if (!matchedAt) {
-        return 'No timestamp';
-    }
-
-    let date: Date;
-
-    try {
-        // Handle Firestore Timestamp with seconds property
-        if (matchedAt && typeof matchedAt === 'object' && matchedAt.seconds) {
-            date = new Date(matchedAt.seconds * 1000);
-        }
-        // Handle Firestore Timestamp with toDate method
-        else if (matchedAt && typeof matchedAt.toDate === 'function') {
-            date = matchedAt.toDate();
-        }
-        // Handle regular Date object
-        else if (matchedAt instanceof Date) {
-            date = matchedAt;
-        }
-        // Handle string or number timestamps
-        else if (typeof matchedAt === 'string' || typeof matchedAt === 'number') {
-            date = new Date(matchedAt);
-        }
-        // Handle the _seconds format from debug output
-        else if (matchedAt && matchedAt._seconds) {
-            date = new Date(matchedAt._seconds * 1000);
-        }
-        else {
-            console.log('Unknown timestamp format:', matchedAt);
-            return 'Unknown format';
-        }
-
-        // Validate the date
-        if (isNaN(date.getTime())) {
-            console.log('Invalid date created from:', matchedAt);
-            return 'Invalid Date';
-        }
-
-        const now = new Date();
-        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-        if (diffInSeconds < 60) {
-            return 'Just now';
-        } else if (diffInSeconds < 3600) {
-            const minutes = Math.floor(diffInSeconds / 60);
-            return `${minutes}m ago`;
-        } else if (diffInSeconds < 86400) {
-            const hours = Math.floor(diffInSeconds / 3600);
-            return `${hours}h ago`;
-        } else if (diffInSeconds < 604800) {
-            const days = Math.floor(diffInSeconds / 86400);
-            return `${days}d ago`;
-        } else {
-            return date.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-            });
-        }
-    } catch (error) {
-        console.error('Error formatting timestamp:', error, 'Original value:', matchedAt);
-        return 'Format Error';
-    }
-};
-
 const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplayName, allUsers }) => {
     if (!analytics) {
         return (
@@ -241,26 +169,6 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplay
 
             <div className="admin-analytics">
                 <div className="admin-analytics-section">
-                    <h4>All {classDisplayName} Matches ({analytics.totalMatches}) - With Timestamps</h4>
-                    {matchesWithTimestamps.length ? (
-                        <div className="admin-matches-list">
-                            {matchesWithTimestamps.map((match, index) => (
-                                <div key={index} className="admin-match-item-with-timestamp">
-                                    <div className="admin-match-pair">
-                                        {index + 1}. {match.pair}
-                                    </div>
-                                    <div className="admin-match-time">
-                                        {formatAnalyticsMatchTimestamp(match.timestamp, match.users[0], match.users[1])}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p>No matches found yet in {classDisplayName} class.</p>
-                    )}
-                </div>
-
-                <div className="admin-analytics-section">
                     <h4>Top {classDisplayName} Crush Receivers</h4>
                     <div className="admin-list">
                         {analytics.topCrushReceivers.slice(0, 15).map((receiver, index) => (
@@ -301,6 +209,21 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplay
                             </div>
                         ))}
                     </div>
+                </div>
+
+                <div className="admin-analytics-section">
+                    <h4>All {classDisplayName} Matches ({analytics.totalMatches})</h4>
+                    {matchesWithTimestamps.length ? (
+                        <div className="admin-list">
+                            {matchesWithTimestamps.map((match, index) => (
+                                <div key={index} className="admin-list-item">
+                                    <span>{index + 1}. {match.pair}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p>No matches found yet in {classDisplayName} class.</p>
+                    )}
                 </div>
             </div>
         </div>

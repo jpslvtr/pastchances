@@ -204,7 +204,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 </div>
             )}
 
-            <div className="header-section">
+            {/* <div className="header-section">
                 <div className="instructions">
                     <ol>
                         <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
@@ -213,7 +213,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         <li>Once you match with someone, you cannot remove them from your list.</li>
                     </ol>
                 </div>
-            </div>
+            </div> */}
 
             <div className="selection-counter">
                 {safeSelectedNames.length} selected

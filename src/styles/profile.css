@@ -1,0 +1,181 @@
+.profile-container {
+    min-height: 100vh;
+    background-color: #f8f9fa;
+    padding: 20px;
+}
+
+.profile-card {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.profile-header {
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.back-button {
+    background: none;
+    border: none;
+    color: #007bff;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.back-button:hover {
+    background-color: #f8f9fa;
+}
+
+.profile-content {
+    padding: 40px 20px;
+}
+
+.profile-image-section {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.profile-image-large {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #e9ecef;
+    margin-bottom: 16px;
+}
+
+.profile-name {
+    font-size: 24px;
+    font-weight: 600;
+    color: #212529;
+    margin: 0;
+}
+
+.profile-emails-section {
+    margin-bottom: 40px;
+    padding: 0 20px;
+}
+
+.profile-emails-section h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 20px;
+}
+
+.email-item {
+    margin-bottom: 16px;
+    padding: 16px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.email-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.email-value {
+    font-size: 16px;
+    color: #212529;
+    word-break: break-all;
+}
+
+.email-value.current-email {
+    font-weight: 700;
+    color: #007bff;
+}
+
+.profile-instructions-section {
+    margin-bottom: 40px;
+    padding: 0 20px;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    padding: 0 20px;
+}
+
+.profile-actions .admin-toggle-btn,
+.profile-actions .logout-btn {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.profile-actions .admin-toggle-btn {
+    background-color: #007bff;
+    color: white;
+}
+
+.profile-actions .admin-toggle-btn:hover {
+    background-color: #0056b3;
+}
+
+.profile-actions .logout-btn {
+    background-color: #dc3545;
+    color: white;
+}
+
+.profile-actions .logout-btn:hover {
+    background-color: #c82333;
+}
+
+@media (max-width: 768px) {
+    .profile-container {
+        padding: 10px;
+    }
+
+    .profile-card {
+        border-radius: 8px;
+    }
+
+    .profile-header {
+        padding: 16px;
+    }
+
+    .profile-content {
+        padding: 24px 16px;
+    }
+
+    .profile-image-large {
+        width: 100px;
+        height: 100px;
+    }
+
+    .profile-name {
+        font-size: 20px;
+    }
+
+    .profile-emails-section,
+    .profile-instructions-section,
+    .profile-actions {
+        padding: 0;
+    }
+
+    .profile-actions {
+        flex-direction: column;
+    }
+
+    .profile-actions .admin-toggle-btn,
+    .profile-actions .logout-btn {
+        width: 100%;
+    }
+}
