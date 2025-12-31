@@ -28,10 +28,48 @@
     gap: 10px;
     flex-shrink: 0;
   }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-logo {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .header-logo:hover {
+    opacity: 0.8;
+  }
   
   .dashboard-header h1 {
     font-size: 20px;
     font-weight: 700;
+  }
+
+  .header-title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .header-title h1 {
+    margin: 0;
+  }
+
+  .header-subtitle {
+    background: #f8f9fa;
+    padding: 10px 20px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 600;
+    color: #8C1515;
+    border-bottom: 1px solid #e9ecef;
   }
   
   .user-info {
@@ -50,6 +88,22 @@
   .user-info span {
     font-size: 12px;
     opacity: 0.9;
+  }
+
+  .admin-toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .admin-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
   }
   
   .logout-btn {
@@ -74,164 +128,124 @@
     flex-direction: column;
     gap: 20px;
   }
-  
-  .header-section {
-    flex-shrink: 0;
-  }
-  
-  .dashboard-content h2 {
-    color: #8C1515;
-    margin-bottom: 8px;
-    font-size: 18px;
-  }
-  
-  .dashboard-content > p {
-    color: #666;
-    margin-bottom: 15px;
-    line-height: 1.5;
-    font-size: 14px;
-  }
-  
-  .submitted-notice {
-    background: #d4edda;
-    color: #155724;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border-left: 4px solid #28a745;
-    font-weight: 500;
-    margin-top: 8px;
-    font-size: 14px;
-  }
-  
-  /* User info styles */
-  .user-details {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  
-  .profile-pic {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-  }
 
-  .profile-pic.clickable {
-    cursor: pointer;
-    transition: transform 0.2s ease, border-color 0.2s ease;
-  }
-
-  .profile-pic.clickable:hover {
-    transform: scale(1.05);
-    border-color: rgba(255, 255, 255, 0.6);
-  }
-  
-  .user-name {
-    font-weight: 600;
-    font-size: 12px;
-  }
-
-  .user-name.clickable {
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-  }
-
-  .user-name.clickable:hover {
-    opacity: 0.8;
-  }
-  
-  .user-email {
-    font-size: 10px;
-    opacity: 0.8;
-  }
-  
-  /* Instructions list styling */
-  .instructions {
-    margin-bottom: 15px;
-  }
-  
-  .instructions ol {
-    padding-left: 20px;
-    margin: 0;
-  }
-  
-  .instructions li {
-    margin-bottom: 8px;
-    line-height: 1.5;
-    font-size: 14px;
-    color: #666;
-  }
-  
-  .instructions em {
-    font-style: italic;
-    color: #8C1515;
-    font-weight: 600;
-  }
-  
-  /* Class indicator improvements */
-  .class-indicator {
-    margin-bottom: 15px;
-    text-align: center;
-  }
-  
-  .class-badge {
-    display: inline-block;
-    background: linear-gradient(135deg, #8C1515 0%, #B83A4B 100%);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    box-shadow: 0 2px 4px rgba(140, 21, 21, 0.3);
-  }
-
-  /* Footer styles */
   .dashboard-footer {
     padding: 20px;
     text-align: center;
     border-top: 1px solid #e9ecef;
     background: #f8f9fa;
-    flex-shrink: 0;
   }
 
   .dashboard-footer a {
-    color: #8C1515;
+    color: #6c757d;
     text-decoration: none;
     font-size: 14px;
-    transition: opacity 0.2s ease;
+    transition: color 0.2s;
   }
 
   .dashboard-footer a:hover {
-    opacity: 0.7;
-    text-decoration: underline;
+    color: #8C1515;
   }
 
   .footer-separator {
+    color: #dee2e6;
     margin: 0 12px;
-    color: #999;
+    font-weight: 300;
   }
 
-  .header-title {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* Profile Dropdown Styles */
+.profile-dropdown {
+    position: relative;
 }
 
-.header-title h1 {
-  margin: 0;
+.profile-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: opacity 0.2s;
 }
 
-.header-subtitle {
-  font-size: 14px;
-  font-weight: 500;
-  opacity: 0.9;
+.profile-dropdown-trigger:hover {
+    opacity: 0.9;
 }
 
-@media (max-width: 768px) {
-  .header-subtitle {
-    font-size: 12px;
-  }
+.dropdown-arrow {
+    color: white;
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.profile-dropdown-trigger:hover .dropdown-arrow {
+    transform: translateY(2px);
+}
+
+.profile-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.dropdown-item {
+    width: 100%;
+    padding: 12px 16px;
+    background: white;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+    color: #212529;
+    transition: background-color 0.2s;
+    display: block;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+.dropdown-item.profile-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    font-weight: 600;
+}
+
+.dropdown-profile-pic {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: #e9ecef;
+    margin: 0;
+}
+
+.dropdown-item.logout-item {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.dropdown-item.logout-item:hover {
+    background-color: #fff5f5;
+}
+
+.profile-pic {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.3);
 }

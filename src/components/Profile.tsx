@@ -1,14 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { InstructionsSection } from './dashboard/InstructionsSection';
+import Navbar from './shared/Navbar';
 import { db } from '../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { getUserDocumentId } from '../utils';
 import '../styles/profile.css';
 
 const Profile = () => {
-    const { user, userData, signOut, refreshUserData } = useAuth();
+    const { user, userData, refreshUserData } = useAuth();
     const navigate = useNavigate();
     const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
     const [isEditing, setIsEditing] = useState(false);
@@ -151,6 +151,10 @@ const Profile = () => {
         setShowSuggestions(false);
     }, [userData]);
 
+    const handleAdminToggle = useCallback(() => {
+        navigate('/');
+    }, [navigate]);
+
     const formatDate = (timestamp: any) => {
         if (!timestamp) return 'N/A';
         let date;
@@ -165,11 +169,14 @@ const Profile = () => {
     const currentEmail = user?.email || '';
 
     return (
-        <div className="profile-container">
-            <div className="profile-card">
-                <div className="profile-header">
-                    <button onClick={() => navigate('/')} className="back-button">← Back to Dashboard</button>
-                </div>
+        <div className="dashboard-container">
+            <div className="dashboard-card">
+                <Navbar
+                    user={user}
+                    userData={userData}
+                    isAdminMode={false}
+                    onAdminToggle={handleAdminToggle}
+                />
 
                 <div className="profile-content">
                     <div className="profile-image-section">
@@ -253,10 +260,6 @@ const Profile = () => {
                         </div>
                     </div>
 
-                    <div className="profile-instructions-section">
-                        <InstructionsSection />
-                    </div>
-
                     <div className="profile-actions">
                         {isEditing ? (
                             <>
@@ -266,10 +269,7 @@ const Profile = () => {
                                 <button className="cancel-btn" onClick={handleCancel} disabled={saving}>Cancel</button>
                             </>
                         ) : (
-                            <>
-                                <button className="edit-btn" onClick={() => setIsEditing(true)}>Edit Profile</button>
-                                <button className="logout-btn" onClick={signOut}>Logout</button>
-                            </>
+                            <button className="edit-btn" onClick={() => setIsEditing(true)}>Edit Profile</button>
                         )}
                     </div>
                 </div>
