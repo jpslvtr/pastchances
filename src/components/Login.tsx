@@ -25,7 +25,7 @@ const Login = () => {
         <div className="login-container">
             <div className="login-card">
                 <div className="login-header">
-                    <img src="/logo-rounded.png" alt="Second Chances Logo" className="login-logo" />
+                    <img src="/logo-border.png" alt="Second Chances Logo" className="login-logo" />
                     <h1>Second Chances</h1>
                     <p className="login-subtitle">Share your crushes anonymously and see if there's a mutual connection.</p>
                     <br></br>
