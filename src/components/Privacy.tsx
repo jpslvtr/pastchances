@@ -50,13 +50,6 @@ const Privacy: React.FC = () => {
                     </section>
 
                     <section>
-                        <h2>Data Storage</h2>
-                        <p>
-                            All data is stored securely in Google Firebase. We use industry-standard security measures to protect your information.
-                        </p>
-                    </section>
-
-                    <section>
                         <h2>Data Retention</h2>
                         <p>
                             Your account and data remain active as long as you use the service. You may request account deletion by contacting us.
