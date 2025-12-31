@@ -1,16 +1,10 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from './shared/Navbar';
 import '../styles/legal.css';
 
 const HowTo: React.FC = () => {
     const { user, userData } = useAuth();
-    const navigate = useNavigate();
-
-    const handleBackToHome = () => {
-        navigate('/');
-    };
 
     return (
         <div className="dashboard-container">
@@ -30,27 +24,6 @@ const HowTo: React.FC = () => {
                             <p>3. You can add or remove names anytime. There's no limit on how many people you can select, and you can change your preferences as often as you want.</p>
                             <p>4. Once you match with someone, you cannot remove them from your list.</p>
                         </div>
-
-                        <button
-                            onClick={handleBackToHome}
-                            className="back-button"
-                            style={{
-                                marginTop: '30px',
-                                padding: '12px 24px',
-                                backgroundColor: '#8C1515',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontSize: '16px',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                            }}
-                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#a01a1a'}
-                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#8C1515'}
-                        >
-                            Back to Home
-                        </button>
                     </div>
                 </div>
             </div>
