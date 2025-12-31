@@ -1,46 +1,36 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
+import '../styles/auth.css';
 
-const Login: React.FC = () => {
-    const { signInWithGoogle, user, loading } = useAuth();
-    const navigate = useNavigate();
-
-    useEffect(() => {
-        if (!loading && user) {
-            console.log('User authenticated, redirecting to app');
-            navigate('/');
-        }
-    }, [user, loading, navigate]);
+const Login = () => {
+    const { user, loading, signInWithGoogle } = useAuth();
 
     const handleSignIn = async () => {
-        await signInWithGoogle();
+        try {
+            await signInWithGoogle();
+        } catch (error) {
+            console.error('Sign in error:', error);
+        }
     };
+
+    if (loading) {
+        return <div className="loading">Loading...</div>;
+    }
+
+    if (user) {
+        return <Navigate to="/" />;
+    }
 
     return (
         <div className="login-container">
             <div className="login-card">
-                <div className="login-title">
-                    <img src="/logo-border.svg" alt="Second Chances Logo" className="login-logo" />
+                <div className="login-header">
+                    <img src="/logo-rounded.png" alt="Second Chances Logo" className="login-logo" />
                     <h1>Second Chances</h1>
+                    <p className="login-subtitle">Share your crushes anonymously and see if there's a mutual connection.</p>
                 </div>
-                <p>
-                    Share your crushes anonymously and see if there's a mutual connection.
-                </p>
 
                 <div className="login-content">
-                    <p style={{
-                        fontSize: '13px',
-                        color: '#666',
-                        marginBottom: '16px',
-                        lineHeight: '1.4'
-                    }}>
-                        Feel free to sign in with your @stanford.edu if you still have access,
-                        or your @alumni.stanford.edu or @alumni.gsb.stanford.edu
-                    </p>
-
-                    <br></br>
-
                     <button
                         className="google-signin-btn"
                         onClick={handleSignIn}

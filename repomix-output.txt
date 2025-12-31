@@ -102,6 +102,7 @@ src/
     shared/
       LoadingSpinner.tsx
       MatchItem.tsx
+      Navbar.tsx
       SearchInput.tsx
     AccountLinking.tsx
     AdminView.tsx
@@ -244,6 +245,119 @@ File: scripts/repomix.sh
 cd ..
 
 repomix
+
+================
+File: src/components/shared/Navbar.tsx
+================
+import React, { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { User } from 'firebase/auth';
+import type { UserData } from '../../types/userTypes';
+import { isAdminUser } from '../../utils/adminUtils';
+
+interface NavbarProps {
+    user: User | null;
+    userData: UserData | null;
+    isAdminMode?: boolean;
+    onAdminToggle?: () => void;
+    showAdminToggle?: boolean;
+}
+
+const Navbar: React.FC<NavbarProps> = ({
+    user,
+    userData,
+    isAdminMode = false,
+    onAdminToggle,
+    showAdminToggle = true
+}) => {
+    const navigate = useNavigate();
+    const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
+
+    const isAdmin = useMemo(() => {
+        return isAdminUser(user, userData);
+    }, [user, userData]);
+
+    const getClassDisplayName = useMemo(() => {
+        const userClass = userData?.userClass;
+        return userClass === 'gsb' ? 'GSB MBA Class of 2025' : 'Undergrad Class of 2025';
+    }, [userData?.userClass]);
+
+    const handleImageError = useCallback((imageUrl: string) => {
+        console.log('Image failed to load:', imageUrl);
+        setFailedImageUrls(prev => new Set(prev).add(imageUrl));
+    }, []);
+
+    const getProfileImageUrl = useCallback(() => {
+        const googlePhotoUrl = userData?.photoURL;
+        const fallbackUrl = '/files/default-profile.png';
+
+        if (!googlePhotoUrl) {
+            return fallbackUrl;
+        }
+
+        if (failedImageUrls.has(googlePhotoUrl)) {
+            return fallbackUrl;
+        }
+
+        return googlePhotoUrl;
+    }, [userData?.photoURL, failedImageUrls]);
+
+    const handleLogoClick = useCallback(() => {
+        if (window.location.pathname === '/') {
+            window.location.reload();
+        } else {
+            navigate('/');
+        }
+    }, [navigate]);
+
+    const handleProfileClick = useCallback(() => {
+        navigate('/profile');
+    }, [navigate]);
+
+    const currentImageUrl = getProfileImageUrl();
+
+    return (
+        <>
+            <div className="dashboard-header">
+                <div className="header-left">
+                    <img
+                        src="/logo-rounded.png"
+                        alt="Second Chances Logo"
+                        className="header-logo"
+                        onClick={handleLogoClick}
+                    />
+                    <div className="header-title">
+                        <h1>Second Chances</h1>
+                    </div>
+                </div>
+                <div className="user-info">
+                    <div className="user-profile-link">
+                        {isAdmin && showAdminToggle && (
+                            <button
+                                onClick={onAdminToggle}
+                                className="admin-toggle-btn"
+                            >
+                                {isAdminMode ? 'User View' : 'Admin'}
+                            </button>
+                        )}
+                        <img
+                            src={currentImageUrl}
+                            alt="Profile"
+                            className="profile-pic clickable"
+                            onError={() => handleImageError(currentImageUrl)}
+                            onClick={handleProfileClick}
+                            loading="lazy"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div className="header-subtitle">{getClassDisplayName}</div>
+        </>
+    );
+};
+
+export default Navbar;
 
 ================
 File: src/index.css
@@ -6148,6 +6262,14 @@ File: src/styles/legal.css
 }
 
 ================
+File: src/App.css
+================
+@import './styles/base.css';
+@import './styles/auth.css';
+@import './styles/dashboard.css';
+@import './styles/admin.css';
+
+================
 File: .firebaserc
 ================
 {
@@ -7533,14 +7655,6 @@ const calculateMatchScore = (name1: string, name2: string): number => {
 };
 
 ================
-File: src/App.css
-================
-@import './styles/base.css';
-@import './styles/auth.css';
-@import './styles/dashboard.css';
-@import './styles/admin.css';
-
-================
 File: functions/src/utils.ts
 ================
 import { UserWithId } from './types';
@@ -8049,9 +8163,11 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { InstructionsSection } from './dashboard/InstructionsSection';
+import Navbar from './shared/Navbar';
 import { db } from '../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { getUserDocumentId } from '../utils';
+import { isAdminUser } from '../utils/adminUtils';
 import '../styles/profile.css';
 
 const Profile = () => {
@@ -8065,6 +8181,8 @@ const Profile = () => {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+    const isAdmin = isAdminUser(user, userData);
 
     useEffect(() => {
         if (userData) {
@@ -8198,6 +8316,10 @@ const Profile = () => {
         setShowSuggestions(false);
     }, [userData]);
 
+    const handleAdminToggle = useCallback(() => {
+        navigate('/');
+    }, [navigate]);
+
     const formatDate = (timestamp: any) => {
         if (!timestamp) return 'N/A';
         let date;
@@ -8212,11 +8334,15 @@ const Profile = () => {
     const currentEmail = user?.email || '';
 
     return (
-        <div className="profile-container">
-            <div className="profile-card">
-                <div className="profile-header">
-                    <button onClick={() => navigate('/')} className="back-button">← Back to Dashboard</button>
-                </div>
+        <div className="dashboard-container">
+            <div className="dashboard-card">
+                <Navbar
+                    user={user}
+                    userData={userData}
+                    isAdminMode={false}
+                    onAdminToggle={handleAdminToggle}
+                    showAdminToggle={isAdmin}
+                />
 
                 <div className="profile-content">
                     <div className="profile-image-section">
@@ -8319,6 +8445,12 @@ const Profile = () => {
                             </>
                         )}
                     </div>
+                </div>
+
+                <div className="dashboard-footer">
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                    <span className="footer-separator">•</span>
+                    <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
                 </div>
             </div>
         </div>
@@ -8499,12 +8631,18 @@ File: src/styles/dashboard/dashboard-responsive.css
     .dashboard-header {
       padding: 12px 15px;
       flex-direction: row;
-      align-items: flex-start;
+      align-items: center;
       gap: 8px;
     }
 
-    .header-title {
+    .header-left {
       flex: 1;
+      gap: 8px;
+    }
+
+    .header-logo {
+      width: 24px;
+      height: 24px;
     }
 
     .header-title h1 {
@@ -8513,13 +8651,14 @@ File: src/styles/dashboard/dashboard-responsive.css
 
     .header-subtitle {
       font-size: 11px;
+      padding: 6px 12px;
     }
 
     .user-info {
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      gap: 8px;
+      gap: 6px;
       margin-left: auto;
     }
 
@@ -9412,42 +9551,6 @@ File: src/styles/dashboard.css
 ================
 File: src/styles/profile.css
 ================
-.profile-container {
-    min-height: 100vh;
-    background-color: #f8f9fa;
-    padding: 20px;
-}
-
-.profile-card {
-    max-width: 800px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-}
-
-.profile-header {
-    padding: 20px;
-    border-bottom: 1px solid #e9ecef;
-}
-
-.back-button {
-    background: none;
-    border: none;
-    color: #8C1515;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 8px 12px;
-    border-radius: 6px;
-    transition: all 0.2s;
-}
-
-.back-button:hover {
-    background-color: rgba(140, 21, 21, 0.1);
-}
-
 .profile-content {
     padding: 40px 20px;
 }
@@ -9664,18 +9767,6 @@ File: src/styles/profile.css
 }
 
 @media (max-width: 768px) {
-    .profile-container {
-        padding: 10px;
-    }
-
-    .profile-card {
-        border-radius: 8px;
-    }
-
-    .profile-header {
-        padding: 16px;
-    }
-
     .profile-content {
         padding: 24px 16px;
     }
@@ -10509,10 +10600,48 @@ File: src/styles/dashboard/dashboard-layout.css
     gap: 10px;
     flex-shrink: 0;
   }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-logo {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .header-logo:hover {
+    opacity: 0.8;
+  }
   
   .dashboard-header h1 {
     font-size: 20px;
     font-weight: 700;
+  }
+
+  .header-title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .header-title h1 {
+    margin: 0;
+  }
+
+  .header-subtitle {
+    background: #f8f9fa;
+    padding: 10px 20px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 600;
+    color: #8C1515;
+    border-bottom: 1px solid #e9ecef;
   }
   
   .user-info {
@@ -10531,6 +10660,22 @@ File: src/styles/dashboard/dashboard-layout.css
   .user-info span {
     font-size: 12px;
     opacity: 0.9;
+  }
+
+  .admin-toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .admin-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
   }
   
   .logout-btn {
@@ -10695,25 +10840,15 @@ File: src/styles/dashboard/dashboard-layout.css
     color: #999;
   }
 
-  .header-title {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.header-title h1 {
-  margin: 0;
-}
-
-.header-subtitle {
-  font-size: 14px;
-  font-weight: 500;
-  opacity: 0.9;
-}
-
 @media (max-width: 768px) {
   .header-subtitle {
     font-size: 12px;
+    padding: 8px 15px;
+  }
+
+  .header-logo {
+    width: 32px;
+    height: 32px;
   }
 }
 
@@ -13121,6 +13256,372 @@ export async function fixMissingMatchTimestamps(): Promise<void> {
 }
 
 ================
+File: src/contexts/AuthContext.tsx
+================
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import type { ReactNode } from 'react';
+import type { User as FirebaseUser } from 'firebase/auth';
+import {
+    signInWithPopup,
+    GoogleAuthProvider,
+    signOut as firebaseSignOut,
+    onAuthStateChanged
+} from 'firebase/auth';
+import { doc, getDoc, collection, getDocs, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
+import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
+import type { UserData, UserClass } from '../types';
+import { getClassNames, getUserDocumentId } from '../utils';
+
+interface AuthContextType {
+    user: FirebaseUser | null;
+    userData: UserData | null;
+    loading: boolean;
+    needsOnboarding: boolean;
+    needsAccountLinking: boolean;
+    nameOptions: string[] | null;
+    signInWithGoogle: () => Promise<void>;
+    signOut: () => Promise<void>;
+    logout: () => Promise<void>;
+    refreshUserData: () => Promise<void>;
+    selectName: (name: string) => Promise<void>;
+    completeAccountLinking: () => void;
+    startNewAccount: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};
+
+interface AuthProviderProps {
+    children: ReactNode;
+}
+
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+    const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [userData, setUserData] = useState<UserData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [needsOnboarding, setNeedsOnboarding] = useState(false);
+    const [needsAccountLinking, setNeedsAccountLinking] = useState(false);
+    const [nameOptions, setNameOptions] = useState<string[] | null>(null);
+    const [pendingUserClass, setPendingUserClass] = useState<UserClass | null>(null);
+
+    // Prevent concurrent fetches
+    const fetchingUserData = useRef(false);
+
+    const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
+        if (fetchingUserData.current) {
+            console.log('Already fetching user data, skipping...');
+            return null;
+        }
+
+        fetchingUserData.current = true;
+
+        try {
+            const email = firebaseUser.email;
+            if (!email) return null;
+
+            const normalizedEmail = normalizeEmail(email);
+
+            // First check by Firebase UID
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+                console.log('Found user by Firebase UID');
+                return userDocSnap.data() as UserData;
+            }
+
+            // If alumni email, check if it exists in emailAlumni or emailAlumniGSB fields
+            if (isAlumniEmail(normalizedEmail)) {
+                const existingUserId = await checkExistingUserByAlumniEmail(normalizedEmail);
+                if (existingUserId) {
+                    const existingUserRef = doc(db, 'users', existingUserId);
+                    const existingUserSnap = await getDoc(existingUserRef);
+                    if (existingUserSnap.exists()) {
+                        console.log('Found user by alumni email lookup');
+                        return existingUserSnap.data() as UserData;
+                    }
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Error fetching user data:', error);
+            return null;
+        } finally {
+            fetchingUserData.current = false;
+        }
+    };
+
+    const checkExistingUserByAlumniEmail = async (email: string): Promise<string | null> => {
+        try {
+            const normalizedEmail = normalizeEmail(email);
+            const usersRef = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersRef);
+
+            for (const docSnap of usersSnapshot.docs) {
+                const data = docSnap.data();
+
+                const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
+                const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
+
+                if (alumniMatch || alumniGSBMatch) {
+                    console.log('Found existing user by alumni email:', docSnap.id);
+                    return docSnap.id;
+                }
+            }
+
+            console.log('No existing user found with alumni email');
+            return null;
+        } catch (error) {
+            console.error('Error checking alumni email:', error);
+            return null;
+        }
+    };
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            console.log('Auth state changed:', firebaseUser?.email);
+            setUser(firebaseUser);
+
+            if (firebaseUser) {
+                const data = await fetchUserData(firebaseUser);
+                setUserData(data);
+
+                // Update lastLogin for existing users
+                if (data) {
+                    try {
+                        const docId = getUserDocumentId(firebaseUser, data);
+                        const userRef = doc(db, 'users', docId);
+
+                        await runTransaction(db, async (transaction) => {
+                            const userDoc = await transaction.get(userRef);
+                            if (userDoc.exists()) {
+                                transaction.update(userRef, {
+                                    lastLogin: serverTimestamp()
+                                });
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Error updating lastLogin:', error);
+                    }
+                }
+
+                const email = firebaseUser.email;
+                if (!email) {
+                    setLoading(false);
+                    return;
+                }
+
+                // Check if email is valid Stanford-related
+                if (!isValidStanfordRelatedEmail(email)) {
+                    console.error('Invalid email domain');
+                    await firebaseSignOut(auth);
+                    setLoading(false);
+                    return;
+                }
+
+                // Handle onboarding and account linking flows
+                if (!data) {
+                    if (isAlumniEmail(email)) {
+                        setNeedsAccountLinking(true);
+                        setNeedsOnboarding(false);
+                        setNameOptions(null);
+                        setPendingUserClass('gsb');
+                    } else {
+                        setNeedsAccountLinking(false);
+                        setNeedsOnboarding(true);
+                        await handleNewStanfordUser(firebaseUser, 'gsb');
+                    }
+                } else {
+                    setNeedsAccountLinking(false);
+                    setNeedsOnboarding(false);
+                    setNameOptions(null);
+                }
+            } else {
+                setUserData(null);
+                setNeedsOnboarding(false);
+                setNeedsAccountLinking(false);
+                setNameOptions(null);
+            }
+
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
+        try {
+            const allNames = await getClassNames(userClass);
+            const displayName = firebaseUser.displayName || '';
+            const nameParts = displayName.trim().split(' ');
+
+            let matchingNames: string[] = [];
+
+            if (nameParts.length >= 2) {
+                const firstName = nameParts[0].toLowerCase();
+                const lastName = nameParts[nameParts.length - 1].toLowerCase();
+
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return lowerName.includes(firstName) && lowerName.includes(lastName);
+                });
+            }
+
+            if (matchingNames.length === 0) {
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return nameParts.some(part =>
+                        part.length > 2 && lowerName.includes(part.toLowerCase())
+                    );
+                });
+            }
+
+            if (matchingNames.length === 1) {
+                await createUserDocument(firebaseUser, matchingNames[0], userClass);
+                const data = await fetchUserData(firebaseUser);
+                setUserData(data);
+                setNeedsOnboarding(false);
+                setNameOptions(null);
+            } else {
+                setNameOptions(matchingNames.length > 0 ? matchingNames : allNames);
+                setPendingUserClass(userClass);
+            }
+        } catch (error) {
+            console.error('Error handling new Stanford user:', error);
+        }
+    };
+
+    const createUserDocument = async (firebaseUser: FirebaseUser, name: string, userClass: UserClass) => {
+        const normalizedEmail = normalizeEmail(firebaseUser.email || '');
+
+        let docId = firebaseUser.uid;
+        if (firebaseUser.email === 'jpark22@stanford.edu') {
+            docId = `${firebaseUser.uid}_${userClass}`;
+        }
+
+        const userRef = doc(db, 'users', docId);
+
+        await setDoc(userRef, {
+            uid: docId,
+            email: normalizedEmail,
+            emailAlumni: '',
+            emailAlumniGSB: '',
+            name: name,
+            photoURL: firebaseUser.photoURL || '',
+            crushes: [],
+            lockedCrushes: [],
+            matches: [],
+            crushCount: 0,
+            userClass: userClass,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastLogin: serverTimestamp()
+        });
+    };
+
+    const selectName = async (name: string) => {
+        if (!user || !pendingUserClass) {
+            throw new Error('No user or pending class');
+        }
+
+        await createUserDocument(user, name, pendingUserClass);
+        const data = await fetchUserData(user);
+        setUserData(data);
+        setNeedsOnboarding(false);
+        setNameOptions(null);
+    };
+
+    const completeAccountLinking = () => {
+        setNeedsAccountLinking(false);
+        setNeedsOnboarding(false);
+        setNameOptions(null);
+        if (user) {
+            refreshUserData();
+        }
+    };
+
+    const startNewAccount = () => {
+        setNeedsAccountLinking(false);
+        setNeedsOnboarding(true);
+        if (user && pendingUserClass) {
+            handleNewStanfordUser(user, pendingUserClass);
+        }
+    };
+
+    const signInWithGoogle = async () => {
+        try {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({
+                prompt: 'select_account'
+            });
+
+            // Use popup for all platforms - more reliable than redirect
+            console.log('Using popup for authentication');
+            await signInWithPopup(auth, provider);
+        } catch (error) {
+            console.error('Error signing in with Google:', error);
+            throw error;
+        }
+    };
+
+    const signOut = async () => {
+        try {
+            await firebaseSignOut(auth);
+            setUser(null);
+            setUserData(null);
+            setNeedsOnboarding(false);
+            setNeedsAccountLinking(false);
+            setNameOptions(null);
+        } catch (error) {
+            console.error('Error signing out:', error);
+            throw error;
+        }
+    };
+
+    const logout = signOut;
+
+    const refreshUserData = async () => {
+        if (user) {
+            const data = await fetchUserData(user);
+            setUserData(data);
+
+            if (data) {
+                setNeedsAccountLinking(false);
+                setNeedsOnboarding(false);
+                setNameOptions(null);
+            }
+        }
+    };
+
+    const value = {
+        user,
+        userData,
+        loading,
+        needsOnboarding,
+        needsAccountLinking,
+        nameOptions,
+        signInWithGoogle,
+        signOut,
+        logout,
+        refreshUserData,
+        selectName,
+        completeAccountLinking,
+        startNewAccount
+    };
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+================
 File: vercel.json
 ================
 {
@@ -13506,434 +14007,6 @@ const Login: React.FC = () => {
 export default Login;
 
 ================
-File: src/contexts/AuthContext.tsx
-================
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
-import type { ReactNode } from 'react';
-import type { User as FirebaseUser } from 'firebase/auth';
-import {
-    signInWithPopup,
-    GoogleAuthProvider,
-    signOut as firebaseSignOut,
-    onAuthStateChanged
-} from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
-import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
-import type { UserData, UserClass } from '../types';
-import { getClassNames, getUserDocumentId } from '../utils';
-
-interface AuthContextType {
-    user: FirebaseUser | null;
-    userData: UserData | null;
-    loading: boolean;
-    needsOnboarding: boolean;
-    needsAccountLinking: boolean;
-    nameOptions: string[] | null;
-    signInWithGoogle: () => Promise<void>;
-    signOut: () => Promise<void>;
-    logout: () => Promise<void>;
-    refreshUserData: () => Promise<void>;
-    selectName: (name: string) => Promise<void>;
-    completeAccountLinking: () => void;
-    startNewAccount: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
-};
-
-interface AuthProviderProps {
-    children: ReactNode;
-}
-
-export const AuthProvider = ({ children }: AuthProviderProps) => {
-    const [user, setUser] = useState<FirebaseUser | null>(null);
-    const [userData, setUserData] = useState<UserData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [needsOnboarding, setNeedsOnboarding] = useState(false);
-    const [needsAccountLinking, setNeedsAccountLinking] = useState(false);
-    const [nameOptions, setNameOptions] = useState<string[] | null>(null);
-    const [pendingUserClass, setPendingUserClass] = useState<UserClass | null>(null);
-
-    // Prevent concurrent fetches
-    const fetchingUserData = useRef(false);
-
-    const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
-        if (fetchingUserData.current) {
-            console.log('Already fetching user data, skipping...');
-            return null;
-        }
-
-        fetchingUserData.current = true;
-
-        try {
-            const email = firebaseUser.email;
-            if (!email) return null;
-
-            const normalizedEmail = normalizeEmail(email);
-
-            // First check by Firebase UID
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-
-            if (userDocSnap.exists()) {
-                console.log('Found user by Firebase UID');
-                return userDocSnap.data() as UserData;
-            }
-
-            // If alumni email, check if it exists in emailAlumni or emailAlumniGSB fields
-            if (isAlumniEmail(normalizedEmail)) {
-                const existingUserId = await checkExistingUserByAlumniEmail(normalizedEmail);
-                if (existingUserId) {
-                    const existingUserRef = doc(db, 'users', existingUserId);
-                    const existingUserSnap = await getDoc(existingUserRef);
-                    if (existingUserSnap.exists()) {
-                        console.log('Found user by alumni email lookup');
-                        return existingUserSnap.data() as UserData;
-                    }
-                }
-            }
-
-            return null;
-        } catch (error) {
-            console.error('Error fetching user data:', error);
-            return null;
-        } finally {
-            fetchingUserData.current = false;
-        }
-    };
-
-    const checkExistingUserByAlumniEmail = async (email: string): Promise<string | null> => {
-        try {
-            const normalizedEmail = normalizeEmail(email);
-            const usersRef = collection(db, 'users');
-            const usersSnapshot = await getDocs(usersRef);
-
-            for (const docSnap of usersSnapshot.docs) {
-                const data = docSnap.data();
-
-                const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
-                const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
-
-                if (alumniMatch || alumniGSBMatch) {
-                    console.log('Found existing user by alumni email:', docSnap.id);
-                    return docSnap.id;
-                }
-            }
-
-            console.log('No existing user found with alumni email');
-            return null;
-        } catch (error) {
-            console.error('Error checking alumni email:', error);
-            return null;
-        }
-    };
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            console.log('Auth state changed:', firebaseUser?.email);
-            setUser(firebaseUser);
-
-            if (firebaseUser) {
-                const data = await fetchUserData(firebaseUser);
-                setUserData(data);
-
-                // Update lastLogin for existing users
-                if (data) {
-                    try {
-                        const docId = getUserDocumentId(firebaseUser, data);
-                        const userRef = doc(db, 'users', docId);
-
-                        await runTransaction(db, async (transaction) => {
-                            const userDoc = await transaction.get(userRef);
-                            if (userDoc.exists()) {
-                                transaction.update(userRef, {
-                                    lastLogin: serverTimestamp()
-                                });
-                            }
-                        });
-                    } catch (error) {
-                        console.error('Error updating lastLogin:', error);
-                    }
-                }
-
-                const email = firebaseUser.email;
-                if (!email) {
-                    setLoading(false);
-                    return;
-                }
-
-                // Check if email is valid Stanford-related
-                if (!isValidStanfordRelatedEmail(email)) {
-                    console.error('Invalid email domain');
-                    await firebaseSignOut(auth);
-                    setLoading(false);
-                    return;
-                }
-
-                // Handle onboarding and account linking flows
-                if (!data) {
-                    if (isAlumniEmail(email)) {
-                        setNeedsAccountLinking(true);
-                        setNeedsOnboarding(false);
-                        setNameOptions(null);
-                        setPendingUserClass('gsb');
-                    } else {
-                        setNeedsAccountLinking(false);
-                        setNeedsOnboarding(true);
-                        await handleNewStanfordUser(firebaseUser, 'gsb');
-                    }
-                } else {
-                    setNeedsAccountLinking(false);
-                    setNeedsOnboarding(false);
-                    setNameOptions(null);
-                }
-            } else {
-                setUserData(null);
-                setNeedsOnboarding(false);
-                setNeedsAccountLinking(false);
-                setNameOptions(null);
-            }
-
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, []);
-
-    const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
-        try {
-            const allNames = await getClassNames(userClass);
-            const displayName = firebaseUser.displayName || '';
-            const nameParts = displayName.trim().split(' ');
-
-            let matchingNames: string[] = [];
-
-            if (nameParts.length >= 2) {
-                const firstName = nameParts[0].toLowerCase();
-                const lastName = nameParts[nameParts.length - 1].toLowerCase();
-
-                matchingNames = allNames.filter(name => {
-                    const lowerName = name.toLowerCase();
-                    return lowerName.includes(firstName) && lowerName.includes(lastName);
-                });
-            }
-
-            if (matchingNames.length === 0) {
-                matchingNames = allNames.filter(name => {
-                    const lowerName = name.toLowerCase();
-                    return nameParts.some(part =>
-                        part.length > 2 && lowerName.includes(part.toLowerCase())
-                    );
-                });
-            }
-
-            if (matchingNames.length === 1) {
-                await createUserDocument(firebaseUser, matchingNames[0], userClass);
-                const data = await fetchUserData(firebaseUser);
-                setUserData(data);
-                setNeedsOnboarding(false);
-                setNameOptions(null);
-            } else {
-                setNameOptions(matchingNames.length > 0 ? matchingNames : allNames);
-                setPendingUserClass(userClass);
-            }
-        } catch (error) {
-            console.error('Error handling new Stanford user:', error);
-        }
-    };
-
-    const createUserDocument = async (firebaseUser: FirebaseUser, name: string, userClass: UserClass) => {
-        const normalizedEmail = normalizeEmail(firebaseUser.email || '');
-
-        let docId = firebaseUser.uid;
-        if (firebaseUser.email === 'jpark22@stanford.edu') {
-            docId = `${firebaseUser.uid}_${userClass}`;
-        }
-
-        const userRef = doc(db, 'users', docId);
-
-        await setDoc(userRef, {
-            uid: docId,
-            email: normalizedEmail,
-            emailAlumni: '',
-            emailAlumniGSB: '',
-            name: name,
-            photoURL: firebaseUser.photoURL || '',
-            crushes: [],
-            lockedCrushes: [],
-            matches: [],
-            crushCount: 0,
-            userClass: userClass,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            lastLogin: serverTimestamp()
-        });
-    };
-
-    const selectName = async (name: string) => {
-        if (!user || !pendingUserClass) {
-            throw new Error('No user or pending class');
-        }
-
-        await createUserDocument(user, name, pendingUserClass);
-        const data = await fetchUserData(user);
-        setUserData(data);
-        setNeedsOnboarding(false);
-        setNameOptions(null);
-    };
-
-    const completeAccountLinking = () => {
-        setNeedsAccountLinking(false);
-        setNeedsOnboarding(false);
-        setNameOptions(null);
-        if (user) {
-            refreshUserData();
-        }
-    };
-
-    const startNewAccount = () => {
-        setNeedsAccountLinking(false);
-        setNeedsOnboarding(true);
-        if (user && pendingUserClass) {
-            handleNewStanfordUser(user, pendingUserClass);
-        }
-    };
-
-    const signInWithGoogle = async () => {
-        try {
-            const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({
-                prompt: 'select_account'
-            });
-
-            // Use popup for all platforms - more reliable than redirect
-            console.log('Using popup for authentication');
-            await signInWithPopup(auth, provider);
-        } catch (error) {
-            console.error('Error signing in with Google:', error);
-            throw error;
-        }
-    };
-
-    const signOut = async () => {
-        try {
-            await firebaseSignOut(auth);
-            setUser(null);
-            setUserData(null);
-            setNeedsOnboarding(false);
-            setNeedsAccountLinking(false);
-            setNameOptions(null);
-        } catch (error) {
-            console.error('Error signing out:', error);
-            throw error;
-        }
-    };
-
-    const logout = signOut;
-
-    const refreshUserData = async () => {
-        if (user) {
-            const data = await fetchUserData(user);
-            setUserData(data);
-
-            if (data) {
-                setNeedsAccountLinking(false);
-                setNeedsOnboarding(false);
-                setNameOptions(null);
-            }
-        }
-    };
-
-    const value = {
-        user,
-        userData,
-        loading,
-        needsOnboarding,
-        needsAccountLinking,
-        nameOptions,
-        signInWithGoogle,
-        signOut,
-        logout,
-        refreshUserData,
-        selectName,
-        completeAccountLinking,
-        startNewAccount
-    };
-
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-================
-File: index.html
-================
-<!doctype html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-
-  <!-- Multiple favicon sizes for better display -->
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
-
-  <!-- Fallback favicon -->
-  <link rel="shortcut icon" href="/favicon.ico" />
-
-  <!-- SVG favicon for modern browsers (maintains vector quality) -->
-  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Second Chances</title>
-
-  <!-- Open Graph Meta Tags for Social Sharing -->
-  <meta property="og:title" content="Second Chances" />
-  <meta property="og:description"
-    content="Share your crushes anonymously and see if there's a mutual connection. The site will remain active until our Stanford accounts expire in October 2025." />
-  <meta property="og:image" content="https://secondchances.com/share.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="image/png" />
-  <meta property="og:url" content="https://secondchances.com" />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Second Chances" />
-
-  <!-- Twitter Card Meta Tags -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Second Chances" />
-  <meta name="twitter:description" content="Share your crushes anonymously and see if there's a mutual connection." />
-  <meta name="twitter:image" content="https://secondchances.com/share.png" />
-  <meta name="twitter:image:width" content="1200" />
-  <meta name="twitter:image:height" content="630" />
-
-  <!-- Standard Meta Tags -->
-  <meta name="description"
-    content="Share your crushes anonymously and see if there's a mutual connection." />
-  <meta name="author" content="Second Chances" />
-
-  <!-- Preload critical images -->
-  <link rel="preload" as="image" href="/share.png" />
-</head>
-
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
-</body>
-
-</html>
-
-================
 File: src/components/Home.tsx
 ================
 import { useState, useEffect, useCallback } from 'react';
@@ -13941,6 +14014,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AdminView from '../components/AdminView';
 import UserDashboard from '../components/UserDashboard';
+import Navbar from '../components/shared/Navbar';
 import { db } from '../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { isAdminUser } from '../utils/adminUtils';
@@ -13950,7 +14024,6 @@ const Home = () => {
     const { user, userData, refreshUserData } = useAuth();
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
-    const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
     const [savedNames, setSavedNames] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -13959,11 +14032,6 @@ const Home = () => {
     const [isAdminMode, setIsAdminMode] = useState(false);
 
     const isAdmin = isAdminUser(user, userData);
-
-    const getClassDisplayName = useCallback(() => {
-        const userClass = userData?.userClass || 'gsb';
-        return userClass === 'gsb' ? 'GSB MBA Class of 2025' : 'Undergrad Class of 2025';
-    }, [userData?.userClass]);
 
     const loadUserSelections = useCallback(() => {
         if (!userData) return;
@@ -13990,26 +14058,6 @@ const Home = () => {
 
         loadData();
     }, [user, userData, loadUserSelections]);
-
-    const handleImageError = useCallback((imageUrl: string) => {
-        console.log('Image failed to load:', imageUrl);
-        setFailedImageUrls(prev => new Set(prev).add(imageUrl));
-    }, []);
-
-    const getProfileImageUrl = useCallback(() => {
-        const googlePhotoUrl = userData?.photoURL;
-        const fallbackUrl = '/files/default-profile.png';
-
-        if (!googlePhotoUrl) {
-            return fallbackUrl;
-        }
-
-        if (failedImageUrls.has(googlePhotoUrl)) {
-            return fallbackUrl;
-        }
-
-        return googlePhotoUrl;
-    }, [userData?.photoURL, failedImageUrls]);
 
     const handleNameToggle = useCallback((name: string) => {
         if (updating) return;
@@ -14092,10 +14140,6 @@ const Home = () => {
         }
     }, [user, userData, updating, selectedNames, refreshUserData]);
 
-    const handleProfileClick = useCallback(() => {
-        navigate('/profile');
-    }, [navigate]);
-
     const handleAdminToggle = useCallback(() => {
         setIsAdminMode(prev => !prev);
     }, []);
@@ -14113,40 +14157,16 @@ const Home = () => {
         );
     }
 
-    const currentImageUrl = getProfileImageUrl();
-
     return (
         <div className="dashboard-container">
             <div className="dashboard-card">
-                <div className="dashboard-header">
-                    <div className="header-title">
-                        <h1>Second Chances</h1>
-                        <div className="header-subtitle">{getClassDisplayName()}</div>
-                    </div>
-                    <div className="user-info">
-                        <div className="user-profile-link">
-                            {isAdmin && (
-                                <button
-                                    onClick={handleAdminToggle}
-                                    className="admin-toggle-btn"
-                                >
-                                    {isAdminMode ? 'User View' : 'Admin'}
-                                </button>
-                            )}
-                            <img
-                                src={currentImageUrl}
-                                alt="Profile"
-                                className="profile-pic clickable"
-                                onError={() => handleImageError(currentImageUrl)}
-                                onClick={handleProfileClick}
-                                loading="lazy"
-                            />
-                            <div className="user-name clickable" onClick={handleProfileClick}>
-                                {userData?.name || user?.displayName}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <Navbar
+                    user={user}
+                    userData={userData}
+                    isAdminMode={isAdminMode}
+                    onAdminToggle={handleAdminToggle}
+                    showAdminToggle={true}
+                />
 
                 <div className="dashboard-content">
                     {isAdminMode && isAdmin ? (
@@ -14178,6 +14198,46 @@ const Home = () => {
 };
 
 export default Home;
+
+================
+File: index.html
+================
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/logo-rounded.png" />
+  <link rel="apple-touch-icon" href="/logo-rounded.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Second Chances</title>
+
+  <!-- Open Graph Meta Tags (no image) -->
+  <meta property="og:title" content="Second Chances" />
+  <meta property="og:description" content="Share your crushes anonymously and see if there's a mutual connection." />
+  <meta property="og:url" content="https://secondchances.app" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Second Chances" />
+
+  <!-- Twitter Card Meta Tags (no image) -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Second Chances" />
+  <meta name="twitter:description" content="Share your crushes anonymously and see if there's a mutual connection." />
+
+  <!-- Standard Meta Tags -->
+  <meta name="description" content="Share your crushes anonymously and see if there's a mutual connection." />
+  <meta name="author" content="Second Chances" />
+
+  <!-- Preload critical images -->
+  <link rel="preload" as="image" href="/logo-rounded.png" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
 
 
 

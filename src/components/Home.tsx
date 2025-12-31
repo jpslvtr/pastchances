@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AdminView from '../components/AdminView';
 import UserDashboard from '../components/UserDashboard';
+import Navbar from '../components/shared/Navbar';
 import { db } from '../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { isAdminUser } from '../utils/adminUtils';
@@ -10,9 +11,8 @@ import { getUserDocumentId } from '../utils';
 
 const Home = () => {
     const { user, userData, refreshUserData } = useAuth();
-    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
-    const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
     const [savedNames, setSavedNames] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -22,10 +22,14 @@ const Home = () => {
 
     const isAdmin = isAdminUser(user, userData);
 
-    const getClassDisplayName = useCallback(() => {
-        const userClass = userData?.userClass || 'gsb';
-        return userClass === 'gsb' ? 'GSB MBA Class of 2025' : 'Undergrad Class of 2025';
-    }, [userData?.userClass]);
+    // Check for admin query parameter on mount
+    useEffect(() => {
+        if (searchParams.get('admin') === 'true' && isAdmin) {
+            setIsAdminMode(true);
+            // Remove the query parameter from URL
+            setSearchParams({});
+        }
+    }, [searchParams, setSearchParams, isAdmin]);
 
     const loadUserSelections = useCallback(() => {
         if (!userData) return;
@@ -52,26 +56,6 @@ const Home = () => {
 
         loadData();
     }, [user, userData, loadUserSelections]);
-
-    const handleImageError = useCallback((imageUrl: string) => {
-        console.log('Image failed to load:', imageUrl);
-        setFailedImageUrls(prev => new Set(prev).add(imageUrl));
-    }, []);
-
-    const getProfileImageUrl = useCallback(() => {
-        const googlePhotoUrl = userData?.photoURL;
-        const fallbackUrl = '/files/default-profile.png';
-
-        if (!googlePhotoUrl) {
-            return fallbackUrl;
-        }
-
-        if (failedImageUrls.has(googlePhotoUrl)) {
-            return fallbackUrl;
-        }
-
-        return googlePhotoUrl;
-    }, [userData?.photoURL, failedImageUrls]);
 
     const handleNameToggle = useCallback((name: string) => {
         if (updating) return;
@@ -154,10 +138,6 @@ const Home = () => {
         }
     }, [user, userData, updating, selectedNames, refreshUserData]);
 
-    const handleProfileClick = useCallback(() => {
-        navigate('/profile');
-    }, [navigate]);
-
     const handleAdminToggle = useCallback(() => {
         setIsAdminMode(prev => !prev);
     }, []);
@@ -175,40 +155,15 @@ const Home = () => {
         );
     }
 
-    const currentImageUrl = getProfileImageUrl();
-
     return (
         <div className="dashboard-container">
             <div className="dashboard-card">
-                <div className="dashboard-header">
-                    <div className="header-title">
-                        <h1>Second Chances</h1>
-                        <div className="header-subtitle">{getClassDisplayName()}</div>
-                    </div>
-                    <div className="user-info">
-                        <div className="user-profile-link">
-                            {isAdmin && (
-                                <button
-                                    onClick={handleAdminToggle}
-                                    className="admin-toggle-btn"
-                                >
-                                    {isAdminMode ? 'User View' : 'Admin'}
-                                </button>
-                            )}
-                            <img
-                                src={currentImageUrl}
-                                alt="Profile"
-                                className="profile-pic clickable"
-                                onError={() => handleImageError(currentImageUrl)}
-                                onClick={handleProfileClick}
-                                loading="lazy"
-                            />
-                            <div className="user-name clickable" onClick={handleProfileClick}>
-                                {userData?.name || user?.displayName}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <Navbar
+                    user={user}
+                    userData={userData}
+                    isAdminMode={isAdminMode}
+                    onAdminToggle={handleAdminToggle}
+                />
 
                 <div className="dashboard-content">
                     {isAdminMode && isAdmin ? (
@@ -227,12 +182,6 @@ const Home = () => {
                             handleUpdatePreferences={handleUpdatePreferences}
                         />
                     )}
-                </div>
-
-                <div className="dashboard-footer">
-                    <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
-                    <span className="footer-separator">•</span>
-                    <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
                 </div>
             </div>
         </div>
