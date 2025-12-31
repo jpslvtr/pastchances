@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Home from './components/Home';
 import Profile from './components/Profile';
+import HowTo from './components/HowTo';
 import NameSelection from './components/NameSelection';
 import AccountLinking from './components/AccountLinking';
 import Privacy from './components/Privacy';
@@ -75,6 +76,14 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/howto"
+            element={
+              <ProtectedRoute>
+                <HowTo />
               </ProtectedRoute>
             }
           />
