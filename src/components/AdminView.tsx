@@ -17,7 +17,6 @@ interface AdminViewProps {
 }
 
 const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
-    // Server-side admin check with error handling
     const [adminAccessDenied, setAdminAccessDenied] = useState(false);
     const [adminSearchTerm, setAdminSearchTerm] = useState('');
     const [viewingUserId, setViewingUserId] = useState<string | null>(null);
@@ -25,11 +24,9 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('analytics');
     const [refreshKey, setRefreshKey] = useState(0);
 
-    // Automatically determine which class view to show based on current user's class
     const currentClassView: UserClass = userData?.userClass || 'gsb';
     const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
-    // Use custom hooks
     const {
         allUsers,
         loadingUsers,
@@ -40,7 +37,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
 
     const { findCrushersForUser } = useAdminUtils(allUsers || []);
 
-    // Strict admin access control
+    // Admin access control
     useEffect(() => {
         if (!isAdminUser(user, userData)) {
             setAdminAccessDenied(true);
@@ -62,8 +59,8 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
         );
     }
 
-    // Only proceed with admin functionality if user is confirmed admin
-    if (!isAdminUser(user, userData)) { 
+    // Double-check admin status
+    if (!isAdminUser(user, userData)) {
         return (
             <div className="admin-loading">
                 Verifying admin access...
@@ -71,7 +68,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
         );
     }
 
-    // Set up real-time listener for analytics with error handling and admin check
+    // Set up real-time listener for analytics with error handling
     useEffect(() => {
         if (!isAdminUser(user, userData)) return;
 
@@ -84,23 +81,19 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
         const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
             if (!snapshot.empty) {
                 console.log('Live analytics updated');
-                // Trigger recalculation when new analytics arrive
                 setRefreshKey(prev => prev + 1);
             }
         }, (error) => {
             console.error('Error listening to analytics:', error);
-            // If we get a permission error, user is not admin
             if (error.code === 'permission-denied') {
                 setAdminAccessDenied(true);
             }
         });
 
         return () => unsubscribe();
-    }, [user?.email]);
+    }, [user, userData]);
 
-    // Get current class stats with proper null checks
     const currentClassStats = useMemo(() => {
-        // Add null/undefined checks for allUsers
         if (!allUsers || !Array.isArray(allUsers)) {
             return {
                 activeUsers: 0,
@@ -131,7 +124,6 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
         await loadAllUsers();
     }, [loadAllUsers]);
 
-    // Show loading state if allUsers is not yet loaded
     if (!allUsers && loadingUsers) {
         return (
             <div className="admin-loading">
@@ -158,7 +150,6 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
                 </div>
             </div>
 
-            {/* View Mode Navigation */}
             <div className="admin-nav">
                 <button
                     onClick={() => setViewMode('analytics')}

@@ -3,7 +3,7 @@ export type UserClass = 'gsb' | 'undergrad';
 export interface MatchInfo {
     name: string;
     email: string;
-    matchedAt?: any; // Firebase Timestamp or Date
+    matchedAt?: any;
 }
 
 export interface UserData {
@@ -21,6 +21,8 @@ export interface UserData {
     createdAt: any;
     updatedAt: any;
     lastLogin: any;
+    location?: string;
+    about?: string;
 }
 
 export interface UserWithId extends UserData {
@@ -38,15 +40,4 @@ export interface GhostUser extends UserData {
 export interface CrusherInfo {
     name: string;
     email: string;
-}
-
-export interface ClassAnalyticsData {
-    totalUsers: number;
-    totalClassSize: number;
-    totalMatches: number;
-    matchedPairs: string[];
-    totalCrushes: number;
-    peopleWithCrushes: number;
-    matchRate: number;
-    crushRate: number;
 }
