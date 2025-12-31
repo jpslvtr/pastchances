@@ -21,16 +21,17 @@
 .back-button {
     background: none;
     border: none;
-    color: #007bff;
+    color: #8C1515;
     font-size: 16px;
+    font-weight: 600;
     cursor: pointer;
     padding: 8px 12px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
+    border-radius: 6px;
+    transition: all 0.2s;
 }
 
 .back-button:hover {
-    background-color: #f8f9fa;
+    background-color: rgba(140, 21, 21, 0.1);
 }
 
 .profile-content {
@@ -58,43 +59,86 @@
     margin: 0;
 }
 
-.profile-emails-section {
+.profile-info-section {
     margin-bottom: 40px;
     padding: 0 20px;
 }
 
-.profile-emails-section h3 {
+.profile-info-section h3 {
     font-size: 18px;
     font-weight: 600;
     color: #212529;
     margin-bottom: 20px;
 }
 
-.email-item {
-    margin-bottom: 16px;
-    padding: 16px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
+.info-field {
+    margin-bottom: 20px;
 }
 
-.email-label {
+.info-field label {
+    display: block;
     font-size: 12px;
     font-weight: 600;
     color: #6c757d;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
 
-.email-value {
+.info-value {
     font-size: 16px;
     color: #212529;
-    word-break: break-all;
+    padding: 12px 16px;
+    background-color: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    word-break: break-word;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
 }
 
-.email-value.current-email {
-    font-weight: 700;
-    color: #007bff;
+.info-value.readonly {
+    background-color: #f8f9fa;
+    color: #6c757d;
+}
+
+.info-value.current {
+    border-color: #8C1515;
+    background-color: #fff5f5;
+    color: #8C1515;
+    font-weight: 600;
+}
+
+.info-input,
+.info-textarea {
+    width: 100%;
+    font-size: 16px;
+    color: #212529;
+    padding: 12px 16px;
+    background-color: #fff;
+    border: 2px solid #8C1515;
+    border-radius: 8px;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.info-input:focus,
+.info-textarea:focus {
+    outline: none;
+    border-color: #8C1515;
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+}
+
+.info-textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.info-divider {
+    height: 1px;
+    background-color: #e9ecef;
+    margin: 24px 0;
 }
 
 .profile-instructions-section {
@@ -109,8 +153,7 @@
     padding: 0 20px;
 }
 
-.profile-actions .admin-toggle-btn,
-.profile-actions .logout-btn {
+.profile-actions button {
     padding: 12px 24px;
     font-size: 16px;
     font-weight: 500;
@@ -120,21 +163,49 @@
     transition: all 0.2s;
 }
 
-.profile-actions .admin-toggle-btn {
-    background-color: #007bff;
+.edit-btn {
+    background-color: #8C1515;
     color: white;
 }
 
-.profile-actions .admin-toggle-btn:hover {
-    background-color: #0056b3;
+.edit-btn:hover {
+    background-color: #a01a1a;
 }
 
-.profile-actions .logout-btn {
+.save-btn {
+    background-color: #28a745;
+    color: white;
+}
+
+.save-btn:hover:not(:disabled) {
+    background-color: #218838;
+}
+
+.save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.cancel-btn {
+    background-color: #6c757d;
+    color: white;
+}
+
+.cancel-btn:hover:not(:disabled) {
+    background-color: #5a6268;
+}
+
+.cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.logout-btn {
     background-color: #dc3545;
     color: white;
 }
 
-.profile-actions .logout-btn:hover {
+.logout-btn:hover {
     background-color: #c82333;
 }
 
@@ -164,7 +235,7 @@
         font-size: 20px;
     }
 
-    .profile-emails-section,
+    .profile-info-section,
     .profile-instructions-section,
     .profile-actions {
         padding: 0;
@@ -174,8 +245,7 @@
         flex-direction: column;
     }
 
-    .profile-actions .admin-toggle-btn,
-    .profile-actions .logout-btn {
+    .profile-actions button {
         width: 100%;
     }
 }

@@ -109,6 +109,7 @@ src/
     Login.tsx
     NameSelection.tsx
     Privacy.tsx
+    Profile.tsx
     Terms.tsx
     UserDashboard.tsx
   config/
@@ -134,6 +135,7 @@ src/
     base.css
     dashboard.css
     legal.css
+    profile.css
   types/
     index.ts
     userTypes.ts
@@ -3310,263 +3312,6 @@ Maha Al Fahim              mfahim@stanford.edu             mfahim@alumni.stanfor
 Test Account               testaccount@stanford.edu                                                                        N/A
 
 ================
-File: scripts/queries/user-one.cjs
-================
-// scripts/firebase-queries/user-detail.cjs
-
-// ---------------------------------------------------------
-// EDIT THIS VALUE
-// ---------------------------------------------------------
-const TARGET_NAME = 'Katie Van Dyk'.toLowerCase();
-// ---------------------------------------------------------
-
-const path = require('path');
-const fs = require('fs');
-const admin = require('firebase-admin');
-
-// Resolve path to service account key
-const serviceAccountPath = path.join(
-    __dirname,
-    '..',
-    '..',
-    'functions',
-    'src',
-    'serviceAccountKey.json'
-);
-
-const serviceAccount = require(serviceAccountPath);
-
-// Initialize Firebase Admin
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: 'stanford-lastchances',
-});
-
-const db = admin.firestore();
-
-// Output file path
-const outputPath = path.join(__dirname, 'user-one.txt');
-
-// Create write stream that overwrites each run
-const out = fs.createWriteStream(outputPath, { flags: 'w' });
-
-function write(line = '') {
-    out.write(line + '\n');
-}
-
-function header(title) {
-    write('');
-    write('=== ' + title + ' ===');
-}
-
-function pretty(obj) {
-    return JSON.stringify(obj, null, 2);
-}
-
-function formatDate(ts) {
-    if (!ts) return 'N/A';
-    if (ts.toDate) return ts.toDate().toISOString();
-    return String(ts);
-}
-
-async function showUser() {
-    header(`User detail for name: "${TARGET_NAME}"`);
-
-    const snap = await db
-        .collection('users')
-        .where('userClass', '==', 'gsb')
-        .get();
-
-    let foundDoc = null;
-
-    snap.forEach(doc => {
-        const data = doc.data();
-        if (!data.name) return;
-
-        if (data.name.toLowerCase() === TARGET_NAME) {
-            foundDoc = { id: doc.id, data };
-        }
-    });
-
-    if (!foundDoc) {
-        write('No matching GSB user found.');
-        return;
-    }
-
-    const { id, data } = foundDoc;
-
-    const name = data.name || 'N/A';
-    const email = data.email || 'N/A';
-    const lastLogin = formatDate(data.lastLogin);
-    const crushCount = data.crushCount ?? 0;
-
-    const matches = Array.isArray(data.matches) ? data.matches : [];
-    const matchCount = matches.length;
-
-    write('');
-    write('--- Summary ---');
-    write('id          : ' + id);
-    write('name        : ' + name);
-    write('email       : ' + email);
-    write('userClass   : ' + data.userClass);
-    write('lastLogin   : ' + lastLogin);
-    write('crushCount  : ' + crushCount);
-    write('matchCount  : ' + matchCount);
-
-    write('');
-    write('--- Full document ---');
-    write(pretty(data));
-}
-
-async function main() {
-    try {
-        await showUser();
-    } catch (err) {
-        console.error('Error fetching user:', err);
-    } finally {
-        out.end();
-    }
-}
-
-main();
-
-================
-File: scripts/queries/user-one.txt
-================
-=== User detail for name: "katie van dyk" ===
-
---- Summary ---
-id          : 0f6cD50nM1QDjns8t88tpg5vXLf2
-name        : Katie Van Dyk
-email       : kvandyk@stanford.edu
-userClass   : gsb
-lastLogin   : 2025-09-14T00:12:42.754Z
-crushCount  : 15
-matchCount  : 9
-
---- Full document ---
-{
-  "photoURL": "https://lh3.googleusercontent.com/a/ACg8ocJ0pukYJ_rYDfHlgVxHp9FJ_ZY_nTgd3vndcs37eaU4X-6hx6T5=s96-c",
-  "email": "kvandyk@stanford.edu",
-  "uid": "0f6cD50nM1QDjns8t88tpg5vXLf2",
-  "createdAt": {
-    "_seconds": 1749673381,
-    "_nanoseconds": 311000000
-  },
-  "lockedCrushes": [
-    "Cayo Gonzalez",
-    "Itai Barsade",
-    "Joel Johnson",
-    "Madi Harvey",
-    "Michael Bakan",
-    "Mubarak Alliyu",
-    "Nico deLuna",
-    "Olivia Rosen",
-    "Sam Braunseis"
-  ],
-  "name": "Katie Van Dyk",
-  "userClass": "gsb",
-  "lastLogin": {
-    "_seconds": 1757808762,
-    "_nanoseconds": 754000000
-  },
-  "crushes": [
-    "Cayo Gonzalez",
-    "Itai Barsade",
-    "Joel Johnson",
-    "Madi Harvey",
-    "Michael Bakan",
-    "Mubarak Alliyu",
-    "Nico deLuna",
-    "Olivia Rosen",
-    "Sam Braunseis",
-    "Andrew Raffi Ansell",
-    "Mark Garo Ansell"
-  ],
-  "matches": [
-    {
-      "name": "Cayo Gonzalez",
-      "email": "cgonzal@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 444000000
-      }
-    },
-    {
-      "name": "Itai Barsade",
-      "email": "barsadei@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 445000000
-      }
-    },
-    {
-      "name": "Joel Johnson",
-      "email": "jajohn@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 446000000
-      }
-    },
-    {
-      "name": "Madi Harvey",
-      "email": "emharvey@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 446000000
-      }
-    },
-    {
-      "name": "Michael Bakan",
-      "email": "mgb64@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 447000000
-      }
-    },
-    {
-      "name": "Mubarak Alliyu",
-      "email": "mballiyu@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 448000000
-      }
-    },
-    {
-      "name": "Nico deLuna",
-      "email": "ndeluna@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 533000000
-      }
-    },
-    {
-      "name": "Olivia Rosen",
-      "email": "orosen@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 534000000
-      }
-    },
-    {
-      "name": "Sam Braunseis",
-      "email": "sbraun25@stanford.edu",
-      "matchedAt": {
-        "_seconds": 1757808842,
-        "_nanoseconds": 534000000
-      }
-    }
-  ],
-  "crushCount": 15,
-  "emailAlumniGSB": "kvandyk@alumni.gsb.stanford.edu",
-  "emailAlumni": "kvandyk@alumni.stanford.edu",
-  "updatedAt": {
-    "_seconds": 1766470252,
-    "_nanoseconds": 471000000
-  }
-}
-
-================
 File: scripts/utils/add-emails.js
 ================
 import admin from 'firebase-admin';
@@ -4276,6 +4021,114 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         </div>
     );
 };
+
+================
+File: src/components/Profile.tsx
+================
+import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { isAdminUser } from '../utils/adminUtils';
+import { InstructionsSection } from './dashboard/InstructionsSection';
+import '../styles/profile.css';
+
+const Profile = () => {
+    const { user, userData, signOut } = useAuth();
+    const navigate = useNavigate();
+    const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
+
+    const isAdmin = isAdminUser(user, userData);
+
+    const handleImageError = useCallback((imageUrl: string) => {
+        console.log('Image failed to load:', imageUrl);
+        setFailedImageUrls(prev => new Set(prev).add(imageUrl));
+    }, []);
+
+    const getProfileImageUrl = useCallback(() => {
+        const googlePhotoUrl = userData?.photoURL;
+        const fallbackUrl = '/files/default-profile.png';
+
+        if (!googlePhotoUrl) {
+            return fallbackUrl;
+        }
+
+        if (failedImageUrls.has(googlePhotoUrl)) {
+            return fallbackUrl;
+        }
+
+        return googlePhotoUrl;
+    }, [userData?.photoURL, failedImageUrls]);
+
+    const handleAdminToggle = useCallback(() => {
+        navigate('/?admin=true');
+    }, [navigate]);
+
+    const currentImageUrl = getProfileImageUrl();
+    const currentEmail = user?.email || '';
+
+    const emails = [
+        { label: '@stanford.edu', value: userData?.email || '' },
+        { label: '@alumni.stanford.edu', value: userData?.emailAlumni || '' },
+        { label: '@alumni.gsb.stanford.edu', value: userData?.emailAlumniGSB || '' }
+    ];
+
+    return (
+        <div className="profile-container">
+            <div className="profile-card">
+                <div className="profile-header">
+                    <button onClick={() => navigate('/')} className="back-button">
+                        ← Back to Dashboard
+                    </button>
+                </div>
+
+                <div className="profile-content">
+                    <div className="profile-image-section">
+                        <img
+                            src={currentImageUrl}
+                            alt="Profile"
+                            className="profile-image-large"
+                            onError={() => handleImageError(currentImageUrl)}
+                            loading="lazy"
+                        />
+                        <h2 className="profile-name">{userData?.name || user?.displayName}</h2>
+                    </div>
+
+                    <div className="profile-emails-section">
+                        <h3>Email Addresses</h3>
+                        {emails.map((emailData, index) => (
+                            <div key={index} className="email-item">
+                                <div className="email-label">{emailData.label}</div>
+                                <div className={`email-value ${emailData.value === currentEmail ? 'current-email' : ''}`}>
+                                    {emailData.value || '(empty)'}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="profile-instructions-section">
+                        <InstructionsSection />
+                    </div>
+
+                    <div className="profile-actions">
+                        {isAdmin && (
+                            <button
+                                onClick={handleAdminToggle}
+                                className="admin-toggle-btn"
+                            >
+                                Admin View
+                            </button>
+                        )}
+                        <button className="logout-btn" onClick={signOut}>
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Profile;
 
 ================
 File: src/styles/admin/admin-base.css
@@ -6403,11 +6256,453 @@ File: src/styles/legal.css
 }
 
 ================
+File: src/styles/profile.css
+================
+.profile-container {
+    min-height: 100vh;
+    background-color: #f8f9fa;
+    padding: 20px;
+}
+
+.profile-card {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.profile-header {
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.back-button {
+    background: none;
+    border: none;
+    color: #007bff;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.back-button:hover {
+    background-color: #f8f9fa;
+}
+
+.profile-content {
+    padding: 40px 20px;
+}
+
+.profile-image-section {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.profile-image-large {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #e9ecef;
+    margin-bottom: 16px;
+}
+
+.profile-name {
+    font-size: 24px;
+    font-weight: 600;
+    color: #212529;
+    margin: 0;
+}
+
+.profile-emails-section {
+    margin-bottom: 40px;
+    padding: 0 20px;
+}
+
+.profile-emails-section h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 20px;
+}
+
+.email-item {
+    margin-bottom: 16px;
+    padding: 16px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.email-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.email-value {
+    font-size: 16px;
+    color: #212529;
+    word-break: break-all;
+}
+
+.email-value.current-email {
+    font-weight: 700;
+    color: #007bff;
+}
+
+.profile-instructions-section {
+    margin-bottom: 40px;
+    padding: 0 20px;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    padding: 0 20px;
+}
+
+.profile-actions .admin-toggle-btn,
+.profile-actions .logout-btn {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.profile-actions .admin-toggle-btn {
+    background-color: #007bff;
+    color: white;
+}
+
+.profile-actions .admin-toggle-btn:hover {
+    background-color: #0056b3;
+}
+
+.profile-actions .logout-btn {
+    background-color: #dc3545;
+    color: white;
+}
+
+.profile-actions .logout-btn:hover {
+    background-color: #c82333;
+}
+
+@media (max-width: 768px) {
+    .profile-container {
+        padding: 10px;
+    }
+
+    .profile-card {
+        border-radius: 8px;
+    }
+
+    .profile-header {
+        padding: 16px;
+    }
+
+    .profile-content {
+        padding: 24px 16px;
+    }
+
+    .profile-image-large {
+        width: 100px;
+        height: 100px;
+    }
+
+    .profile-name {
+        font-size: 20px;
+    }
+
+    .profile-emails-section,
+    .profile-instructions-section,
+    .profile-actions {
+        padding: 0;
+    }
+
+    .profile-actions {
+        flex-direction: column;
+    }
+
+    .profile-actions .admin-toggle-btn,
+    .profile-actions .logout-btn {
+        width: 100%;
+    }
+}
+
+================
 File: .firebaserc
 ================
 {
   "projects": {
     "default": "stanford-lastchances"
+  }
+}
+
+================
+File: scripts/queries/user-one.cjs
+================
+// scripts/firebase-queries/user-detail.cjs
+
+// ---------------------------------------------------------
+// EDIT THIS VALUE
+// ---------------------------------------------------------
+const TARGET_NAME = 'Katie Van Dyk'.toLowerCase();
+// ---------------------------------------------------------
+
+const path = require('path');
+const fs = require('fs');
+const admin = require('firebase-admin');
+
+// Resolve path to service account key
+const serviceAccountPath = path.join(
+    __dirname,
+    '..',
+    '..',
+    'functions',
+    'src',
+    'serviceAccountKey.json'
+);
+
+const serviceAccount = require(serviceAccountPath);
+
+// Initialize Firebase Admin
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: 'stanford-lastchances',
+});
+
+const db = admin.firestore();
+
+// Output file path
+const outputPath = path.join(__dirname, 'user-one.txt');
+
+// Create write stream that overwrites each run
+const out = fs.createWriteStream(outputPath, { flags: 'w' });
+
+function write(line = '') {
+    out.write(line + '\n');
+}
+
+function header(title) {
+    write('');
+    write('=== ' + title + ' ===');
+}
+
+function pretty(obj) {
+    return JSON.stringify(obj, null, 2);
+}
+
+function formatDate(ts) {
+    if (!ts) return 'N/A';
+    if (ts.toDate) return ts.toDate().toISOString();
+    return String(ts);
+}
+
+async function showUser() {
+    header(`User detail for name: "${TARGET_NAME}"`);
+
+    const snap = await db
+        .collection('users')
+        .where('userClass', '==', 'gsb')
+        .get();
+
+    let foundDoc = null;
+
+    snap.forEach(doc => {
+        const data = doc.data();
+        if (!data.name) return;
+
+        if (data.name.toLowerCase() === TARGET_NAME) {
+            foundDoc = { id: doc.id, data };
+        }
+    });
+
+    if (!foundDoc) {
+        write('No matching GSB user found.');
+        return;
+    }
+
+    const { id, data } = foundDoc;
+
+    const name = data.name || 'N/A';
+    const email = data.email || 'N/A';
+    const lastLogin = formatDate(data.lastLogin);
+    const crushCount = data.crushCount ?? 0;
+
+    const matches = Array.isArray(data.matches) ? data.matches : [];
+    const matchCount = matches.length;
+
+    write('');
+    write('--- Summary ---');
+    write('id          : ' + id);
+    write('name        : ' + name);
+    write('email       : ' + email);
+    write('userClass   : ' + data.userClass);
+    write('lastLogin   : ' + lastLogin);
+    write('crushCount  : ' + crushCount);
+    write('matchCount  : ' + matchCount);
+
+    write('');
+    write('--- Full document ---');
+    write(pretty(data));
+}
+
+async function main() {
+    try {
+        await showUser();
+    } catch (err) {
+        console.error('Error fetching user:', err);
+    } finally {
+        out.end();
+    }
+}
+
+main();
+
+================
+File: scripts/queries/user-one.txt
+================
+=== User detail for name: "katie van dyk" ===
+
+--- Summary ---
+id          : 0f6cD50nM1QDjns8t88tpg5vXLf2
+name        : Katie Van Dyk
+email       : kvandyk@stanford.edu
+userClass   : gsb
+lastLogin   : 2025-09-14T00:12:42.754Z
+crushCount  : 15
+matchCount  : 9
+
+--- Full document ---
+{
+  "photoURL": "https://lh3.googleusercontent.com/a/ACg8ocJ0pukYJ_rYDfHlgVxHp9FJ_ZY_nTgd3vndcs37eaU4X-6hx6T5=s96-c",
+  "email": "kvandyk@stanford.edu",
+  "uid": "0f6cD50nM1QDjns8t88tpg5vXLf2",
+  "createdAt": {
+    "_seconds": 1749673381,
+    "_nanoseconds": 311000000
+  },
+  "lockedCrushes": [
+    "Cayo Gonzalez",
+    "Itai Barsade",
+    "Joel Johnson",
+    "Madi Harvey",
+    "Michael Bakan",
+    "Mubarak Alliyu",
+    "Nico deLuna",
+    "Olivia Rosen",
+    "Sam Braunseis"
+  ],
+  "name": "Katie Van Dyk",
+  "userClass": "gsb",
+  "lastLogin": {
+    "_seconds": 1757808762,
+    "_nanoseconds": 754000000
+  },
+  "crushes": [
+    "Cayo Gonzalez",
+    "Itai Barsade",
+    "Joel Johnson",
+    "Madi Harvey",
+    "Michael Bakan",
+    "Mubarak Alliyu",
+    "Nico deLuna",
+    "Olivia Rosen",
+    "Sam Braunseis",
+    "Andrew Raffi Ansell",
+    "Mark Garo Ansell"
+  ],
+  "matches": [
+    {
+      "name": "Cayo Gonzalez",
+      "email": "cgonzal@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 444000000
+      }
+    },
+    {
+      "name": "Itai Barsade",
+      "email": "barsadei@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 445000000
+      }
+    },
+    {
+      "name": "Joel Johnson",
+      "email": "jajohn@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 446000000
+      }
+    },
+    {
+      "name": "Madi Harvey",
+      "email": "emharvey@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 446000000
+      }
+    },
+    {
+      "name": "Michael Bakan",
+      "email": "mgb64@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 447000000
+      }
+    },
+    {
+      "name": "Mubarak Alliyu",
+      "email": "mballiyu@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 448000000
+      }
+    },
+    {
+      "name": "Nico deLuna",
+      "email": "ndeluna@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 533000000
+      }
+    },
+    {
+      "name": "Olivia Rosen",
+      "email": "orosen@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 534000000
+      }
+    },
+    {
+      "name": "Sam Braunseis",
+      "email": "sbraun25@stanford.edu",
+      "matchedAt": {
+        "_seconds": 1757808842,
+        "_nanoseconds": 534000000
+      }
+    }
+  ],
+  "crushCount": 15,
+  "emailAlumniGSB": "kvandyk@alumni.gsb.stanford.edu",
+  "emailAlumni": "kvandyk@alumni.stanford.edu",
+  "updatedAt": {
+    "_seconds": 1766470252,
+    "_nanoseconds": 471000000
   }
 }
 
@@ -7368,384 +7663,6 @@ export const useUserDocumentManager = (
         createNewAccountWithAlumniEmail
     };
 };
-
-================
-File: src/styles/dashboard/dashboard-responsive.css
-================
-/* Dashboard Mobile Responsiveness */
-
-@media (max-width: 768px) {
-    .dashboard-container {
-      padding: 5px;
-    }
-    
-    .dashboard-header {
-      padding: 12px 15px;
-      flex-direction: row;
-      align-items: flex-start;
-      gap: 8px;
-    }
-
-    .header-title {
-      flex: 1;
-    }
-
-    .header-title h1 {
-      font-size: 16px;
-    }
-
-    .header-subtitle {
-      font-size: 11px;
-    }
-
-    .user-info {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 8px;
-      margin-left: auto;
-    }
-
-    .user-details {
-      display: none;
-    }
-
-    .header-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .logout-btn,
-    .admin-toggle-btn {
-      font-size: 10px;
-      padding: 5px 10px;
-      white-space: nowrap;
-    }
-    
-    .dashboard-content {
-      padding: 15px;
-      gap: 15px;
-    }
-    
-    /* Increase height for mobile to show more names */
-    .names-simple-list {
-      max-height: 60vh;
-    }
-    
-    .name-list-item {
-      padding: 14px 12px;
-      font-size: 13px;
-      min-height: 48px;
-    }
-    
-    .name-text {
-      font-weight: 500;
-    }
-    
-    .add-btn {
-      width: 28px;
-      height: 28px;
-      font-size: 20px;
-    }
-  
-    .name-chips {
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 6px;
-    }
-  
-    .name-chip {
-      font-size: 11px;
-      padding: 6px 10px;
-      min-height: 28px;
-    }
-  
-    .dashboard-content h2 {
-      font-size: 16px;
-    }
-  
-    .action-buttons {
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-  
-    .save-draft-btn, .submit-btn, .update-btn {
-      width: 100%;
-      max-width: 250px;
-      padding: 12px 16px;
-    }
-  
-    .submitted-message {
-      padding: 15px 10px;
-    }
-  
-    .matches-section {
-      padding: 12px;
-    }
-  
-    .matches-section h2 {
-      font-size: 16px;
-    }
-  
-    .matches-list {
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-  
-    .match-item {
-      padding: 12px;
-    }
-  
-    .match-name {
-      font-size: 14px;
-    }
-  
-    .selected-names {
-      padding: 12px;
-    }
-  
-    .crush-count-section {
-      padding: 12px;
-      margin-bottom: 15px;
-    }
-    
-    .crush-count-section h2 {
-      font-size: 16px;
-    }
-  
-    .instructions ol {
-      padding-left: 16px;
-    }
-    
-    .instructions li {
-      font-size: 13px;
-      margin-bottom: 6px;
-    }
-  
-    .locked-badge {
-      font-size: 9px;
-      padding: 1px 4px;
-    }
-    
-    .lock-icon {
-      font-size: 10px;
-    }
-  
-    .search-input-container {
-      margin-bottom: 10px;
-    }
-    
-    .search-clear-btn {
-      right: 12px;
-      width: 28px;
-      height: 28px;
-      font-size: 20px;
-    }
-    
-    .search-hint {
-      font-size: 10px;
-      padding: 5px 8px;
-    }
-    
-    .names-simple-list {
-      max-height: 50vh;
-      min-height: 300px;
-    }
-    
-    .name-list-item {
-      height: 52px;
-      min-height: 52px;
-      padding: 14px 12px;
-      font-size: 13px;
-    }
-    
-    .no-results {
-      padding: 15px;
-      font-size: 13px;
-    }
-    
-    .no-results small {
-      font-size: 11px;
-    }
-  }
-  
-  @media (max-width: 480px) {
-    .dashboard-card {
-      border-radius: 8px;
-      min-height: calc(100vh - 10px);
-    }
-    
-    .dashboard-container {
-      padding: 5px;
-    }
-  
-    .dashboard-header h1 {
-      font-size: 14px;
-    }
-
-    .header-subtitle {
-      font-size: 10px;
-    }
-  
-    .dashboard-content h2 {
-      font-size: 15px;
-    }
-  
-    .profile-pic {
-      width: 28px;
-      height: 28px;
-    }
-  
-    .user-name {
-      font-size: 11px;
-    }
-  
-    .user-email {
-      font-size: 9px;
-    }
-
-    .logout-btn,
-    .admin-toggle-btn {
-      font-size: 9px;
-      padding: 4px 8px;
-    }
-  
-    .selected-names {
-      padding: 10px;
-    }
-  
-    .search-input {
-      padding: 12px 15px;
-      font-size: 14px;
-    }
-  
-    /* Optimize for small screens with large lists */
-    .names-simple-list {
-      max-height: 65vh;
-    }
-  
-    .name-list-item {
-      padding: 16px 12px;
-      font-size: 14px;
-      min-height: 52px;
-    }
-  
-    .name-text {
-      font-weight: 500;
-    }
-  
-    .add-btn {
-      width: 32px;
-      height: 32px;
-      font-size: 22px;
-    }
-  
-    .name-chips {
-      grid-template-columns: 1fr;
-      gap: 6px;
-    }
-  
-    .name-chip {
-      min-height: 26px;
-      font-size: 10px;
-    }
-  
-    .action-buttons {
-      gap: 6px;
-    }
-  
-    .save-draft-btn, .submit-btn, .update-btn {
-      padding: 12px 16px;
-      font-size: 14px;
-    }
-  
-    .submitted-message h3 {
-      font-size: 15px;
-    }
-  
-    .submitted-message p {
-      font-size: 13px;
-    }
-  
-    .matches-section h2 {
-      font-size: 15px;
-    }
-  
-    .crush-count-section h2 {
-      font-size: 15px;
-    }
-  
-    .locked-badge {
-      font-size: 8px;
-    }
-  
-    .lock-icon {
-      font-size: 9px;
-    }
-  
-    .names-simple-list {
-      max-height: 45vh;
-      min-height: 280px;
-    }
-    
-    .name-list-item {
-      height: 56px;
-      min-height: 56px;
-      padding: 16px 12px;
-      font-size: 14px;
-    }
-    
-    .search-clear-btn {
-      width: 32px;
-      height: 32px;
-      font-size: 22px;
-    }
-    
-    .search-hint {
-      font-size: 9px;
-      padding: 4px 6px;
-    }
-  }
-  
-  /* Smooth scrolling optimization for touch devices */
-  @media (hover: none) and (pointer: coarse) {
-    .names-simple-list {
-      -webkit-overflow-scrolling: touch;
-      scroll-behavior: smooth;
-    }
-  
-    .name-list-item {
-      /* Larger touch targets for mobile */
-      min-height: 48px;
-      padding: 16px 15px;
-    }
-  
-    .name-list-item:active {
-      background: #e9ecef;
-      transform: scale(0.98);
-    }
-  
-    .add-btn:active {
-      transform: scale(0.9);
-    }
-  
-    .search-clear-btn:active {
-      transform: translateY(-50%) scale(0.9);
-    }
-  }
-  
-  /* Performance optimizations for large lists */
-  .names-simple-list {
-    /* Enable hardware acceleration for smooth scrolling */
-    transform: translateZ(0);
-    will-change: scroll-position;
-  }
-  
-  .name-list-item {
-    /* Optimize repaints */
-    contain: layout style paint;
-  }
 
 ================
 File: src/types/index.ts
@@ -8756,6 +8673,221 @@ export const useAuthHelpers = () => {
 };
 
 ================
+File: src/styles/dashboard/dashboard-responsive.css
+================
+/* Dashboard Mobile Responsiveness */
+
+@media (max-width: 768px) {
+    .dashboard-container {
+      padding: 5px;
+    }
+    
+    .dashboard-header {
+      padding: 12px 15px;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .header-title {
+      flex: 1;
+    }
+
+    .header-title h1 {
+      font-size: 16px;
+    }
+
+    .header-subtitle {
+      font-size: 11px;
+    }
+
+    .user-info {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .user-profile-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .logout-btn,
+    .admin-toggle-btn {
+      font-size: 10px;
+      padding: 5px 10px;
+      white-space: nowrap;
+    }
+    
+    .dashboard-content {
+      padding: 15px;
+      gap: 15px;
+    }
+    
+    /* Increase height for mobile to show more names */
+    .names-simple-list {
+      max-height: 60vh;
+    }
+    
+    .name-list-item {
+      padding: 14px 12px;
+      font-size: 13px;
+      min-height: 48px;
+    }
+    
+    .name-text {
+      font-weight: 500;
+    }
+    
+    .add-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 20px;
+    }
+  
+    .name-chips {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 6px;
+    }
+  
+    .name-chip {
+      font-size: 11px;
+      padding: 6px 10px;
+      min-height: 28px;
+    }
+  
+    .dashboard-content h2 {
+      font-size: 16px;
+    }
+  
+    .action-buttons {
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+  
+    .save-draft-btn, .submit-btn, .update-btn {
+      width: 100%;
+      max-width: 250px;
+      padding: 12px 16px;
+    }
+  
+    .submitted-message {
+      padding: 15px 10px;
+    }
+  
+    .matches-section {
+      padding: 12px;
+    }
+  
+    .matches-section h2 {
+      font-size: 16px;
+    }
+  
+    .matches-list {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+  
+    .match-item {
+      padding: 12px;
+    }
+  
+    .match-name {
+      font-size: 14px;
+    }
+  
+    .selected-names {
+      padding: 12px;
+    }
+  
+    .crush-count-section {
+      padding: 12px;
+      margin-bottom: 15px;
+    }
+    
+    .crush-count-section h2 {
+      font-size: 16px;
+    }
+  
+    .instructions ol {
+      padding-left: 16px;
+    }
+    
+    .instructions li {
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+  
+    .locked-badge {
+      font-size: 9px;
+      padding: 1px 4px;
+    }
+    
+    .lock-icon {
+      font-size: 10px;
+    }
+  
+    .search-input-container {
+      margin-bottom: 10px;
+    }
+    
+    .search-clear-btn {
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      font-size: 20px;
+    }
+    
+    .search-hint {
+      font-size: 10px;
+      padding: 5px 8px;
+    }
+    
+    .clear-all-btn, .submit-all-btn {
+      font-size: 11px;
+      padding: 6px 12px;
+    }
+    
+    .search-input {
+      font-size: 13px;
+      padding: 10px 40px 10px 12px;
+    }
+    
+    .matches-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    
+    .unlock-btn {
+      font-size: 10px;
+      padding: 4px 8px;
+    }
+
+    .dashboard-footer {
+      padding: 15px;
+    }
+
+    .dashboard-footer a {
+      font-size: 12px;
+    }
+
+    .footer-separator {
+      margin: 0 8px;
+    }
+  }
+
+================
 File: src/types/userTypes.ts
 ================
 export type UserClass = 'gsb' | 'undergrad';
@@ -8855,88 +8987,6 @@ File: src/App.css
 @import './styles/auth.css';
 @import './styles/dashboard.css';
 @import './styles/admin.css';
-
-================
-File: src/App.tsx
-================
-import React from 'react';
-import type { ReactNode } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Login from './components/Login';
-import Home from './components/Home';
-import NameSelection from './components/NameSelection';
-import AccountLinking from './components/AccountLinking';
-import Privacy from './components/Privacy';
-import Terms from './components/Terms';
-import './App.css';
-
-interface ProtectedRouteProps {
-  children: ReactNode;
-}
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, userData, loading, nameOptions, needsAccountLinking, completeAccountLinking, startNewAccount, logout } = useAuth();
-
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
-  // Check account linking first, before checking userData
-  if (needsAccountLinking) {
-    return (
-      <AccountLinking
-        user={user}
-        userClass="gsb"
-        onLinkingComplete={completeAccountLinking}
-        onStartNewAccount={startNewAccount}
-        logout={logout}
-      />
-    );
-  }
-
-  if (!userData) {
-    return <div className="loading">Setting up your account...</div>;
-  }
-
-  if (nameOptions && nameOptions.length > 0) {
-    return <NameSelection />;
-  }
-
-  if (!userData.name) {
-    return <div className="loading">Completing setup...</div>;
-  }
-
-  return <>{children}</>;
-};
-
-const App: React.FC = () => {
-  return (
-    <Router>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </AuthProvider>
-    </Router>
-  );
-};
-
-export default App;
 
 ================
 File: firestore.rules
@@ -9252,6 +9302,290 @@ export interface MatchInfo {
 }
 
 ================
+File: src/components/NameSelection.tsx
+================
+import React, { useState, useMemo } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { fuzzyNameMatch } from '../utils/emailUtils';
+
+const NameSelection: React.FC = () => {
+    const { user, nameOptions, selectName, logout } = useAuth();
+    const [selecting, setSelecting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Calculate match scores and check for high-confidence matches
+    const { scoredOptions, hasHighConfidenceMatch } = useMemo(() => {
+        if (!nameOptions || !user?.displayName) {
+            return { scoredOptions: nameOptions || [], hasHighConfidenceMatch: false };
+        }
+
+        const googleName = user.displayName;
+        const MIN_SCORE = 60;
+        const HIGH_CONFIDENCE_SCORE = 75;
+
+        const scored = nameOptions
+            .map(name => ({
+                name,
+                score: fuzzyNameMatch(googleName, name)
+            }))
+            .filter(item => item.score >= MIN_SCORE)
+            .sort((a, b) => b.score - a.score);
+
+        const hasHighConfidence = scored.some(item => item.score >= HIGH_CONFIDENCE_SCORE);
+
+        return {
+            scoredOptions: scored.map(item => item.name),
+            hasHighConfidenceMatch: hasHighConfidence
+        };
+    }, [nameOptions, user?.displayName]);
+
+    const handleNameSelect = async (selectedName: string) => {
+        if (selecting) return;
+
+        setSelecting(true);
+        setError(null);
+
+        try {
+            await selectName(selectedName);
+        } catch (error) {
+            console.error('Error selecting name:', error);
+            setError('Failed to save your selection. Please try again.');
+        } finally {
+            setSelecting(false);
+        }
+    };
+
+    if (!nameOptions) {
+        return <div className="loading">Loading...</div>;
+    }
+
+    const displayOptions = scoredOptions.length > 0 ? scoredOptions : nameOptions;
+
+    return (
+        <div className="verification-container">
+            <div className="verification-card">
+                <div className="verification-header">
+                    <h1>Second Chances</h1>
+                    <div className="user-info">
+                        <span>{user?.email}</span>
+                        <button className="logout-btn" onClick={logout}>Logout</button>
+                    </div>
+                </div>
+
+                <div className="verification-content">
+                    <h2>Select Your Name</h2>
+                    {user?.displayName && (
+                        <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
+                            Google account name: <strong>{user.displayName}</strong>
+                        </p>
+                    )}
+                    <p>Please select which of these options matches your identity:</p>
+
+                    {displayOptions.length > 0 ? (
+                        <>
+                            <div className="names-list">
+                                <h3>Potential Matches</h3>
+                                <div className="names-verification-list">
+                                    {displayOptions.map((name) => (
+                                        <div
+                                            key={name}
+                                            onClick={() => !selecting && handleNameSelect(name)}
+                                            className={`name-verification-item ${selecting ? 'disabled' : ''}`}
+                                        >
+                                            <span className="name-text">{name}</span>
+                                            <span className="select-btn">
+                                                Select
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="help-notice" style={{
+                                marginTop: '20px',
+                                padding: '12px',
+                                background: '#f8f9fa',
+                                borderRadius: '4px',
+                                fontSize: '0.9em',
+                                color: '#666'
+                            }}>
+                                {hasHighConfidenceMatch
+                                    ? <>We found strong matches to your Google name. If none of these are correct, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                                    : <>Don't see your name? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance</>
+                                }
+                            </div>
+                        </>
+                    ) : (
+                        <div style={{
+                            marginTop: '20px',
+                            padding: '20px',
+                            background: '#f8f9fa',
+                            borderRadius: '4px',
+                            textAlign: 'center'
+                        }}>
+                            <p>We couldn't find any matching names.</p>
+                            <p style={{ fontSize: '0.9em', color: '#666' }}>
+                                Please email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance.
+                            </p>
+                        </div>
+                    )}
+
+                    {selecting && (
+                        <div className="saving-indicator">
+                            Saving your selection...
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
+                            {error}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default NameSelection;
+
+================
+File: src/config/firebase.ts
+================
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getAnalytics } from "firebase/analytics";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDC_YL8wau3PKK1r2ZYYHc32TtnoXe5giQ",
+    authDomain: "stanford-lastchances.firebaseapp.com",
+    projectId: "stanford-lastchances",
+    storageBucket: "stanford-lastchances.firebasestorage.app",
+    messagingSenderId: "792276801448",
+    appId: "1:792276801448:web:84a43cc96308673321ef9d",
+    measurementId: "G-HLD1E4T34S"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const analytics = getAnalytics(app);
+
+// Set persistence to LOCAL to ensure auth state survives redirects
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+    console.error('Error setting auth persistence:', error);
+});
+
+// Configure Google provider
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+    prompt: 'select_account'
+});
+
+auth.useDeviceLanguage();
+
+================
+File: src/styles/dashboard.css
+================
+/* Dashboard Main Styles */
+@import './dashboard/dashboard-layout.css';
+@import './dashboard/dashboard-components.css';
+@import './dashboard/dashboard-responsive.css';
+
+================
+File: src/App.tsx
+================
+import React from 'react';
+import type { ReactNode } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import Login from './components/Login';
+import Home from './components/Home';
+import Profile from './components/Profile';
+import NameSelection from './components/NameSelection';
+import AccountLinking from './components/AccountLinking';
+import Privacy from './components/Privacy';
+import Terms from './components/Terms';
+import './App.css';
+
+interface ProtectedRouteProps {
+  children: ReactNode;
+}
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+  const { user, userData, loading, nameOptions, needsAccountLinking, completeAccountLinking, startNewAccount, logout } = useAuth();
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  // Check account linking first, before checking userData
+  if (needsAccountLinking) {
+    return (
+      <AccountLinking
+        user={user}
+        userClass="gsb"
+        onLinkingComplete={completeAccountLinking}
+        onStartNewAccount={startNewAccount}
+        logout={logout}
+      />
+    );
+  }
+
+  if (!userData) {
+    return <div className="loading">Setting up your account...</div>;
+  }
+
+  if (nameOptions && nameOptions.length > 0) {
+    return <NameSelection />;
+  }
+
+  if (!userData.name) {
+    return <div className="loading">Completing setup...</div>;
+  }
+
+  return <>{children}</>;
+};
+
+const App: React.FC = () => {
+  return (
+    <Router>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
+    </Router>
+  );
+};
+
+export default App;
+
+================
 File: src/components/admin/AdminAnalytics.tsx
 ================
 import React from 'react';
@@ -9293,78 +9627,6 @@ const shouldMatchHaveTimestamp = (user1Name: string, user2Name: string): boolean
     const isUser2JamesPark = user2Name === 'James Park';
 
     return !(isUser1JamesPark || isUser2JamesPark);
-};
-
-// Enhanced helper function to format match timestamp for analytics
-const formatAnalyticsMatchTimestamp = (matchedAt: any, user1Name: string, user2Name: string): string => {
-    // Check if this match should have a timestamp
-    if (!shouldMatchHaveTimestamp(user1Name, user2Name)) {
-        return 'James Park match';
-    }
-
-    if (!matchedAt) {
-        return 'No timestamp';
-    }
-
-    let date: Date;
-
-    try {
-        // Handle Firestore Timestamp with seconds property
-        if (matchedAt && typeof matchedAt === 'object' && matchedAt.seconds) {
-            date = new Date(matchedAt.seconds * 1000);
-        }
-        // Handle Firestore Timestamp with toDate method
-        else if (matchedAt && typeof matchedAt.toDate === 'function') {
-            date = matchedAt.toDate();
-        }
-        // Handle regular Date object
-        else if (matchedAt instanceof Date) {
-            date = matchedAt;
-        }
-        // Handle string or number timestamps
-        else if (typeof matchedAt === 'string' || typeof matchedAt === 'number') {
-            date = new Date(matchedAt);
-        }
-        // Handle the _seconds format from debug output
-        else if (matchedAt && matchedAt._seconds) {
-            date = new Date(matchedAt._seconds * 1000);
-        }
-        else {
-            console.log('Unknown timestamp format:', matchedAt);
-            return 'Unknown format';
-        }
-
-        // Validate the date
-        if (isNaN(date.getTime())) {
-            console.log('Invalid date created from:', matchedAt);
-            return 'Invalid Date';
-        }
-
-        const now = new Date();
-        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-        if (diffInSeconds < 60) {
-            return 'Just now';
-        } else if (diffInSeconds < 3600) {
-            const minutes = Math.floor(diffInSeconds / 60);
-            return `${minutes}m ago`;
-        } else if (diffInSeconds < 86400) {
-            const hours = Math.floor(diffInSeconds / 3600);
-            return `${hours}h ago`;
-        } else if (diffInSeconds < 604800) {
-            const days = Math.floor(diffInSeconds / 86400);
-            return `${days}d ago`;
-        } else {
-            return date.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-            });
-        }
-    } catch (error) {
-        console.error('Error formatting timestamp:', error, 'Original value:', matchedAt);
-        return 'Format Error';
-    }
 };
 
 const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplayName, allUsers }) => {
@@ -9559,415 +9821,6 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplay
 };
 
 export default AdminAnalytics;
-
-================
-File: src/components/NameSelection.tsx
-================
-import React, { useState, useMemo } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { fuzzyNameMatch } from '../utils/emailUtils';
-
-const NameSelection: React.FC = () => {
-    const { user, nameOptions, selectName, logout } = useAuth();
-    const [selecting, setSelecting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    // Calculate match scores and check for high-confidence matches
-    const { scoredOptions, hasHighConfidenceMatch } = useMemo(() => {
-        if (!nameOptions || !user?.displayName) {
-            return { scoredOptions: nameOptions || [], hasHighConfidenceMatch: false };
-        }
-
-        const googleName = user.displayName;
-        const MIN_SCORE = 60;
-        const HIGH_CONFIDENCE_SCORE = 75;
-
-        const scored = nameOptions
-            .map(name => ({
-                name,
-                score: fuzzyNameMatch(googleName, name)
-            }))
-            .filter(item => item.score >= MIN_SCORE)
-            .sort((a, b) => b.score - a.score);
-
-        const hasHighConfidence = scored.some(item => item.score >= HIGH_CONFIDENCE_SCORE);
-
-        return {
-            scoredOptions: scored.map(item => item.name),
-            hasHighConfidenceMatch: hasHighConfidence
-        };
-    }, [nameOptions, user?.displayName]);
-
-    const handleNameSelect = async (selectedName: string) => {
-        if (selecting) return;
-
-        setSelecting(true);
-        setError(null);
-
-        try {
-            await selectName(selectedName);
-        } catch (error) {
-            console.error('Error selecting name:', error);
-            setError('Failed to save your selection. Please try again.');
-        } finally {
-            setSelecting(false);
-        }
-    };
-
-    if (!nameOptions) {
-        return <div className="loading">Loading...</div>;
-    }
-
-    const displayOptions = scoredOptions.length > 0 ? scoredOptions : nameOptions;
-
-    return (
-        <div className="verification-container">
-            <div className="verification-card">
-                <div className="verification-header">
-                    <h1>Second Chances</h1>
-                    <div className="user-info">
-                        <span>{user?.email}</span>
-                        <button className="logout-btn" onClick={logout}>Logout</button>
-                    </div>
-                </div>
-
-                <div className="verification-content">
-                    <h2>Select Your Name</h2>
-                    {user?.displayName && (
-                        <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
-                            Google account name: <strong>{user.displayName}</strong>
-                        </p>
-                    )}
-                    <p>Please select which of these options matches your identity:</p>
-
-                    {displayOptions.length > 0 ? (
-                        <>
-                            <div className="names-list">
-                                <h3>Potential Matches</h3>
-                                <div className="names-verification-list">
-                                    {displayOptions.map((name) => (
-                                        <div
-                                            key={name}
-                                            onClick={() => !selecting && handleNameSelect(name)}
-                                            className={`name-verification-item ${selecting ? 'disabled' : ''}`}
-                                        >
-                                            <span className="name-text">{name}</span>
-                                            <span className="select-btn">
-                                                Select
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="help-notice" style={{
-                                marginTop: '20px',
-                                padding: '12px',
-                                background: '#f8f9fa',
-                                borderRadius: '4px',
-                                fontSize: '0.9em',
-                                color: '#666'
-                            }}>
-                                {hasHighConfidenceMatch
-                                    ? <>We found strong matches to your Google name. If none of these are correct, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
-                                    : <>Don't see your name? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance</>
-                                }
-                            </div>
-                        </>
-                    ) : (
-                        <div style={{
-                            marginTop: '20px',
-                            padding: '20px',
-                            background: '#f8f9fa',
-                            borderRadius: '4px',
-                            textAlign: 'center'
-                        }}>
-                            <p>We couldn't find any matching names.</p>
-                            <p style={{ fontSize: '0.9em', color: '#666' }}>
-                                Please email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance.
-                            </p>
-                        </div>
-                    )}
-
-                    {selecting && (
-                        <div className="saving-indicator">
-                            Saving your selection...
-                        </div>
-                    )}
-
-                    {error && (
-                        <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
-                            {error}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default NameSelection;
-
-================
-File: src/config/firebase.ts
-================
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyDC_YL8wau3PKK1r2ZYYHc32TtnoXe5giQ",
-    authDomain: "stanford-lastchances.firebaseapp.com",
-    projectId: "stanford-lastchances",
-    storageBucket: "stanford-lastchances.firebasestorage.app",
-    messagingSenderId: "792276801448",
-    appId: "1:792276801448:web:84a43cc96308673321ef9d",
-    measurementId: "G-HLD1E4T34S"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const analytics = getAnalytics(app);
-
-// Set persistence to LOCAL to ensure auth state survives redirects
-setPersistence(auth, browserLocalPersistence).catch((error) => {
-    console.error('Error setting auth persistence:', error);
-});
-
-// Configure Google provider
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-    prompt: 'select_account'
-});
-
-auth.useDeviceLanguage();
-
-================
-File: src/styles/dashboard.css
-================
-/* Dashboard Main Styles */
-@import './dashboard/dashboard-layout.css';
-@import './dashboard/dashboard-components.css';
-@import './dashboard/dashboard-responsive.css';
-
-================
-File: src/styles/dashboard/dashboard-layout.css
-================
-/* Dashboard Layout Styles */
-.dashboard-container {
-    min-height: 100vh;
-    padding: 10px;
-    background-color: #f8f9fa;
-  }
-  
-  .dashboard-card {
-    max-width: 900px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    min-height: calc(100vh - 20px);
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .dashboard-header {
-    background: #8C1515;
-    color: white;
-    padding: 15px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    flex-shrink: 0;
-  }
-  
-  .dashboard-header h1 {
-    font-size: 20px;
-    font-weight: 700;
-  }
-  
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  
-  .user-info span {
-    font-size: 12px;
-    opacity: 0.9;
-  }
-  
-  .logout-btn {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease;
-  }
-  
-  .logout-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
-  
-  .dashboard-content {
-    padding: 20px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-  
-  .header-section {
-    flex-shrink: 0;
-  }
-  
-  .dashboard-content h2 {
-    color: #8C1515;
-    margin-bottom: 8px;
-    font-size: 18px;
-  }
-  
-  .dashboard-content > p {
-    color: #666;
-    margin-bottom: 15px;
-    line-height: 1.5;
-    font-size: 14px;
-  }
-  
-  .submitted-notice {
-    background: #d4edda;
-    color: #155724;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border-left: 4px solid #28a745;
-    font-weight: 500;
-    margin-top: 8px;
-    font-size: 14px;
-  }
-  
-  /* User info styles */
-  .user-details {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  
-  .profile-pic {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-  }
-  
-  .user-name {
-    font-weight: 600;
-    font-size: 12px;
-  }
-  
-  .user-email {
-    font-size: 10px;
-    opacity: 0.8;
-  }
-  
-  /* Instructions list styling */
-  .instructions {
-    margin-bottom: 15px;
-  }
-  
-  .instructions ol {
-    padding-left: 20px;
-    margin: 0;
-  }
-  
-  .instructions li {
-    margin-bottom: 8px;
-    line-height: 1.5;
-    font-size: 14px;
-    color: #666;
-  }
-  
-  .instructions em {
-    font-style: italic;
-    color: #8C1515;
-    font-weight: 600;
-  }
-  
-  /* Class indicator improvements */
-  .class-indicator {
-    margin-bottom: 15px;
-    text-align: center;
-  }
-  
-  .class-badge {
-    display: inline-block;
-    background: linear-gradient(135deg, #8C1515 0%, #B83A4B 100%);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    box-shadow: 0 2px 4px rgba(140, 21, 21, 0.3);
-  }
-
-  /* Footer styles */
-  .dashboard-footer {
-    padding: 20px;
-    text-align: center;
-    border-top: 1px solid #e9ecef;
-    background: #f8f9fa;
-    flex-shrink: 0;
-  }
-
-  .dashboard-footer a {
-    color: #8C1515;
-    text-decoration: none;
-    font-size: 14px;
-    transition: opacity 0.2s ease;
-  }
-
-  .dashboard-footer a:hover {
-    opacity: 0.7;
-    text-decoration: underline;
-  }
-
-  .footer-separator {
-    margin: 0 12px;
-    color: #999;
-  }
-
-  .header-title {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.header-title h1 {
-  margin: 0;
-}
-
-.header-subtitle {
-  font-size: 14px;
-  font-weight: 500;
-  opacity: 0.9;
-}
-
-@media (max-width: 768px) {
-  .header-subtitle {
-    font-size: 12px;
-  }
-}
 
 ================
 File: functions/src/index.ts
@@ -10370,368 +10223,245 @@ export const removeTakenNamesCollection = functions.https.onRequest(async (req, 
 });
 
 ================
-File: src/components/UserDashboard.tsx
+File: src/styles/dashboard/dashboard-layout.css
 ================
-import React from 'react';
-import { GSB_CLASS_NAMES } from '../data/names';
-import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData } from '../types/userTypes';
+/* Dashboard Layout Styles */
+.dashboard-container {
+    min-height: 100vh;
+    padding: 10px;
+    background-color: #f8f9fa;
+  }
+  
+  .dashboard-card {
+    max-width: 900px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    min-height: calc(100vh - 20px);
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .dashboard-header {
+    background: #8C1515;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
 
-interface UserDashboardProps {
-    userData: UserData;
-    searchTerm: string;
-    setSearchTerm: (term: string) => void;
-    selectedNames: string[];
-    savedNames: string[];
-    updating: boolean;
-    error: string | null;
-    handleNameToggle: (name: string) => void;
-    handleRemoveSelected: (name: string) => void;
-    handleUpdatePreferences: () => void;
+  .user-profile-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .user-info span {
+    font-size: 12px;
+    opacity: 0.9;
+  }
+  
+  .logout-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+  
+  .logout-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .dashboard-content {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .header-section {
+    flex-shrink: 0;
+  }
+  
+  .dashboard-content h2 {
+    color: #8C1515;
+    margin-bottom: 8px;
+    font-size: 18px;
+  }
+  
+  .dashboard-content > p {
+    color: #666;
+    margin-bottom: 15px;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+  
+  .submitted-notice {
+    background: #d4edda;
+    color: #155724;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+    font-weight: 500;
+    margin-top: 8px;
+    font-size: 14px;
+  }
+  
+  /* User info styles */
+  .user-details {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .profile-pic {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .profile-pic.clickable {
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+
+  .profile-pic.clickable:hover {
+    transform: scale(1.05);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+  
+  .user-name {
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  .user-name.clickable {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .user-name.clickable:hover {
+    opacity: 0.8;
+  }
+  
+  .user-email {
+    font-size: 10px;
+    opacity: 0.8;
+  }
+  
+  /* Instructions list styling */
+  .instructions {
+    margin-bottom: 15px;
+  }
+  
+  .instructions ol {
+    padding-left: 20px;
+    margin: 0;
+  }
+  
+  .instructions li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+    font-size: 14px;
+    color: #666;
+  }
+  
+  .instructions em {
+    font-style: italic;
+    color: #8C1515;
+    font-weight: 600;
+  }
+  
+  /* Class indicator improvements */
+  .class-indicator {
+    margin-bottom: 15px;
+    text-align: center;
+  }
+  
+  .class-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #8C1515 0%, #B83A4B 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(140, 21, 21, 0.3);
+  }
+
+  /* Footer styles */
+  .dashboard-footer {
+    padding: 20px;
+    text-align: center;
+    border-top: 1px solid #e9ecef;
+    background: #f8f9fa;
+    flex-shrink: 0;
+  }
+
+  .dashboard-footer a {
+    color: #8C1515;
+    text-decoration: none;
+    font-size: 14px;
+    transition: opacity 0.2s ease;
+  }
+
+  .dashboard-footer a:hover {
+    opacity: 0.7;
+    text-decoration: underline;
+  }
+
+  .footer-separator {
+    margin: 0 12px;
+    color: #999;
+  }
+
+  .header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-// Fast name matching function optimized for first/last name searches
-const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
-    if (!searchTerm.trim()) return { matches: true, score: 0 };
+.header-title h1 {
+  margin: 0;
+}
 
-    const normalizeText = (text: string) => text.toLowerCase().trim();
-    const normalizedName = normalizeText(fullName);
-    const normalizedSearch = normalizeText(searchTerm);
+.header-subtitle {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.9;
+}
 
-    // Exact substring match (highest priority)
-    if (normalizedName.includes(normalizedSearch)) {
-        return { matches: true, score: 100 };
-    }
-
-    const nameParts = normalizedName.split(' ').filter(Boolean);
-    const searchParts = normalizedSearch.split(' ').filter(Boolean);
-
-    // First + Last name matching (most common use case)
-    if (searchParts.length >= 2) {
-        const searchFirst = searchParts[0];
-        const searchLast = searchParts[searchParts.length - 1];
-
-        if (nameParts.length >= 2) {
-            const nameFirst = nameParts[0];
-            const nameLast = nameParts[nameParts.length - 1];
-
-            // Exact first + last match
-            if (nameFirst === searchFirst && nameLast === searchLast) {
-                return { matches: true, score: 95 };
-            }
-
-            // Partial first + exact last
-            if (nameFirst.startsWith(searchFirst) && nameLast === searchLast) {
-                return { matches: true, score: 90 };
-            }
-
-            // Exact first + partial last
-            if (nameFirst === searchFirst && nameLast.startsWith(searchLast)) {
-                return { matches: true, score: 85 };
-            }
-        }
-    }
-
-    // Single term matching
-    if (searchParts.length === 1) {
-        const searchTerm = searchParts[0];
-
-        // Check if any name part starts with search term
-        if (nameParts.some(part => part.startsWith(searchTerm))) {
-            return { matches: true, score: 80 };
-        }
-    }
-
-    // Multi-word progressive matching
-    let nameIndex = 0;
-    let matchedParts = 0;
-
-    for (const searchPart of searchParts) {
-        for (let i = nameIndex; i < nameParts.length; i++) {
-            if (nameParts[i].startsWith(searchPart)) {
-                matchedParts++;
-                nameIndex = i + 1;
-                break;
-            }
-        }
-    }
-
-    if (matchedParts === searchParts.length) {
-        return { matches: true, score: 75 };
-    }
-
-    return { matches: false, score: 0 };
-};
-
-const UserDashboard: React.FC<UserDashboardProps> = ({
-    userData,
-    searchTerm,
-    setSearchTerm,
-    selectedNames,
-    savedNames,
-    updating,
-    error,
-    handleNameToggle,
-    handleRemoveSelected,
-    handleUpdatePreferences
-}) => {
-    const [virtualStart, setVirtualStart] = React.useState(0);
-    const searchInputRef = React.useRef<HTMLInputElement>(null);
-
-    const hasMatches = userData?.matches && userData.matches.length > 0;
-    const crushCount = userData?.crushCount || 0;
-    const lockedCrushes = userData?.lockedCrushes || [];
-
-    // Ensure arrays are defined before using sort
-    const safeSelectedNames = selectedNames || [];
-    const safeSavedNames = savedNames || [];
-    const hasUnsavedChanges = JSON.stringify([...safeSelectedNames].sort()) !== JSON.stringify([...safeSavedNames].sort());
-
-    // Get the appropriate class names based on user's class
-    const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
-    const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
-
-    // Handle search input change
-    const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value);
-        setVirtualStart(0); // Reset scroll when search changes
-    }, [setSearchTerm]);
-
-    // Fast filtering with optimized name matching
-    const filteredAvailableNames = React.useMemo(() => {
-        const excludedNames = [...safeSelectedNames];
-
-        if (userData?.name) {
-            excludedNames.push(userData.name);
-        }
-
-        const availableNames = classNames.filter(name => !excludedNames.includes(name));
-
-        if (!searchTerm.trim()) return availableNames;
-
-        // Apply fast matching and sort by relevance score
-        const matchedNames = availableNames
-            .map(name => {
-                const result = matchesSearchTerm(name, searchTerm);
-                return { name, ...result };
-            })
-            .filter(item => item.matches)
-            .sort((a, b) => b.score - a.score)
-            .map(item => item.name);
-
-        return matchedNames;
-    }, [safeSelectedNames, searchTerm, userData?.name, classNames]);
-
-    // Virtual scrolling constants
-    const ITEM_HEIGHT = 48;
-    const VISIBLE_ITEMS = Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
-    const BUFFER_SIZE = 5;
-
-    // Calculate visible range for virtual scrolling
-    const startIndex = Math.max(0, virtualStart - BUFFER_SIZE);
-    const endIndex = Math.min(filteredAvailableNames.length, virtualStart + VISIBLE_ITEMS + BUFFER_SIZE);
-    const visibleNames = filteredAvailableNames.slice(startIndex, endIndex);
-
-    // Handle scroll for virtual scrolling
-    const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
-        const scrollTop = e.currentTarget.scrollTop;
-        const newStart = Math.floor(scrollTop / ITEM_HEIGHT);
-
-        if (Math.abs(newStart - virtualStart) > 2) {
-            setVirtualStart(newStart);
-        }
-    }, [virtualStart]);
-
-    // Clear search function
-    const clearSearch = React.useCallback(() => {
-        setSearchTerm('');
-        setVirtualStart(0);
-        if (searchInputRef.current) {
-            searchInputRef.current.focus();
-        }
-    }, [setSearchTerm]);
-
-    // Simple function that just returns the name without highlighting
-    const highlightMatch = React.useCallback((name: string, _searchTerm: string) => {
-        return name;
-    }, []);
-
-    return (
-        <>
-            {crushCount > 0 && (
-                <div className="crush-count-section">
-                    <h2>{crushCount} {crushCount === 1 ? 'person is' : 'people are'} crushing on you!</h2>
-                </div>
-            )}
-
-            {hasMatches && (
-                <div className="matches-section">
-                    <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
-                    <div className="matches-list">
-                        {userData.matches.map((match, index) => (
-                            <div key={index} className="match-item">
-                                <div className="match-name">{match.name}</div>
-                                <div className="match-email">{match.email}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div className="header-section">
-                <div className="instructions">
-                    <ol>
-                        <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
-                        <li>Click "Update Preferences" to save your changes. Matches appear automatically when someone you've selected also selects you. Matches are completely private.</li>
-                        <li>You can add or remove names anytime. There's no limit on how many people you can select, and you can change your preferences as often as you want.</li>
-                        <li>Once you match with someone, you cannot remove them from your list.</li>
-                    </ol>
-                </div>
-            </div>
-
-            <div className="selection-counter">
-                {safeSelectedNames.length} selected
-                {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
-            </div>
-
-            {safeSelectedNames.length > 0 && (
-                <div className="selected-names">
-                    <h3>Your Selections ({safeSelectedNames.length})</h3>
-                    <div className="name-chips">
-                        {safeSelectedNames.map(name => {
-                            const isLocked = lockedCrushes.includes(name);
-                            return (
-                                <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>
-                                    <span>{name}</span>
-                                    {isLocked ? (
-                                        <span className="lock-icon" title="Locked - you have matched with this person">🔒</span>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleRemoveSelected(name)}
-                                            className="remove-btn"
-                                            aria-label={`Remove ${name}`}
-                                            disabled={updating}
-                                        >
-                                            ×
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            <div className="search-section">
-                <div className="search-input-container">
-                    <input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder={`Search ${classDisplayName} classmates...`}
-                        value={searchTerm}
-                        onChange={handleSearchChange}
-                        className="search-input"
-                    />
-                    {searchTerm && (
-                        <button
-                            onClick={clearSearch}
-                            className="search-clear-btn"
-                            type="button"
-                            aria-label="Clear search"
-                        >
-                            ×
-                        </button>
-                    )}
-                </div>
-                {searchTerm && filteredAvailableNames.length > 0 && (
-                    <div className="search-hint">
-                        💡 {filteredAvailableNames.length} results found. Try "first last" for best results.
-                    </div>
-                )}
-            </div>
-
-            <div className="available-names">
-                <h3>
-                    Classmates
-                    {searchTerm && ` (${filteredAvailableNames.length} found)`}
-                    {!searchTerm && ` (${filteredAvailableNames.length} available)`}
-                </h3>
-                <div
-                    className="names-simple-list"
-                    onScroll={handleScroll}
-                    style={{ height: `${VISIBLE_ITEMS * ITEM_HEIGHT}px` }}
-                >
-                    {/* Spacer for items before visible range */}
-                    {startIndex > 0 && (
-                        <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
-                    )}
-
-                    {visibleNames.map((name, index) => {
-                        const actualIndex = startIndex + index;
-                        return (
-                            <div
-                                key={`${name}-${actualIndex}`}
-                                onClick={() => !updating && handleNameToggle(name)}
-                                className={`name-list-item ${updating ? 'disabled' : ''}`}
-                                style={{
-                                    height: `${ITEM_HEIGHT}px`,
-                                    minHeight: `${ITEM_HEIGHT}px`
-                                }}
-                            >
-                                <span className="name-text">
-                                    {highlightMatch(name, searchTerm)}
-                                </span>
-                                <span className="add-btn">+</span>
-                            </div>
-                        );
-                    })}
-
-                    {/* Spacer for items after visible range */}
-                    {endIndex < filteredAvailableNames.length && (
-                        <div style={{ height: `${(filteredAvailableNames.length - endIndex) * ITEM_HEIGHT}px` }} />
-                    )}
-
-                    {filteredAvailableNames.length === 0 && (
-                        <div className="no-results">
-                            {searchTerm ? (
-                                <>
-                                    No names found matching "{searchTerm}".
-                                    <br />
-                                    <small>Try searching with just first and last name (e.g., "john smith")</small>
-                                    <button onClick={clearSearch} className="clear-search-link">
-                                        Clear search
-                                    </button>
-                                </>
-                            ) : (
-                                'All classmates have been selected!'
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <div className="action-section">
-                <div className="action-buttons">
-                    <button
-                        onClick={handleUpdatePreferences}
-                        disabled={updating || !hasUnsavedChanges}
-                        className="update-btn"
-                    >
-                        {updating ? 'Updating...' : 'Update Preferences'}
-                    </button>
-                </div>
-            </div>
-
-            {error && (
-                <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
-                    {error}
-                </div>
-            )}
-        </>
-    );
-};
-
-export default UserDashboard;
+@media (max-width: 768px) {
+  .header-subtitle {
+    font-size: 12px;
+  }
+}
 
 ================
 File: src/styles/auth.css
@@ -11462,6 +11192,370 @@ File: src/styles/auth.css
     height: 80px;
   }
 }
+
+================
+File: src/components/UserDashboard.tsx
+================
+import React from 'react';
+import { GSB_CLASS_NAMES } from '../data/names';
+import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
+import type { UserData } from '../types/userTypes';
+
+interface UserDashboardProps {
+    userData: UserData;
+    searchTerm: string;
+    setSearchTerm: (term: string) => void;
+    selectedNames: string[];
+    savedNames: string[];
+    updating: boolean;
+    error: string | null;
+    handleNameToggle: (name: string) => void;
+    handleRemoveSelected: (name: string) => void;
+    handleUpdatePreferences: () => void;
+}
+
+// Fast name matching function optimized for first/last name searches
+const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
+    if (!searchTerm.trim()) return { matches: true, score: 0 };
+
+    const normalizeText = (text: string) => text.toLowerCase().trim();
+    const normalizedName = normalizeText(fullName);
+    const normalizedSearch = normalizeText(searchTerm);
+
+    // Exact substring match (highest priority)
+    if (normalizedName.includes(normalizedSearch)) {
+        return { matches: true, score: 100 };
+    }
+
+    const nameParts = normalizedName.split(' ').filter(Boolean);
+    const searchParts = normalizedSearch.split(' ').filter(Boolean);
+
+    // First + Last name matching (most common use case)
+    if (searchParts.length >= 2) {
+        const searchFirst = searchParts[0];
+        const searchLast = searchParts[searchParts.length - 1];
+
+        if (nameParts.length >= 2) {
+            const nameFirst = nameParts[0];
+            const nameLast = nameParts[nameParts.length - 1];
+
+            // Exact first + last match
+            if (nameFirst === searchFirst && nameLast === searchLast) {
+                return { matches: true, score: 95 };
+            }
+
+            // Partial first + exact last
+            if (nameFirst.startsWith(searchFirst) && nameLast === searchLast) {
+                return { matches: true, score: 90 };
+            }
+
+            // Exact first + partial last
+            if (nameFirst === searchFirst && nameLast.startsWith(searchLast)) {
+                return { matches: true, score: 85 };
+            }
+        }
+    }
+
+    // Single term matching
+    if (searchParts.length === 1) {
+        const searchTerm = searchParts[0];
+
+        // Check if any name part starts with search term
+        if (nameParts.some(part => part.startsWith(searchTerm))) {
+            return { matches: true, score: 80 };
+        }
+    }
+
+    // Multi-word progressive matching
+    let nameIndex = 0;
+    let matchedParts = 0;
+
+    for (const searchPart of searchParts) {
+        for (let i = nameIndex; i < nameParts.length; i++) {
+            if (nameParts[i].startsWith(searchPart)) {
+                matchedParts++;
+                nameIndex = i + 1;
+                break;
+            }
+        }
+    }
+
+    if (matchedParts === searchParts.length) {
+        return { matches: true, score: 75 };
+    }
+
+    return { matches: false, score: 0 };
+};
+
+const UserDashboard: React.FC<UserDashboardProps> = ({
+    userData,
+    searchTerm,
+    setSearchTerm,
+    selectedNames,
+    savedNames,
+    updating,
+    error,
+    handleNameToggle,
+    handleRemoveSelected,
+    handleUpdatePreferences
+}) => {
+    const [virtualStart, setVirtualStart] = React.useState(0);
+    const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+    const hasMatches = userData?.matches && userData.matches.length > 0;
+    const crushCount = userData?.crushCount || 0;
+    const lockedCrushes = userData?.lockedCrushes || [];
+
+    // Ensure arrays are defined before using sort
+    const safeSelectedNames = selectedNames || [];
+    const safeSavedNames = savedNames || [];
+    const hasUnsavedChanges = JSON.stringify([...safeSelectedNames].sort()) !== JSON.stringify([...safeSavedNames].sort());
+
+    // Get the appropriate class names based on user's class
+    const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+    const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
+
+    // Handle search input change
+    const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+        setVirtualStart(0); // Reset scroll when search changes
+    }, [setSearchTerm]);
+
+    // Fast filtering with optimized name matching
+    const filteredAvailableNames = React.useMemo(() => {
+        const excludedNames = [...safeSelectedNames];
+
+        if (userData?.name) {
+            excludedNames.push(userData.name);
+        }
+
+        const availableNames = classNames.filter(name => !excludedNames.includes(name));
+
+        if (!searchTerm.trim()) return availableNames;
+
+        // Apply fast matching and sort by relevance score
+        const matchedNames = availableNames
+            .map(name => {
+                const result = matchesSearchTerm(name, searchTerm);
+                return { name, ...result };
+            })
+            .filter(item => item.matches)
+            .sort((a, b) => b.score - a.score)
+            .map(item => item.name);
+
+        return matchedNames;
+    }, [safeSelectedNames, searchTerm, userData?.name, classNames]);
+
+    // Virtual scrolling constants
+    const ITEM_HEIGHT = 48;
+    const VISIBLE_ITEMS = Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
+    const BUFFER_SIZE = 5;
+
+    // Calculate visible range for virtual scrolling
+    const startIndex = Math.max(0, virtualStart - BUFFER_SIZE);
+    const endIndex = Math.min(filteredAvailableNames.length, virtualStart + VISIBLE_ITEMS + BUFFER_SIZE);
+    const visibleNames = filteredAvailableNames.slice(startIndex, endIndex);
+
+    // Handle scroll for virtual scrolling
+    const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const scrollTop = e.currentTarget.scrollTop;
+        const newStart = Math.floor(scrollTop / ITEM_HEIGHT);
+
+        if (Math.abs(newStart - virtualStart) > 2) {
+            setVirtualStart(newStart);
+        }
+    }, [virtualStart]);
+
+    // Clear search function
+    const clearSearch = React.useCallback(() => {
+        setSearchTerm('');
+        setVirtualStart(0);
+        if (searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [setSearchTerm]);
+
+    // Simple function that just returns the name without highlighting
+    const highlightMatch = React.useCallback((name: string, _searchTerm: string) => {
+        return name;
+    }, []);
+
+    return (
+        <>
+            {crushCount > 0 && (
+                <div className="crush-count-section">
+                    <h2>{crushCount} {crushCount === 1 ? 'person is' : 'people are'} crushing on you!</h2>
+                </div>
+            )}
+
+            {hasMatches && (
+                <div className="matches-section">
+                    <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
+                    <div className="matches-list">
+                        {userData.matches.map((match, index) => (
+                            <div key={index} className="match-item">
+                                <div className="match-name">{match.name}</div>
+                                <div className="match-email">{match.email}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* <div className="header-section">
+                <div className="instructions">
+                    <ol>
+                        <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
+                        <li>Click "Update Preferences" to save your changes. Matches appear automatically when someone you've selected also selects you. Matches are completely private.</li>
+                        <li>You can add or remove names anytime. There's no limit on how many people you can select, and you can change your preferences as often as you want.</li>
+                        <li>Once you match with someone, you cannot remove them from your list.</li>
+                    </ol>
+                </div>
+            </div> */}
+
+            <div className="selection-counter">
+                {safeSelectedNames.length} selected
+                {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
+            </div>
+
+            {safeSelectedNames.length > 0 && (
+                <div className="selected-names">
+                    <h3>Your Selections ({safeSelectedNames.length})</h3>
+                    <div className="name-chips">
+                        {safeSelectedNames.map(name => {
+                            const isLocked = lockedCrushes.includes(name);
+                            return (
+                                <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>
+                                    <span>{name}</span>
+                                    {isLocked ? (
+                                        <span className="lock-icon" title="Locked - you have matched with this person">🔒</span>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleRemoveSelected(name)}
+                                            className="remove-btn"
+                                            aria-label={`Remove ${name}`}
+                                            disabled={updating}
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            <div className="search-section">
+                <div className="search-input-container">
+                    <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder={`Search ${classDisplayName} classmates...`}
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        className="search-input"
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={clearSearch}
+                            className="search-clear-btn"
+                            type="button"
+                            aria-label="Clear search"
+                        >
+                            ×
+                        </button>
+                    )}
+                </div>
+                {searchTerm && filteredAvailableNames.length > 0 && (
+                    <div className="search-hint">
+                        💡 {filteredAvailableNames.length} results found. Try "first last" for best results.
+                    </div>
+                )}
+            </div>
+
+            <div className="available-names">
+                <h3>
+                    Classmates
+                    {searchTerm && ` (${filteredAvailableNames.length} found)`}
+                    {!searchTerm && ` (${filteredAvailableNames.length} available)`}
+                </h3>
+                <div
+                    className="names-simple-list"
+                    onScroll={handleScroll}
+                    style={{ height: `${VISIBLE_ITEMS * ITEM_HEIGHT}px` }}
+                >
+                    {/* Spacer for items before visible range */}
+                    {startIndex > 0 && (
+                        <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
+                    )}
+
+                    {visibleNames.map((name, index) => {
+                        const actualIndex = startIndex + index;
+                        return (
+                            <div
+                                key={`${name}-${actualIndex}`}
+                                onClick={() => !updating && handleNameToggle(name)}
+                                className={`name-list-item ${updating ? 'disabled' : ''}`}
+                                style={{
+                                    height: `${ITEM_HEIGHT}px`,
+                                    minHeight: `${ITEM_HEIGHT}px`
+                                }}
+                            >
+                                <span className="name-text">
+                                    {highlightMatch(name, searchTerm)}
+                                </span>
+                                <span className="add-btn">+</span>
+                            </div>
+                        );
+                    })}
+
+                    {/* Spacer for items after visible range */}
+                    {endIndex < filteredAvailableNames.length && (
+                        <div style={{ height: `${(filteredAvailableNames.length - endIndex) * ITEM_HEIGHT}px` }} />
+                    )}
+
+                    {filteredAvailableNames.length === 0 && (
+                        <div className="no-results">
+                            {searchTerm ? (
+                                <>
+                                    No names found matching "{searchTerm}".
+                                    <br />
+                                    <small>Try searching with just first and last name (e.g., "john smith")</small>
+                                    <button onClick={clearSearch} className="clear-search-link">
+                                        Clear search
+                                    </button>
+                                </>
+                            ) : (
+                                'All classmates have been selected!'
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="action-section">
+                <div className="action-buttons">
+                    <button
+                        onClick={handleUpdatePreferences}
+                        disabled={updating || !hasUnsavedChanges}
+                        className="update-btn"
+                    >
+                        {updating ? 'Updating...' : 'Update Preferences'}
+                    </button>
+                </div>
+            </div>
+
+            {error && (
+                <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
+                    {error}
+                </div>
+            )}
+        </>
+    );
+};
+
+export default UserDashboard;
 
 ================
 File: src/components/admin/AdminUsers.tsx
@@ -13598,6 +13692,7 @@ File: index.html
 File: src/components/Home.tsx
 ================
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AdminView from '../components/AdminView';
 import UserDashboard from '../components/UserDashboard';
@@ -13607,7 +13702,8 @@ import { isAdminUser } from '../utils/adminUtils';
 import { getUserDocumentId } from '../utils';
 
 const Home = () => {
-    const { user, userData, signOut, refreshUserData } = useAuth();
+    const { user, userData, refreshUserData } = useAuth();
+    const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
     const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
@@ -13616,9 +13712,17 @@ const Home = () => {
     const [updating, setUpdating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isAdminMode, setIsAdminMode] = useState(false);
-    const [adminAccessError, setAdminAccessError] = useState(false);
 
     const isAdmin = isAdminUser(user, userData);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('admin') === 'true' && isAdmin) {
+            setIsAdminMode(true);
+            // Clean up URL
+            window.history.replaceState({}, '', '/');
+        }
+    }, [isAdmin]);
 
     const getClassDisplayName = useCallback(() => {
         const userClass = userData?.userClass || 'gsb';
@@ -13637,7 +13741,6 @@ const Home = () => {
         const loadData = async () => {
             try {
                 setError(null);
-                setAdminAccessError(false);
                 if (user && userData) {
                     loadUserSelections();
                 }
@@ -13753,14 +13856,9 @@ const Home = () => {
         }
     }, [user, userData, updating, selectedNames, refreshUserData]);
 
-    const handleAdminToggle = useCallback(() => {
-        if (!isAdmin) {
-            setAdminAccessError(true);
-            setTimeout(() => setAdminAccessError(false), 3000);
-            return;
-        }
-        setIsAdminMode(!isAdminMode);
-    }, [isAdmin, isAdminMode]);
+    const handleProfileClick = useCallback(() => {
+        navigate('/profile');
+    }, [navigate]);
 
     if (loading) {
         return <div className="loading">Loading...</div>;
@@ -13786,46 +13884,21 @@ const Home = () => {
                         <div className="header-subtitle">{getClassDisplayName()}</div>
                     </div>
                     <div className="user-info">
-                        <div className="user-details">
+                        <div className="user-profile-link">
                             <img
                                 src={currentImageUrl}
                                 alt="Profile"
-                                className="profile-pic"
+                                className="profile-pic clickable"
                                 onError={() => handleImageError(currentImageUrl)}
+                                onClick={handleProfileClick}
                                 loading="lazy"
                             />
-                            <div>
-                                <div className="user-name">{userData?.name || user?.displayName}</div>
-                                <div className="user-email">{user?.email}</div>
+                            <div className="user-name clickable" onClick={handleProfileClick}>
+                                {userData?.name || user?.displayName}
                             </div>
-                        </div>
-                        <div className="header-actions">
-                            {isAdmin && (
-                                <button
-                                    onClick={handleAdminToggle}
-                                    className="admin-toggle-btn"
-                                >
-                                    {isAdminMode ? 'Exit Admin View' : 'Admin View'}
-                                </button>
-                            )}
-                            <button className="logout-btn" onClick={signOut}>Logout</button>
                         </div>
                     </div>
                 </div>
-
-                {adminAccessError && (
-                    <div className="error-message" style={{
-                        background: '#f8d7da',
-                        color: '#721c24',
-                        padding: '10px',
-                        margin: '10px 20px',
-                        borderRadius: '4px',
-                        fontSize: '14px',
-                        textAlign: 'center'
-                    }}>
-                        Access denied. Admin privileges are required.
-                    </div>
-                )}
 
                 <div className="dashboard-content">
                     {isAdminMode && isAdmin ? (
