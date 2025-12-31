@@ -28,9 +28,20 @@ const Login = () => {
                     <img src="/logo-rounded.png" alt="Second Chances Logo" className="login-logo" />
                     <h1>Second Chances</h1>
                     <p className="login-subtitle">Share your crushes anonymously and see if there's a mutual connection.</p>
+                    <br></br>
                 </div>
 
                 <div className="login-content">
+                    <p style={{
+                        fontSize: '13px',
+                        color: '#666',
+                        marginBottom: '16px',
+                        lineHeight: '1.4'
+                    }}>
+                        Feel free to sign in with your @stanford.edu if you still have access,
+                        or your @alumni.stanford.edu or @alumni.gsb.stanford.edu
+                    </p>
+
                     <button
                         className="google-signin-btn"
                         onClick={handleSignIn}
