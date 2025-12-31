@@ -92,12 +92,11 @@ const Navbar: React.FC<NavbarProps> = ({
     return (
         <>
             <div className="dashboard-header">
-                <div className="header-left">
+                <div className="header-left" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
                     <img
                         src="/logo-rounded.png"
                         alt="Second Chances Logo"
                         className="header-logo"
-                        onClick={handleLogoClick}
                     />
                     <div className="header-title">
                         <h1>Second Chances</h1>
