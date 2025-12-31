@@ -151,34 +151,36 @@
     gap: 12px;
     justify-content: center;
     padding: 0 20px;
+    flex-wrap: wrap;
 }
 
 .profile-actions button {
-    padding: 12px 24px;
+    padding: 14px 28px;
     font-size: 16px;
-    font-weight: 500;
+    font-weight: 600;
     border-radius: 8px;
     border: none;
     cursor: pointer;
     transition: all 0.2s;
+    min-width: 140px;
 }
 
 .edit-btn {
-    background-color: #8C1515;
-    color: white;
+    background-color: #8C1515 !important;
+    color: white !important;
 }
 
 .edit-btn:hover {
-    background-color: #a01a1a;
+    background-color: #a01a1a !important;
 }
 
 .save-btn {
-    background-color: #28a745;
-    color: white;
+    background-color: #28a745 !important;
+    color: white !important;
 }
 
 .save-btn:hover:not(:disabled) {
-    background-color: #218838;
+    background-color: #218838 !important;
 }
 
 .save-btn:disabled {
@@ -187,12 +189,12 @@
 }
 
 .cancel-btn {
-    background-color: #6c757d;
-    color: white;
+    background-color: #6c757d !important;
+    color: white !important;
 }
 
 .cancel-btn:hover:not(:disabled) {
-    background-color: #5a6268;
+    background-color: #5a6268 !important;
 }
 
 .cancel-btn:disabled {
@@ -201,53 +203,12 @@
 }
 
 .logout-btn {
-    background-color: #dc3545;
-    color: white;
+    background-color: #dc3545 !important;
+    color: white !important;
 }
 
 .logout-btn:hover {
-    background-color: #c82333;
-}
-
-@media (max-width: 768px) {
-    .profile-container {
-        padding: 10px;
-    }
-
-    .profile-card {
-        border-radius: 8px;
-    }
-
-    .profile-header {
-        padding: 16px;
-    }
-
-    .profile-content {
-        padding: 24px 16px;
-    }
-
-    .profile-image-large {
-        width: 100px;
-        height: 100px;
-    }
-
-    .profile-name {
-        font-size: 20px;
-    }
-
-    .profile-info-section,
-    .profile-instructions-section,
-    .profile-actions {
-        padding: 0;
-    }
-
-    .profile-actions {
-        flex-direction: column;
-    }
-
-    .profile-actions button {
-        width: 100%;
-    }
+    background-color: #c82333 !important;
 }
 
 /* Location autocomplete styles */
@@ -289,6 +250,46 @@
 }
 
 @media (max-width: 768px) {
+    .profile-container {
+        padding: 10px;
+    }
+
+    .profile-card {
+        border-radius: 8px;
+    }
+
+    .profile-header {
+        padding: 16px;
+    }
+
+    .profile-content {
+        padding: 24px 16px;
+    }
+
+    .profile-image-large {
+        width: 100px;
+        height: 100px;
+    }
+
+    .profile-name {
+        font-size: 20px;
+    }
+
+    .profile-info-section,
+    .profile-instructions-section,
+    .profile-actions {
+        padding: 0;
+    }
+
+    .profile-actions {
+        flex-direction: column;
+    }
+
+    .profile-actions button {
+        width: 100%;
+        min-width: auto;
+    }
+
     .location-suggestions {
         max-height: 200px;
     }
