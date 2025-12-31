@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import Navbar from './shared/Navbar';
-import { db } from '../config/firebase';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { getUserDocumentId } from '../utils';
 import '../styles/profile.css';
 
@@ -186,40 +186,44 @@ const Profile = () => {
                     </div>
 
                     <div className="profile-info-section">
-                        <h3>Profile Information</h3>
+                        <h3>Account Information</h3>
+                        <p className="visibility-note">Only visible to you</p>
 
-                        <div className="info-field">
-                            <label>Email</label>
-                            <div className={`info-value readonly ${userData?.email === currentEmail ? 'current' : ''}`}>
-                                {userData?.email || '(empty)'}
+                        <div className="info-row">
+                            <label>Email:</label>
+                            <div className={`info-value-inline readonly ${userData?.email === currentEmail ? 'current' : ''}`}>
+                                {userData?.email || 'Not linked'}
                             </div>
                         </div>
 
-                        <div className="info-field">
-                            <label>Stanford Alumni</label>
-                            <div className={`info-value readonly ${userData?.emailAlumni === currentEmail ? 'current' : ''}`}>
-                                {userData?.emailAlumni || '(empty)'}
+                        <div className="info-row">
+                            <label>Stanford Alumni:</label>
+                            <div className={`info-value-inline readonly ${userData?.emailAlumni === currentEmail ? 'current' : ''}`}>
+                                {userData?.emailAlumni || 'Not linked'}
                             </div>
                         </div>
 
-                        <div className="info-field">
-                            <label>Stanford GSB Alumni</label>
-                            <div className={`info-value readonly ${userData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
-                                {userData?.emailAlumniGSB || '(empty)'}
+                        <div className="info-row">
+                            <label>GSB Alumni:</label>
+                            <div className={`info-value-inline readonly ${userData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
+                                {userData?.emailAlumniGSB || 'Not linked'}
                             </div>
                         </div>
 
-                        <div className="info-field">
-                            <label>Account Created</label>
-                            <div className="info-value readonly">{formatDate(userData?.createdAt)}</div>
+                        <div className="info-row">
+                            <label>Account Created:</label>
+                            <div className="info-value-inline readonly">{formatDate(userData?.createdAt)}</div>
                         </div>
 
                         <div className="info-divider"></div>
 
-                        <div className="info-field location-field">
-                            <label>Location</label>
+                        <h3>Public Information</h3>
+                        <p className="visibility-note public">Visible to other users</p>
+
+                        <div className="info-row location-row">
+                            <label>Location:</label>
                             {isEditing ? (
-                                <div style={{ position: 'relative' }}>
+                                <div style={{ position: 'relative', flex: 1 }}>
                                     <input
                                         type="text"
                                         value={location}
@@ -227,7 +231,7 @@ const Profile = () => {
                                         onFocus={() => setShowSuggestions(true)}
                                         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                                         placeholder="Start typing city or zip..."
-                                        className="info-input"
+                                        className="info-input-inline"
                                     />
                                     {showSuggestions && suggestions.length > 0 && (
                                         <div className="location-suggestions">
@@ -244,12 +248,12 @@ const Profile = () => {
                                     )}
                                 </div>
                             ) : (
-                                <div className="info-value">{userData?.location || '(not set)'}</div>
+                                <div className="info-value-inline">{userData?.location || '(not set)'}</div>
                             )}
                         </div>
 
-                        <div className="info-field">
-                            <label>About</label>
+                        <div className="info-field-full">
+                            <label>About:</label>
                             {isEditing ? (
                                 <textarea value={about} onChange={(e) => setAbout(e.target.value)}
                                     placeholder="Tell us about yourself..." className="info-textarea"
