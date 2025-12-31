@@ -22,15 +22,6 @@ const Home = () => {
 
     const isAdmin = isAdminUser(user, userData);
 
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('admin') === 'true' && isAdmin) {
-            setIsAdminMode(true);
-            // Clean up URL
-            window.history.replaceState({}, '', '/');
-        }
-    }, [isAdmin]);
-
     const getClassDisplayName = useCallback(() => {
         const userClass = userData?.userClass || 'gsb';
         return userClass === 'gsb' ? 'GSB MBA Class of 2025' : 'Undergrad Class of 2025';
@@ -167,6 +158,10 @@ const Home = () => {
         navigate('/profile');
     }, [navigate]);
 
+    const handleAdminToggle = useCallback(() => {
+        setIsAdminMode(prev => !prev);
+    }, []);
+
     if (loading) {
         return <div className="loading">Loading...</div>;
     }
@@ -192,6 +187,14 @@ const Home = () => {
                     </div>
                     <div className="user-info">
                         <div className="user-profile-link">
+                            {isAdmin && (
+                                <button
+                                    onClick={handleAdminToggle}
+                                    className="admin-toggle-btn"
+                                >
+                                    {isAdminMode ? 'User View' : 'Admin'}
+                                </button>
+                            )}
                             <img
                                 src={currentImageUrl}
                                 alt="Profile"

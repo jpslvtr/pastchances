@@ -21,6 +21,8 @@ export interface UserData {
     createdAt: any;
     updatedAt: any;
     lastLogin: any;
+    location?: string;
+    about?: string;
 }
 
 export interface UserWithId extends UserData {
