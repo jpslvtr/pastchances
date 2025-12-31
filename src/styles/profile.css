@@ -7,13 +7,70 @@
     margin-bottom: 40px;
 }
 
+.profile-image-container {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 16px;
+}
+
 .profile-image-large {
     width: 120px;
     height: 120px;
     border-radius: 50%;
     object-fit: cover;
     border: 3px solid #e9ecef;
-    margin-bottom: 16px;
+}
+
+.photo-edit-button {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #8C1515;
+    color: white;
+    border: 3px solid white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.photo-edit-button:hover:not(:disabled) {
+    background: #a01a1a;
+    transform: scale(1.1);
+}
+
+.photo-edit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.photo-edit-button svg {
+    width: 16px;
+    height: 16px;
+}
+
+.upload-spinner {
+    animation: spin 1s linear infinite;
+}
+
+.spinner-circle {
+    stroke: white;
+    stroke-dasharray: 50;
+    stroke-dashoffset: 25;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .profile-name {
@@ -233,68 +290,55 @@
 .suggestion-item {
     padding: 12px 16px;
     cursor: pointer;
-    transition: background-color 0.2s;
     font-size: 14px;
     color: #212529;
+    transition: background-color 0.15s;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
 }
 
 .suggestion-item:hover {
     background-color: #fff5f5;
-    color: #8C1515;
 }
 
-.suggestion-item:not(:last-child) {
-    border-bottom: 1px solid #f0f0f0;
-}
-
+/* Mobile responsive */
 @media (max-width: 768px) {
     .profile-content {
-        padding: 24px 16px;
-    }
-
-    .profile-image-large {
-        width: 100px;
-        height: 100px;
-    }
-
-    .profile-name {
-        font-size: 20px;
+        padding: 20px 10px;
     }
 
     .profile-info-section {
-        padding: 0;
+        padding: 0 10px;
     }
 
     .info-row {
         flex-direction: column;
         align-items: flex-start;
-        gap: 6px;
+        gap: 8px;
     }
 
     .info-row label {
         min-width: auto;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #6c757d;
     }
 
-    .info-value-inline {
+    .info-value-inline,
+    .info-input-inline {
         width: 100%;
     }
 
     .location-suggestions {
         left: 0;
-        max-height: 200px;
     }
 
     .profile-actions {
-        flex-direction: column;
-        padding: 0;
+        padding: 0 10px;
     }
 
     .profile-actions button {
-        width: 100%;
-        min-width: auto;
+        flex: 1;
+        min-width: 120px;
     }
 }

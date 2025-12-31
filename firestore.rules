@@ -74,6 +74,7 @@ service cloud.firestore {
     
     // Validate that protected fields haven't changed (for regular updates)
     // If a field is not in the update, we don't check it
+    // NOTE: customPhotoURL is NOT a protected field - users can update it
     function validateProtectedFieldsUnchanged(existingData, newData) {
       return (!('uid' in newData) || existingData.uid == newData.uid)
         && (!('email' in newData) || existingData.email == newData.email)

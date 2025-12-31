@@ -13,6 +13,7 @@ export interface UserData {
     emailAlumniGSB?: string;
     name: string;
     photoURL: string;
+    customPhotoURL?: string;
     crushes: string[];
     lockedCrushes: string[];
     matches: MatchInfo[];

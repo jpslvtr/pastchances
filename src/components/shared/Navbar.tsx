@@ -39,19 +39,21 @@ const Navbar: React.FC<NavbarProps> = ({
     }, []);
 
     const getProfileImageUrl = useCallback(() => {
+        const customPhotoUrl = userData?.customPhotoURL;
         const googlePhotoUrl = userData?.photoURL;
         const fallbackUrl = '/files/default-profile.png';
 
-        if (!googlePhotoUrl) {
-            return fallbackUrl;
+        // Priority: custom photo > Google photo > fallback
+        if (customPhotoUrl && !failedImageUrls.has(customPhotoUrl)) {
+            return customPhotoUrl;
         }
 
-        if (failedImageUrls.has(googlePhotoUrl)) {
+        if (!googlePhotoUrl || failedImageUrls.has(googlePhotoUrl)) {
             return fallbackUrl;
         }
 
         return googlePhotoUrl;
-    }, [userData?.photoURL, failedImageUrls]);
+    }, [userData?.photoURL, userData?.customPhotoURL, failedImageUrls]);
 
     const handleLogoClick = useCallback(() => {
         if (window.location.pathname === '/') {

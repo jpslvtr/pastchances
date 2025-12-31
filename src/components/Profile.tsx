@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from './shared/Navbar';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, storage } from '../config/firebase';
 import { getUserDocumentId } from '../utils';
 import '../styles/profile.css';
 
@@ -15,9 +16,11 @@ const Profile = () => {
     const [location, setLocation] = useState('');
     const [about, setAbout] = useState('');
     const [saving, setSaving] = useState(false);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (userData) {
@@ -31,13 +34,90 @@ const Profile = () => {
     }, []);
 
     const getProfileImageUrl = useCallback(() => {
+        const customPhotoUrl = userData?.customPhotoURL;
         const googlePhotoUrl = userData?.photoURL;
         const fallbackUrl = '/files/default-profile.png';
+
+        if (customPhotoUrl && !failedImageUrls.has(customPhotoUrl)) {
+            return customPhotoUrl;
+        }
+
         if (!googlePhotoUrl || failedImageUrls.has(googlePhotoUrl)) {
             return fallbackUrl;
         }
+
         return googlePhotoUrl;
-    }, [userData?.photoURL, failedImageUrls]);
+    }, [userData?.photoURL, userData?.customPhotoURL, failedImageUrls]);
+
+    const handlePhotoClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !user || !userData) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
+        }
+
+        // Validate file size (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image must be smaller than 5MB');
+            return;
+        }
+
+        setUploadingPhoto(true);
+        try {
+            const actualUid = getUserDocumentId(user, userData);
+
+            // Delete old custom photo if exists
+            if (userData.customPhotoURL) {
+                try {
+                    const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
+                    await deleteObject(oldPhotoRef);
+                } catch (error) {
+                    // Ignore errors if file doesn't exist
+                    console.log('No previous photo to delete or deletion failed');
+                }
+            }
+
+            // Upload new photo
+            const storageRef = ref(storage, `profile-photos/${actualUid}`);
+            await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(storageRef);
+
+            // Update user document
+            const userRef = doc(db, 'users', actualUid);
+            await updateDoc(userRef, {
+                customPhotoURL: downloadURL,
+                updatedAt: new Date()
+            });
+
+            await refreshUserData();
+
+            const successDiv = document.createElement('div');
+            successDiv.textContent = 'Photo updated!';
+            successDiv.style.cssText = `
+                position: fixed; top: 20px; right: 20px; background: #28a745; color: white;
+                padding: 12px 20px; border-radius: 8px; z-index: 1000; font-weight: 500;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            document.body.appendChild(successDiv);
+            setTimeout(() => document.body.contains(successDiv) && document.body.removeChild(successDiv), 3000);
+        } catch (error) {
+            console.error('Error uploading photo:', error);
+            alert('Failed to upload photo. Please try again.');
+        } finally {
+            setUploadingPhoto(false);
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
 
     const fetchLocationSuggestions = useCallback(async (input: string) => {
         if (input.length < 2) {
@@ -180,8 +260,39 @@ const Profile = () => {
 
                 <div className="profile-content">
                     <div className="profile-image-section">
-                        <img src={currentImageUrl} alt="Profile" className="profile-image-large"
-                            onError={() => handleImageError(currentImageUrl)} loading="lazy" />
+                        <div className="profile-image-container">
+                            <img
+                                src={currentImageUrl}
+                                alt="Profile"
+                                className="profile-image-large"
+                                onError={() => handleImageError(currentImageUrl)}
+                                loading="lazy"
+                            />
+                            <button
+                                className="photo-edit-button"
+                                onClick={handlePhotoClick}
+                                disabled={uploadingPhoto}
+                                title="Change photo"
+                            >
+                                {uploadingPhoto ? (
+                                    <svg className="upload-spinner" viewBox="0 0 24 24">
+                                        <circle className="spinner-circle" cx="12" cy="12" r="10" fill="none" strokeWidth="3" />
+                                    </svg>
+                                ) : (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                    </svg>
+                                )}
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePhotoUpload}
+                                style={{ display: 'none' }}
+                            />
+                        </div>
                         <h2 className="profile-name">{userData?.name || user?.displayName}</h2>
                     </div>
 
