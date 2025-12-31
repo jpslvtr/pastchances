@@ -32,25 +32,90 @@
     font-size: 18px;
     font-weight: 600;
     color: #212529;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
+    margin-top: 0;
 }
 
-.info-field {
-    margin-bottom: 20px;
-}
-
-.info-field label {
-    display: block;
+.visibility-note {
     font-size: 12px;
-    font-weight: 600;
     color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
+    margin: 0 0 20px 0;
+    font-style: italic;
+}
+
+.visibility-note.public {
+    color: #28a745;
+}
+
+.info-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 16px;
+}
+
+.info-row label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+    min-width: 140px;
+    flex-shrink: 0;
+}
+
+.info-value-inline {
+    font-size: 14px;
+    color: #212529;
+    padding: 10px 14px;
+    background-color: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    flex: 1;
+}
+
+.info-value-inline.readonly {
+    background-color: #f8f9fa;
+    color: #6c757d;
+}
+
+.info-value-inline.current {
+    border-color: #8C1515;
+    background-color: #fff5f5;
+    color: #8C1515;
+    font-weight: 600;
+}
+
+.info-input-inline {
+    width: 100%;
+    font-size: 14px;
+    color: #212529;
+    padding: 10px 14px;
+    background-color: #fff;
+    border: 2px solid #8C1515;
+    border-radius: 6px;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.info-input-inline:focus {
+    outline: none;
+    border-color: #8C1515;
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+}
+
+.info-field-full {
+    margin-bottom: 20px;
+}
+
+.info-field-full label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
 }
 
 .info-value {
-    font-size: 16px;
+    font-size: 14px;
     color: #212529;
     padding: 12px 16px;
     background-color: #fff;
@@ -62,22 +127,9 @@
     align-items: center;
 }
 
-.info-value.readonly {
-    background-color: #f8f9fa;
-    color: #6c757d;
-}
-
-.info-value.current {
-    border-color: #8C1515;
-    background-color: #fff5f5;
-    color: #8C1515;
-    font-weight: 600;
-}
-
-.info-input,
 .info-textarea {
     width: 100%;
-    font-size: 16px;
+    font-size: 14px;
     color: #212529;
     padding: 12px 16px;
     background-color: #fff;
@@ -85,29 +137,20 @@
     border-radius: 8px;
     font-family: inherit;
     transition: all 0.2s;
+    resize: vertical;
+    min-height: 100px;
 }
 
-.info-input:focus,
 .info-textarea:focus {
     outline: none;
     border-color: #8C1515;
     box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
 }
 
-.info-textarea {
-    resize: vertical;
-    min-height: 100px;
-}
-
 .info-divider {
     height: 1px;
     background-color: #e9ecef;
-    margin: 24px 0;
-}
-
-.profile-instructions-section {
-    margin-bottom: 40px;
-    padding: 0 20px;
+    margin: 32px 0 24px 0;
 }
 
 .profile-actions {
@@ -166,24 +209,15 @@
     cursor: not-allowed;
 }
 
-.logout-btn {
-    background-color: #dc3545 !important;
-    color: white !important;
-}
-
-.logout-btn:hover {
-    background-color: #c82333 !important;
-}
-
 /* Location autocomplete styles */
-.location-field {
+.location-row {
     position: relative;
 }
 
 .location-suggestions {
     position: absolute;
-    top: 100%;
-    left: 0;
+    top: calc(100% + 2px);
+    left: 156px;
     right: 0;
     background: white;
     border: 2px solid #8C1515;
@@ -200,7 +234,7 @@
     padding: 12px 16px;
     cursor: pointer;
     transition: background-color 0.2s;
-    font-size: 15px;
+    font-size: 14px;
     color: #212529;
 }
 
@@ -227,27 +261,40 @@
         font-size: 20px;
     }
 
-    .profile-info-section,
-    .profile-instructions-section,
-    .profile-actions {
+    .profile-info-section {
         padding: 0;
+    }
+
+    .info-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .info-row label {
+        min-width: auto;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+    }
+
+    .info-value-inline {
+        width: 100%;
+    }
+
+    .location-suggestions {
+        left: 0;
+        max-height: 200px;
     }
 
     .profile-actions {
         flex-direction: column;
+        padding: 0;
     }
 
     .profile-actions button {
         width: 100%;
         min-width: auto;
-    }
-
-    .location-suggestions {
-        max-height: 200px;
-    }
-
-    .suggestion-item {
-        padding: 10px 14px;
-        font-size: 14px;
     }
 }
