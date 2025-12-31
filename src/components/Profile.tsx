@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { InstructionsSection } from './dashboard/InstructionsSection';
@@ -15,6 +15,9 @@ const Profile = () => {
     const [location, setLocation] = useState('');
     const [about, setAbout] = useState('');
     const [saving, setSaving] = useState(false);
+    const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         if (userData) {
@@ -35,6 +38,76 @@ const Profile = () => {
         }
         return googlePhotoUrl;
     }, [userData?.photoURL, failedImageUrls]);
+
+    const fetchLocationSuggestions = useCallback(async (input: string) => {
+        if (input.length < 2) {
+            setSuggestions([]);
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?` +
+                `format=json&` +
+                `q=${encodeURIComponent(input)}&` +
+                `countrycodes=us&` +
+                `limit=8&` +
+                `addressdetails=1&` +
+                `layer=address`,
+                {
+                    headers: {
+                        'User-Agent': 'SecondChancesApp/1.0'
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                setSuggestions([]);
+                return;
+            }
+
+            const data = await response.json();
+
+            const uniqueSuggestions = new Map<string, boolean>();
+
+            data.forEach((item: any) => {
+                const city = item.address?.city ||
+                    item.address?.town ||
+                    item.address?.village ||
+                    item.address?.hamlet || '';
+                const state = item.address?.state || '';
+
+                if (city && state) {
+                    const formatted = `${city}, ${state}`;
+                    uniqueSuggestions.set(formatted, true);
+                }
+            });
+
+            setSuggestions(Array.from(uniqueSuggestions.keys()).slice(0, 5));
+        } catch (error) {
+            console.error('Error fetching suggestions:', error);
+            setSuggestions([]);
+        }
+    }, []);
+
+    const handleLocationChange = useCallback((value: string) => {
+        setLocation(value);
+        setShowSuggestions(true);
+
+        if (debounceTimer.current) {
+            clearTimeout(debounceTimer.current);
+        }
+
+        debounceTimer.current = setTimeout(() => {
+            fetchLocationSuggestions(value);
+        }, 300);
+    }, [fetchLocationSuggestions]);
+
+    const handleSuggestionClick = useCallback((suggestion: string) => {
+        setLocation(suggestion);
+        setSuggestions([]);
+        setShowSuggestions(false);
+    }, []);
 
     const handleSave = useCallback(async () => {
         if (!user || !userData || saving) return;
@@ -74,6 +147,8 @@ const Profile = () => {
         setLocation(userData?.location || '');
         setAbout(userData?.about || '');
         setIsEditing(false);
+        setSuggestions([]);
+        setShowSuggestions(false);
     }, [userData]);
 
     const formatDate = (timestamp: any) => {
@@ -134,11 +209,33 @@ const Profile = () => {
 
                         <div className="info-divider"></div>
 
-                        <div className="info-field">
+                        <div className="info-field location-field">
                             <label>Location</label>
                             {isEditing ? (
-                                <input type="text" value={location} onChange={(e) => setLocation(e.target.value)}
-                                    placeholder="City, State" className="info-input" />
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type="text"
+                                        value={location}
+                                        onChange={(e) => handleLocationChange(e.target.value)}
+                                        onFocus={() => setShowSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                        placeholder="Start typing city or zip..."
+                                        className="info-input"
+                                    />
+                                    {showSuggestions && suggestions.length > 0 && (
+                                        <div className="location-suggestions">
+                                            {suggestions.map((suggestion, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="suggestion-item"
+                                                    onMouseDown={() => handleSuggestionClick(suggestion)}
+                                                >
+                                                    {suggestion}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
                                 <div className="info-value">{userData?.location || '(not set)'}</div>
                             )}
