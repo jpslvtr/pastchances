@@ -249,3 +249,52 @@
         width: 100%;
     }
 }
+
+/* Location autocomplete styles */
+.location-field {
+    position: relative;
+}
+
+.location-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 2px solid #8C1515;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    max-height: 240px;
+    overflow-y: auto;
+    margin-top: -2px;
+}
+
+.suggestion-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 15px;
+    color: #212529;
+}
+
+.suggestion-item:hover {
+    background-color: #fff5f5;
+    color: #8C1515;
+}
+
+.suggestion-item:not(:last-child) {
+    border-bottom: 1px solid #f0f0f0;
+}
+
+@media (max-width: 768px) {
+    .location-suggestions {
+        max-height: 200px;
+    }
+
+    .suggestion-item {
+        padding: 10px 14px;
+        font-size: 14px;
+    }
+}
