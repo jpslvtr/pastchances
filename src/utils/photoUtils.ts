@@ -10,6 +10,11 @@ export const getInitials = (name: string): string => {
 };
 
 export const generateInitialsColor = (name: string): string => {
+    // Handle undefined, null, or empty string
+    if (!name) {
+        return 'hsl(0, 0%, 70%)'; // Default gray color for missing names
+    }
+
     // Generate a consistent color based on name
     let hash = 0;
     for (let i = 0; i < name.length; i++) {
@@ -27,6 +32,10 @@ interface UserPhoto {
 
 export const getUserPhoto = async (name: string, userClass: string = 'gsb'): Promise<UserPhoto> => {
     try {
+        if (!name) {
+            return {};
+        }
+
         const usersRef = collection(db, 'users');
         const q = query(
             usersRef,
