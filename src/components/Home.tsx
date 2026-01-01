@@ -62,11 +62,18 @@ const Home = () => {
 
         setSelectedNames(prev => {
             const currentNames = prev || [];
-            return currentNames.includes(name)
-                ? currentNames.filter(n => n !== name)
-                : [...currentNames, name];
+            if (currentNames.includes(name)) {
+                return currentNames.filter(n => n !== name);
+            }
+
+            // Add new name at the top, but after locked crushes
+            const lockedCrushes = userData?.lockedCrushes || [];
+            const locked = currentNames.filter(n => lockedCrushes.includes(n));
+            const unlocked = currentNames.filter(n => !lockedCrushes.includes(n));
+
+            return [...locked, name, ...unlocked];
         });
-    }, [updating]);
+    }, [updating, userData?.lockedCrushes]);
 
     const handleRemoveSelected = useCallback((nameToRemove: string) => {
         if (updating) return;
