@@ -196,8 +196,9 @@
     display: flex;
     gap: 12px;
     justify-content: center;
-    padding: 0 20px;
+    padding: 0;
     flex-wrap: wrap;
+    margin-top: 24px;
 }
 
 .profile-actions button {
@@ -476,7 +477,7 @@
     }
 
     .profile-actions {
-        padding: 0 10px;
+        padding: 0;
     }
 
     .profile-actions button {
