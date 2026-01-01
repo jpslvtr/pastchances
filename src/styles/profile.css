@@ -123,6 +123,21 @@
     font-weight: 600;
 }
 
+.info-value-plain {
+    font-size: 14px;
+    color: #212529;
+    flex: 1;
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.info-value-plain.preferred {
+    color: #8C1515;
+    font-weight: 600;
+}
+
 .info-input-inline {
     width: 100%;
     font-size: 14px;
@@ -139,6 +154,14 @@
     outline: none;
     border-color: #8C1515;
     box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+}
+
+.info-input-inline.error {
+    border-color: #dc3545;
+}
+
+.info-input-inline.error:focus {
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
 }
 
 .info-field-full {
@@ -247,6 +270,109 @@
 .cancel-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+/* Contact Styles - Plain Version (like Location/About) */
+.contact-fields-plain {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.contact-field-plain {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.contact-field-plain > label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.contact-input-with-star {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preferred-star {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 2px solid #e9ecef;
+    background: white;
+    color: #6c757d;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.preferred-star:hover:not(:disabled) {
+    border-color: #8C1515;
+    background: #fff5f5;
+    color: #8C1515;
+}
+
+.preferred-star.active {
+    border-color: #8C1515;
+    background: #8C1515;
+    color: white;
+}
+
+.preferred-star:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.contact-error {
+    font-size: 12px;
+    color: #dc3545;
+    margin-top: 4px;
+}
+
+.contact-error.general-error {
+    margin-top: 12px;
+    text-align: center;
+}
+
+.contact-display-plain {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.contact-link-plain {
+    color: #212529;
+    text-decoration: none;
+    font-weight: 400;
+}
+
+.contact-link-plain:hover {
+    text-decoration: underline;
+}
+
+.info-value-plain.preferred .contact-link-plain {
+    color: #8C1515;
+}
+
+.preferred-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8C1515;
+    background: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid #8C1515;
 }
 
 /* Location autocomplete styles */
@@ -447,19 +573,19 @@
     cursor: not-allowed;
 }
 
-/* Mobile responsive */
+/* Mobile Responsive Styles */
 @media (max-width: 768px) {
     .profile-content {
-        padding: 20px 10px;
+        padding: 30px 15px;
     }
 
-    .profile-info-section {
-        padding: 0 10px;
+    .profile-name {
+        font-size: 20px;
     }
 
     .info-row {
         flex-direction: column;
-        align-items: flex-start;
+        align-items: stretch;
         gap: 8px;
     }
 
@@ -467,26 +593,8 @@
         min-width: auto;
     }
 
-    .info-value-inline,
-    .info-input-inline {
-        width: 100%;
-    }
-
-    .location-row > div {
-        width: 100%;
-    }
-
     .location-suggestions {
         left: 0;
-    }
-
-    .profile-actions {
-        padding: 0;
-    }
-
-    .profile-actions button {
-        flex: 1;
-        min-width: 120px;
     }
 
     .crop-modal {
@@ -498,41 +606,11 @@
         height: 250px;
     }
 
-    .profile-image-large {
-        width: 160px;
-        height: 160px;
+    .profile-actions {
+        flex-direction: column;
     }
-}
 
-/* New style for plain text display without border */
-.info-value-plain {
-    font-size: 14px;
-    color: #212529;
-    padding: 0;
-    background-color: transparent;
-    border: none;
-    flex: 1;
-    min-height: 20px;
-    word-break: break-word;
-    white-space: pre-wrap;
-}
-
-/* Override existing styles to remove borders when not editing */
-.info-row .info-value-plain {
-    padding: 0;
-    border: none;
-    background: transparent;
-}
-
-.info-field-full .info-value-plain {
-    padding: 0;
-    border: none;
-    background: transparent;
-    min-height: auto;
-}
-
-/* Styling for current email - highlighted in Stanford red */
-.info-value-plain.current {
-    color: #8C1515;
-    font-weight: 600;
+    .profile-actions button {
+        width: 100%;
+    }
 }

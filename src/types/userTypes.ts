@@ -6,6 +6,13 @@ export interface MatchInfo {
     matchedAt?: any;
 }
 
+export interface PublicContact {
+    cell: string;
+    instagram: string;
+    linkedin: string;
+    preferred: 'cell' | 'instagram' | 'linkedin' | '';
+}
+
 export interface UserData {
     uid: string;
     email: string;
@@ -24,6 +31,7 @@ export interface UserData {
     lastLogin: any;
     location?: string;
     about?: string;
+    publicContact?: PublicContact;
 }
 
 export interface UserWithId extends UserData {
