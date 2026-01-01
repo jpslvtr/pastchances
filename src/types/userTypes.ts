@@ -9,8 +9,10 @@ export interface MatchInfo {
 export interface PublicContact {
     cell: string;
     instagram: string;
+    x: string;
     linkedin: string;
-    preferred: 'cell' | 'instagram' | 'linkedin' | '';
+    other: string;
+    preferred: 'cell' | 'instagram' | 'x' | 'linkedin' | 'other' | '';
 }
 
 export interface UserData {
