@@ -1,17 +1,20 @@
 import React from 'react';
+import UserPhoto from '../shared/UserPhoto';
 
 interface SelectedNamesSectionProps {
     selectedNames: string[];
     lockedCrushes: string[];
     onRemove: (name: string) => void;
     updating: boolean;
+    userClass?: string;
 }
 
 export const SelectedNamesSection: React.FC<SelectedNamesSectionProps> = ({
     selectedNames,
     lockedCrushes,
     onRemove,
-    updating
+    updating,
+    userClass = 'gsb'
 }) => {
     if (selectedNames.length === 0) return null;
 
@@ -23,6 +26,7 @@ export const SelectedNamesSection: React.FC<SelectedNamesSectionProps> = ({
                     const isLocked = lockedCrushes.includes(name);
                     return (
                         <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>
+                            <UserPhoto name={name} userClass={userClass} size="small" />
                             <span>{name}</span>
                             {isLocked ? (
                                 <span className="lock-icon" title="Locked - you have matched with this person">🔒</span>
