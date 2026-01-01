@@ -7694,105 +7694,6 @@ File: src/styles/auth.css
 }
 
 ================
-File: src/types/index.ts
-================
-export type UserClass = 'gsb' | 'undergrad';
-
-export interface MatchInfo {
-    name: string;
-    email: string;
-    matchedAt?: any;
-}
-
-export interface PublicContact {
-    cell: string;
-    instagram: string;
-    linkedin: string;
-    preferred: 'cell' | 'instagram' | 'linkedin' | '';
-}
-
-export interface UserData {
-    uid: string;
-    email: string;
-    emailAlumni?: string;
-    emailAlumniGSB?: string;
-    name: string;
-    photoURL: string;
-    customPhotoURL?: string;
-    crushes: string[];
-    lockedCrushes: string[];
-    matches: MatchInfo[];
-    crushCount: number;
-    userClass: UserClass;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
-    location?: string;
-    about?: string;
-    publicContact?: PublicContact;
-}
-
-export interface UserWithId extends UserData {
-    id: string;
-}
-
-export interface InactiveUser extends UserData {
-    isInactive: boolean;
-}
-
-export interface GhostUser extends UserData {
-    isGhost: boolean;
-}
-
-export interface CrusherInfo {
-    name: string;
-    email: string;
-}
-
-================
-File: src/types/userTypes.ts
-================
-export type UserClass = 'gsb' | 'undergrad';
-
-export interface MatchInfo {
-    name: string;
-    email: string;
-    matchedAt?: any;
-}
-
-export interface PublicContact {
-    cell: string;
-    instagram: string;
-    linkedin: string;
-    preferred: 'cell' | 'instagram' | 'linkedin' | '';
-}
-
-export interface UserData {
-    uid: string;
-    email: string;
-    emailAlumni?: string;
-    emailAlumniGSB?: string;
-    name: string;
-    photoURL: string;
-    customPhotoURL?: string;
-    crushes: string[];
-    lockedCrushes: string[];
-    matches: MatchInfo[];
-    crushCount: number;
-    userClass: UserClass;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
-    location?: string;
-    about?: string;
-    publicContact?: PublicContact;
-}
-
-export interface UserWithId extends UserData {
-    id: string;
-}
-
-================
 File: src/components/Privacy.tsx
 ================
 import React from 'react';
@@ -8168,6 +8069,105 @@ File: src/styles/dashboard/dashboard-responsive.css
         height: 36px;
     }
   }
+
+================
+File: src/types/index.ts
+================
+export type UserClass = 'gsb' | 'undergrad';
+
+export interface MatchInfo {
+    name: string;
+    email: string;
+    matchedAt?: any;
+}
+
+export interface PublicContact {
+    cell: string;
+    instagram: string;
+    linkedin: string;
+    preferred: 'cell' | 'instagram' | 'linkedin' | '';
+}
+
+export interface UserData {
+    uid: string;
+    email: string;
+    emailAlumni?: string;
+    emailAlumniGSB?: string;
+    name: string;
+    photoURL: string;
+    customPhotoURL?: string;
+    crushes: string[];
+    lockedCrushes: string[];
+    matches: MatchInfo[];
+    crushCount: number;
+    userClass: UserClass;
+    createdAt: any;
+    updatedAt: any;
+    lastLogin: any;
+    location?: string;
+    about?: string;
+    publicContact?: PublicContact;
+}
+
+export interface UserWithId extends UserData {
+    id: string;
+}
+
+export interface InactiveUser extends UserData {
+    isInactive: boolean;
+}
+
+export interface GhostUser extends UserData {
+    isGhost: boolean;
+}
+
+export interface CrusherInfo {
+    name: string;
+    email: string;
+}
+
+================
+File: src/types/userTypes.ts
+================
+export type UserClass = 'gsb' | 'undergrad';
+
+export interface MatchInfo {
+    name: string;
+    email: string;
+    matchedAt?: any;
+}
+
+export interface PublicContact {
+    cell: string;
+    instagram: string;
+    linkedin: string;
+    preferred: 'cell' | 'instagram' | 'linkedin' | '';
+}
+
+export interface UserData {
+    uid: string;
+    email: string;
+    emailAlumni?: string;
+    emailAlumniGSB?: string;
+    name: string;
+    photoURL: string;
+    customPhotoURL?: string;
+    crushes: string[];
+    lockedCrushes: string[];
+    matches: MatchInfo[];
+    crushCount: number;
+    userClass: UserClass;
+    createdAt: any;
+    updatedAt: any;
+    lastLogin: any;
+    location?: string;
+    about?: string;
+    publicContact?: PublicContact;
+}
+
+export interface UserWithId extends UserData {
+    id: string;
+}
 
 ================
 File: src/App.tsx
@@ -9932,6 +9932,17 @@ const Profile = () => {
         }
     }, [nameHash, user, currentUserData, isOwnProfile, navigate]);
 
+    const formatCellPhone = (value: string): string => {
+        const digits = value.replace(/\D/g, '');
+
+        if (digits.length === 0) return '';
+        if (digits.length <= 1) return `+${digits}`;
+        if (digits.length <= 4) return `+${digits.slice(0, 1)} ${digits.slice(1)}`;
+        if (digits.length <= 7) return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4)}`;
+        if (digits.length <= 10) return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+        return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 11)}`;
+    };
+
     const validateCell = (cell: string): string | null => {
         if (!cell) return null;
 
@@ -9974,9 +9985,15 @@ const Profile = () => {
     };
 
     const handleContactChange = (field: keyof PublicContact, value: string) => {
+        let processedValue = value;
+
+        if (field === 'cell') {
+            processedValue = formatCellPhone(value);
+        }
+
         setPublicContact(prev => ({
             ...prev,
-            [field]: value
+            [field]: processedValue
         }));
 
         setContactErrors(prev => ({
@@ -10170,56 +10187,39 @@ const Profile = () => {
             canvas.height = targetSize;
 
             const img = imageRef.current;
-            const previewContainer = previewRef.current;
-            if (!previewContainer) throw new Error('Preview container not found');
+            const previewCircle = previewRef.current;
+            if (!previewCircle) throw new Error('Preview element not found');
 
-            const containerRect = previewContainer.getBoundingClientRect();
-            const imageRect = img.getBoundingClientRect();
+            const circleWidth = previewCircle.offsetWidth;
 
-            const scaleX = img.naturalWidth / imageRect.width;
-            const scaleY = img.naturalHeight / imageRect.height;
+            const scale = targetSize / circleWidth;
 
-            const centerX = containerRect.width / 2;
-            const centerY = containerRect.height / 2;
+            const scaledZoom = zoom * scale;
+            const scaledX = position.x * scale;
+            const scaledY = position.y * scale;
 
-            const imageCenterX = (imageRect.left - containerRect.left + imageRect.width / 2);
-            const imageCenterY = (imageRect.top - containerRect.top + imageRect.height / 2);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(targetSize / 2, targetSize / 2, targetSize / 2, 0, Math.PI * 2);
+            ctx.clip();
 
-            const offsetX = (centerX - imageCenterX) * scaleX;
-            const offsetY = (centerY - imageCenterY) * scaleY;
+            const imgWidth = img.naturalWidth * scaledZoom;
+            const imgHeight = img.naturalHeight * scaledZoom;
 
-            const cropSize = Math.min(containerRect.width, containerRect.height);
-            const sourceCropSize = cropSize * scaleX / zoom;
+            const drawX = (targetSize - imgWidth) / 2 + scaledX;
+            const drawY = (targetSize - imgHeight) / 2 + scaledY;
 
-            const sourceX = (img.naturalWidth / 2 + offsetX) - (sourceCropSize / 2);
-            const sourceY = (img.naturalHeight / 2 + offsetY) - (sourceCropSize / 2);
-
-            ctx.drawImage(
-                img,
-                sourceX,
-                sourceY,
-                sourceCropSize,
-                sourceCropSize,
-                0,
-                0,
-                targetSize,
-                targetSize
-            );
+            ctx.drawImage(img, drawX, drawY, imgWidth, imgHeight);
+            ctx.restore();
 
             canvas.toBlob(async (blob) => {
-                if (!blob) throw new Error('Failed to create blob');
-
-                const actualUid = getUserDocumentId(user!, currentUserData);
-                const storageRef = ref(storage, `profile-photos/${actualUid}`);
-
-                try {
-                    if (currentUserData?.customPhotoURL) {
-                        const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
-                        await deleteObject(oldPhotoRef).catch(() => { });
-                    }
-                } catch (error) {
-                    console.error('Error deleting old photo:', error);
+                if (!blob) {
+                    throw new Error('Failed to create blob from canvas');
                 }
+
+                const actualUid = getUserDocumentId(user!, currentUserData!);
+                const timestamp = Date.now();
+                const storageRef = ref(storage, `profile-photos/${actualUid}_${timestamp}.jpg`);
 
                 await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(storageRef);
@@ -10230,12 +10230,20 @@ const Profile = () => {
                     updatedAt: new Date()
                 });
 
+                if (currentUserData?.customPhotoURL) {
+                    try {
+                        const oldPhotoRef = ref(storage, currentUserData.customPhotoURL);
+                        await deleteObject(oldPhotoRef);
+                    } catch (error) {
+                        console.log('Could not delete old photo:', error);
+                    }
+                }
+
                 await refreshUserData();
 
                 setShowCropModal(false);
                 setSelectedImage(null);
                 setImageFile(null);
-                setUploadingPhoto(false);
                 setZoom(1);
                 setPosition({ x: 0, y: 0 });
             }, 'image/jpeg', 0.9);
@@ -10243,6 +10251,7 @@ const Profile = () => {
         } catch (error) {
             console.error('Error uploading photo:', error);
             alert('Failed to upload photo. Please try again.');
+        } finally {
             setUploadingPhoto(false);
         }
     };
@@ -10262,7 +10271,7 @@ const Profile = () => {
             clearTimeout(debounceTimer.current);
         }
 
-        if (value.length < 2) {
+        if (!value.trim() || value.length < 2) {
             setSuggestions([]);
             return;
         }
@@ -10270,24 +10279,25 @@ const Profile = () => {
         debounceTimer.current = setTimeout(async () => {
             try {
                 const response = await fetch(
-                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&limit=5&addressdetails=1`
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&limit=5&addressdetails=1`
                 );
                 const data = await response.json();
 
-                const locationSuggestions = data.map((item: any) => {
+                const formattedSuggestions = data.map((item: any) => {
                     const parts = [];
                     if (item.address.city) parts.push(item.address.city);
                     else if (item.address.town) parts.push(item.address.town);
                     else if (item.address.village) parts.push(item.address.village);
 
+                    if (item.address.state) parts.push(item.address.state);
                     if (item.address.country) parts.push(item.address.country);
 
                     return parts.join(', ');
-                }).filter((location: string, index: number, self: string[]) =>
-                    location && self.indexOf(location) === index
+                }).filter((suggestion: string, index: number, self: string[]) =>
+                    suggestion && self.indexOf(suggestion) === index
                 );
 
-                setSuggestions(locationSuggestions);
+                setSuggestions(formattedSuggestions.slice(0, 5));
             } catch (error) {
                 console.error('Error fetching location suggestions:', error);
             }
@@ -10384,7 +10394,6 @@ const Profile = () => {
     const currentEmail = user?.email || '';
     const displayPhotoUrl = profileData?.customPhotoURL || null;
     const viewingContact = profileData?.publicContact || { cell: '', instagram: '', linkedin: '', preferred: '' };
-    const hasAnyContact = viewingContact.cell || viewingContact.instagram || viewingContact.linkedin;
 
     return (
         <div className="dashboard-container">
@@ -10478,129 +10487,141 @@ const Profile = () => {
                             )}
                         </div>
 
-                        {(hasAnyContact || isOwnProfile) && (
-                            <>
-                                {isOwnProfile && isEditing ? (
-                                    <div className="contact-fields">
-                                        <div className="contact-field-row">
-                                            <label>Cell:</label>
-                                            <div className="contact-input-group">
-                                                <input
-                                                    type="text"
-                                                    value={publicContact.cell}
-                                                    onChange={(e) => handleContactChange('cell', e.target.value)}
-                                                    placeholder="+1 234 567 8900"
-                                                    className={`info-input-inline ${contactErrors.cell ? 'error' : ''}`}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    className={`preferred-toggle ${publicContact.preferred === 'cell' ? 'active' : ''}`}
-                                                    onClick={() => handlePreferredToggle('cell')}
-                                                    disabled={!publicContact.cell}
-                                                    title="Set as preferred contact method"
-                                                >
-                                                    {publicContact.preferred === 'cell' ? '★' : '☆'}
-                                                </button>
-                                            </div>
-                                            {contactErrors.cell && <span className="contact-error">{contactErrors.cell}</span>}
+                        <div className="info-field-full">
+                            <label>Contact:</label>
+                            {isOwnProfile && isEditing ? (
+                                <div className="contact-fields-plain">
+                                    <div className="contact-field-plain">
+                                        <label>Cell:</label>
+                                        <div className="contact-input-with-star">
+                                            <input
+                                                type="text"
+                                                value={publicContact.cell}
+                                                onChange={(e) => handleContactChange('cell', e.target.value)}
+                                                placeholder="+1 234 567 8900"
+                                                className={`info-input-inline ${contactErrors.cell ? 'error' : ''}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'cell' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('cell')}
+                                                disabled={!publicContact.cell}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'cell' ? '★' : '☆'}
+                                            </button>
                                         </div>
-
-                                        <div className="contact-field-row">
-                                            <label>Instagram:</label>
-                                            <div className="contact-input-group">
-                                                <div className="instagram-input-wrapper">
-                                                    <span className="instagram-prefix">instagram.com/</span>
-                                                    <input
-                                                        type="text"
-                                                        value={publicContact.instagram}
-                                                        onChange={(e) => handleContactChange('instagram', e.target.value)}
-                                                        placeholder="username"
-                                                        className={`info-input-inline instagram-input ${contactErrors.instagram ? 'error' : ''}`}
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className={`preferred-toggle ${publicContact.preferred === 'instagram' ? 'active' : ''}`}
-                                                    onClick={() => handlePreferredToggle('instagram')}
-                                                    disabled={!publicContact.instagram}
-                                                    title="Set as preferred contact method"
-                                                >
-                                                    {publicContact.preferred === 'instagram' ? '★' : '☆'}
-                                                </button>
-                                            </div>
-                                            {contactErrors.instagram && <span className="contact-error">{contactErrors.instagram}</span>}
-                                        </div>
-
-                                        <div className="contact-field-row">
-                                            <label>LinkedIn:</label>
-                                            <div className="contact-input-group">
-                                                <div className="linkedin-input-wrapper">
-                                                    <span className="linkedin-prefix">linkedin.com/in/</span>
-                                                    <input
-                                                        type="text"
-                                                        value={publicContact.linkedin}
-                                                        onChange={(e) => handleContactChange('linkedin', e.target.value)}
-                                                        placeholder="username"
-                                                        className={`info-input-inline linkedin-input ${contactErrors.linkedin ? 'error' : ''}`}
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className={`preferred-toggle ${publicContact.preferred === 'linkedin' ? 'active' : ''}`}
-                                                    onClick={() => handlePreferredToggle('linkedin')}
-                                                    disabled={!publicContact.linkedin}
-                                                    title="Set as preferred contact method"
-                                                >
-                                                    {publicContact.preferred === 'linkedin' ? '★' : '☆'}
-                                                </button>
-                                            </div>
-                                            {contactErrors.linkedin && <span className="contact-error">{contactErrors.linkedin}</span>}
-                                        </div>
-                                        {contactErrors.preferred && <span className="contact-error general-error">{contactErrors.preferred}</span>}
+                                        {contactErrors.cell && <span className="contact-error">{contactErrors.cell}</span>}
                                     </div>
-                                ) : (
-                                    <div className="contact-display">
-                                        {viewingContact.cell && (
-                                            <div className={`contact-item ${viewingContact.preferred === 'cell' ? 'preferred' : ''}`}>
-                                                <label>Cell:</label>
-                                                <a href={`tel:${viewingContact.cell}`} className="contact-link">
-                                                    {viewingContact.cell}
-                                                </a>
-                                                {viewingContact.preferred === 'cell' && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
-                                        {viewingContact.instagram && (
-                                            <div className={`contact-item ${viewingContact.preferred === 'instagram' ? 'preferred' : ''}`}>
-                                                <label>Instagram:</label>
-                                                <a
-                                                    href={`https://www.instagram.com/${viewingContact.instagram}/`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="contact-link"
-                                                >
-                                                    @{viewingContact.instagram}
-                                                </a>
-                                                {viewingContact.preferred === 'instagram' && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
-                                        {viewingContact.linkedin && (
-                                            <div className={`contact-item ${viewingContact.preferred === 'linkedin' ? 'preferred' : ''}`}>
-                                                <label>LinkedIn:</label>
-                                                <a
-                                                    href={`https://www.linkedin.com/in/${viewingContact.linkedin}/`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="contact-link"
-                                                >
-                                                    in/{viewingContact.linkedin}
-                                                </a>
-                                                {viewingContact.preferred === 'linkedin' && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
+
+                                    <div className="contact-field-plain">
+                                        <label>Instagram:</label>
+                                        <div className="contact-input-with-star">
+                                            <input
+                                                type="text"
+                                                value={publicContact.instagram}
+                                                onChange={(e) => handleContactChange('instagram', e.target.value)}
+                                                placeholder="username"
+                                                className={`info-input-inline ${contactErrors.instagram ? 'error' : ''}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'instagram' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('instagram')}
+                                                disabled={!publicContact.instagram}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'instagram' ? '★' : '☆'}
+                                            </button>
+                                        </div>
+                                        {contactErrors.instagram && <span className="contact-error">{contactErrors.instagram}</span>}
                                     </div>
-                                )}
-                            </>
-                        )}
+
+                                    <div className="contact-field-plain">
+                                        <label>LinkedIn:</label>
+                                        <div className="contact-input-with-star">
+                                            <input
+                                                type="text"
+                                                value={publicContact.linkedin}
+                                                onChange={(e) => handleContactChange('linkedin', e.target.value)}
+                                                placeholder="username"
+                                                className={`info-input-inline ${contactErrors.linkedin ? 'error' : ''}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'linkedin' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('linkedin')}
+                                                disabled={!publicContact.linkedin}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'linkedin' ? '★' : '☆'}
+                                            </button>
+                                        </div>
+                                        {contactErrors.linkedin && <span className="contact-error">{contactErrors.linkedin}</span>}
+                                    </div>
+                                    {contactErrors.preferred && <span className="contact-error general-error">{contactErrors.preferred}</span>}
+                                </div>
+                            ) : (
+                                <div className="contact-display-plain">
+                                    {isOwnProfile && !viewingContact.cell && !viewingContact.instagram && !viewingContact.linkedin ? (
+                                        <>
+                                            <div className="info-value-plain"></div>
+                                            <div className="info-value-plain"></div>
+                                            <div className="info-value-plain"></div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {(isOwnProfile || viewingContact.cell) && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'cell' ? 'preferred' : ''}`}>
+                                                    {viewingContact.cell ? (
+                                                        <a href={`tel:${viewingContact.cell}`} className="contact-link-plain">
+                                                            {viewingContact.cell}
+                                                        </a>
+                                                    ) : (
+                                                        ''
+                                                    )}
+                                                    {viewingContact.preferred === 'cell' && viewingContact.cell && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                            {(isOwnProfile || viewingContact.instagram) && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'instagram' ? 'preferred' : ''}`}>
+                                                    {viewingContact.instagram ? (
+                                                        <a
+                                                            href={`https://www.instagram.com/${viewingContact.instagram}/`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                                                        >
+                                                            @{viewingContact.instagram}
+                                                        </a>
+                                                    ) : (
+                                                        ''
+                                                    )}
+                                                    {viewingContact.preferred === 'instagram' && viewingContact.instagram && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                            {(isOwnProfile || viewingContact.linkedin) && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'linkedin' ? 'preferred' : ''}`}>
+                                                    {viewingContact.linkedin ? (
+                                                        <a
+                                                            href={`https://www.linkedin.com/in/${viewingContact.linkedin}/`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                                                        >
+                                                            in/{viewingContact.linkedin}
+                                                        </a>
+                                                    ) : (
+                                                        ''
+                                                    )}
+                                                    {viewingContact.preferred === 'linkedin' && viewingContact.linkedin && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
                         {isOwnProfile && (
                             <>
@@ -10698,7 +10719,7 @@ const Profile = () => {
                             <label>Zoom</label>
                             <input
                                 type="range"
-                                min="0.5"
+                                min="1"
                                 max="3"
                                 step="0.1"
                                 value={zoom}
@@ -10706,13 +10727,15 @@ const Profile = () => {
                             />
                         </div>
 
+                        <canvas ref={canvasRef} style={{ display: 'none' }} />
+
                         <div className="crop-modal-actions">
                             <button
                                 className="crop-confirm-btn"
                                 onClick={handleCropConfirm}
                                 disabled={uploadingPhoto}
                             >
-                                {uploadingPhoto ? 'Uploading...' : 'Set Photo'}
+                                {uploadingPhoto ? 'Uploading...' : 'Save Photo'}
                             </button>
                             <button
                                 className="crop-cancel-btn"
@@ -10722,8 +10745,6 @@ const Profile = () => {
                                 Cancel
                             </button>
                         </div>
-
-                        <canvas ref={canvasRef} style={{ display: 'none' }} />
                     </div>
                 </div>
             )}
@@ -10869,6 +10890,21 @@ File: src/styles/profile.css
     font-weight: 600;
 }
 
+.info-value-plain {
+    font-size: 14px;
+    color: #212529;
+    flex: 1;
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.info-value-plain.preferred {
+    color: #8C1515;
+    font-weight: 600;
+}
+
 .info-input-inline {
     width: 100%;
     font-size: 14px;
@@ -11003,75 +11039,33 @@ File: src/styles/profile.css
     cursor: not-allowed;
 }
 
-/* Contact Styles */
-.contact-fields {
+/* Contact Styles - Plain Version (like Location/About) */
+.contact-fields-plain {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    margin-top: 12px;
+    margin-top: 8px;
 }
 
-.contact-field-row {
+.contact-field-plain {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-.contact-field-row > label {
+.contact-field-plain > label {
     font-size: 14px;
     font-weight: 600;
     color: #495057;
 }
 
-.contact-input-group {
+.contact-input-with-star {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.instagram-input-wrapper,
-.linkedin-input-wrapper {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    border: 2px solid #8C1515;
-    border-radius: 6px;
-    overflow: hidden;
-    background-color: #fff;
-    transition: all 0.2s;
-}
-
-.instagram-input-wrapper.error,
-.linkedin-input-wrapper.error {
-    border-color: #dc3545;
-}
-
-.instagram-input-wrapper:focus-within,
-.linkedin-input-wrapper:focus-within {
-    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
-}
-
-.instagram-prefix,
-.linkedin-prefix {
-    padding: 10px 0 10px 14px;
-    font-size: 14px;
-    color: #6c757d;
-    white-space: nowrap;
-}
-
-.instagram-input,
-.linkedin-input {
-    border: none !important;
-    padding: 10px 14px 10px 0 !important;
-    box-shadow: none !important;
-}
-
-.instagram-input:focus,
-.linkedin-input:focus {
-    box-shadow: none !important;
-}
-
-.preferred-toggle {
+.preferred-star {
     width: 36px;
     height: 36px;
     border-radius: 6px;
@@ -11087,19 +11081,19 @@ File: src/styles/profile.css
     flex-shrink: 0;
 }
 
-.preferred-toggle:hover:not(:disabled) {
+.preferred-star:hover:not(:disabled) {
     border-color: #8C1515;
     background: #fff5f5;
     color: #8C1515;
 }
 
-.preferred-toggle.active {
+.preferred-star.active {
     border-color: #8C1515;
     background: #8C1515;
     color: white;
 }
 
-.preferred-toggle:disabled {
+.preferred-star:disabled {
     opacity: 0.3;
     cursor: not-allowed;
 }
@@ -11115,46 +11109,25 @@ File: src/styles/profile.css
     text-align: center;
 }
 
-.contact-display {
+.contact-display-plain {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-top: 12px;
+    gap: 8px;
+    margin-top: 8px;
 }
 
-.contact-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    transition: all 0.2s;
-}
-
-.contact-item.preferred {
-    background: #fff5f5;
-    border: 2px solid #8C1515;
-}
-
-.contact-item label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #495057;
-    min-width: 90px;
-    flex-shrink: 0;
-}
-
-.contact-link {
-    flex: 1;
-    font-size: 14px;
-    color: #8C1515;
+.contact-link-plain {
+    color: #212529;
     text-decoration: none;
-    font-weight: 500;
+    font-weight: 400;
 }
 
-.contact-link:hover {
+.contact-link-plain:hover {
     text-decoration: underline;
+}
+
+.info-value-plain.preferred .contact-link-plain {
+    color: #8C1515;
 }
 
 .preferred-badge {
@@ -11166,6 +11139,7 @@ File: src/styles/profile.css
     border-radius: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    border: 1px solid #8C1515;
 }
 
 /* Location autocomplete styles */
@@ -11366,19 +11340,19 @@ File: src/styles/profile.css
     cursor: not-allowed;
 }
 
-/* Mobile responsive */
+/* Mobile Responsive Styles */
 @media (max-width: 768px) {
     .profile-content {
-        padding: 20px 10px;
+        padding: 30px 15px;
     }
 
-    .profile-info-section {
-        padding: 0 10px;
+    .profile-name {
+        font-size: 20px;
     }
 
     .info-row {
         flex-direction: column;
-        align-items: flex-start;
+        align-items: stretch;
         gap: 8px;
     }
 
@@ -11386,26 +11360,8 @@ File: src/styles/profile.css
         min-width: auto;
     }
 
-    .info-value-inline,
-    .info-input-inline {
-        width: 100%;
-    }
-
-    .location-row > div {
-        width: 100%;
-    }
-
     .location-suggestions {
         left: 0;
-    }
-
-    .profile-actions {
-        padding: 0;
-    }
-
-    .profile-actions button {
-        flex: 1;
-        min-width: 120px;
     }
 
     .crop-modal {
@@ -11417,61 +11373,13 @@ File: src/styles/profile.css
         height: 250px;
     }
 
-    .profile-image-large {
-        width: 160px;
-        height: 160px;
-    }
-
-    .contact-item {
+    .profile-actions {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
     }
 
-    .contact-item label {
-        min-width: auto;
+    .profile-actions button {
+        width: 100%;
     }
-
-    .contact-link {
-        word-break: break-all;
-    }
-
-    .preferred-badge {
-        align-self: flex-start;
-    }
-}
-
-/* New style for plain text display without border */
-.info-value-plain {
-    font-size: 14px;
-    color: #212529;
-    padding: 0;
-    background-color: transparent;
-    border: none;
-    flex: 1;
-    min-height: 20px;
-    word-break: break-word;
-    white-space: pre-wrap;
-}
-
-/* Override existing styles to remove borders when not editing */
-.info-row .info-value-plain {
-    padding: 0;
-    border: none;
-    background: transparent;
-}
-
-.info-field-full .info-value-plain {
-    padding: 0;
-    border: none;
-    background: transparent;
-    min-height: auto;
-}
-
-/* Styling for current email - highlighted in Stanford red */
-.info-value-plain.current {
-    color: #8C1515;
-    font-weight: 600;
 }
 
 ================

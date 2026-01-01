@@ -250,11 +250,12 @@
     color: #8C1515;
   }
   
-  /* Selections list - variable height, no max-height */
+  /* Selections list - variable height with max-height constraint */
   .selections-list {
-    max-height: none !important;
     height: auto !important;
     min-height: auto !important;
+    max-height: 30vh !important;
+    overflow-y: auto !important;
   }
   
   /* Search section */
