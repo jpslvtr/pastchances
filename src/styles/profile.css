@@ -14,8 +14,8 @@
 }
 
 .profile-image-large {
-    width: 120px;
-    height: 120px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
     object-fit: cover;
     border: 3px solid #e9ecef;
@@ -496,6 +496,11 @@
     .crop-preview-circle {
         width: 250px;
         height: 250px;
+    }
+
+    .profile-image-large {
+        width: 160px;
+        height: 160px;
     }
 }
 
