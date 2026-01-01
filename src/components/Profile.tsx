@@ -312,10 +312,8 @@ const Profile = () => {
                 `https://nominatim.openstreetmap.org/search?` +
                 `format=json&` +
                 `q=${encodeURIComponent(input)}&` +
-                `countrycodes=us&` +
                 `limit=8&` +
-                `addressdetails=1&` +
-                `layer=address`,
+                `addressdetails=1`,
                 {
                     headers: {
                         'User-Agent': 'SecondChancesApp/1.0'
@@ -333,19 +331,36 @@ const Profile = () => {
             const uniqueSuggestions = new Map<string, boolean>();
 
             data.forEach((item: any) => {
+                // Try to build a meaningful location string
                 const city = item.address?.city ||
                     item.address?.town ||
                     item.address?.village ||
                     item.address?.hamlet || '';
                 const state = item.address?.state || '';
+                const country = item.address?.country || '';
+
+                let formatted = '';
 
                 if (city && state) {
-                    const formatted = `${city}, ${state}`;
+                    // US-style: City, State
+                    formatted = `${city}, ${state}`;
+                } else if (city && country) {
+                    // International: City, Country
+                    formatted = `${city}, ${country}`;
+                } else if (state && country) {
+                    // State/Region, Country
+                    formatted = `${state}, ${country}`;
+                } else if (country) {
+                    // Just country
+                    formatted = country;
+                }
+
+                if (formatted) {
                     uniqueSuggestions.set(formatted, true);
                 }
             });
 
-            setSuggestions(Array.from(uniqueSuggestions.keys()).slice(0, 5));
+            setSuggestions(Array.from(uniqueSuggestions.keys()).slice(0, 8));
         } catch (error) {
             console.error('Error fetching suggestions:', error);
             setSuggestions([]);
@@ -472,41 +487,12 @@ const Profile = () => {
                         <h2 className="profile-name">{userData?.name || user?.displayName}</h2>
                     </div>
 
+                    <div className="info-divider"></div>
+
+
                     <div className="profile-info-section">
-                        <h3>Account Information</h3>
-                        <p className="visibility-note">Only visible to you</p>
-
-                        <div className="info-row">
-                            <label>Email:</label>
-                            <div className={`info-value-inline readonly ${userData?.email === currentEmail ? 'current' : ''}`}>
-                                {userData?.email || 'Not linked'}
-                            </div>
-                        </div>
-
-                        <div className="info-row">
-                            <label>Stanford Alumni:</label>
-                            <div className={`info-value-inline readonly ${userData?.emailAlumni === currentEmail ? 'current' : ''}`}>
-                                {userData?.emailAlumni || 'Not linked'}
-                            </div>
-                        </div>
-
-                        <div className="info-row">
-                            <label>GSB Alumni:</label>
-                            <div className={`info-value-inline readonly ${userData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
-                                {userData?.emailAlumniGSB || 'Not linked'}
-                            </div>
-                        </div>
-
-                        <div className="info-row">
-                            <label>Account Created:</label>
-                            <div className="info-value-inline readonly">{formatDate(userData?.createdAt)}</div>
-                        </div>
-
-                        <div className="info-divider"></div>
-
-                        <h3>Public Information</h3>
-                        <p className="visibility-note public">Visible to other users</p>
-
+                        <h3>Public Profile</h3>
+                        <br></br>
                         <div className="info-row location-row">
                             <label>Location:</label>
                             {isEditing ? (
@@ -517,7 +503,7 @@ const Profile = () => {
                                         onChange={(e) => handleLocationChange(e.target.value)}
                                         onFocus={() => setShowSuggestions(true)}
                                         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                                        placeholder="Start typing city or zip..."
+                                        placeholder="Start typing city, country..."
                                         className="info-input-inline"
                                     />
                                     {showSuggestions && suggestions.length > 0 && (
@@ -549,19 +535,50 @@ const Profile = () => {
                                 <div className="info-value">{userData?.about || '(not set)'}</div>
                             )}
                         </div>
-                    </div>
 
-                    <div className="profile-actions">
-                        {isEditing ? (
-                            <>
-                                <button className="save-btn" onClick={handleSave} disabled={saving}>
-                                    {saving ? 'Saving...' : 'Save Changes'}
-                                </button>
-                                <button className="cancel-btn" onClick={handleCancel} disabled={saving}>Cancel</button>
-                            </>
-                        ) : (
-                            <button className="edit-btn" onClick={() => setIsEditing(true)}>Edit Profile</button>
-                        )}
+                        <div className="profile-actions">
+                            {isEditing ? (
+                                <>
+                                    <button className="save-btn" onClick={handleSave} disabled={saving}>
+                                        {saving ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                    <button className="cancel-btn" onClick={handleCancel} disabled={saving}>Cancel</button>
+                                </>
+                            ) : (
+                                <button className="edit-btn" onClick={() => setIsEditing(true)}>Edit Profile</button>
+                            )}
+                        </div>
+
+                        <div className="info-divider"></div>
+
+                        <h3>Account Information</h3>
+                        <p className="visibility-note">Only visible to you</p>
+
+                        <div className="info-row">
+                            <label>Email:</label>
+                            <div className={`info-value-inline readonly ${userData?.email === currentEmail ? 'current' : ''}`}>
+                                {userData?.email || 'Not linked'}
+                            </div>
+                        </div>
+
+                        <div className="info-row">
+                            <label>Stanford Alumni:</label>
+                            <div className={`info-value-inline readonly ${userData?.emailAlumni === currentEmail ? 'current' : ''}`}>
+                                {userData?.emailAlumni || 'Not linked'}
+                            </div>
+                        </div>
+
+                        <div className="info-row">
+                            <label>GSB Alumni:</label>
+                            <div className={`info-value-inline readonly ${userData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
+                                {userData?.emailAlumniGSB || 'Not linked'}
+                            </div>
+                        </div>
+
+                        <div className="info-row">
+                            <label>Account Created:</label>
+                            <div className="info-value-inline readonly">{formatDate(userData?.createdAt)}</div>
+                        </div>
                     </div>
                 </div>
             </div>
