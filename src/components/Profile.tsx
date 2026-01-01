@@ -19,8 +19,18 @@ const Profile = () => {
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [showCropModal, setShowCropModal] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [zoom, setZoom] = useState(1);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const [imageFile, setImageFile] = useState<File | null>(null);
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const imageRef = useRef<HTMLImageElement>(null);
+    const previewRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (userData) {
@@ -53,9 +63,62 @@ const Profile = () => {
         fileInputRef.current?.click();
     };
 
-    const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const resizeImageIfNeeded = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            // If file is already under 5MB, just use it directly
+            if (file.size < 5 * 1024 * 1024) {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target?.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            // File is too large, resize it
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        reject(new Error('Could not get canvas context'));
+                        return;
+                    }
+
+                    // Calculate new dimensions to reduce file size
+                    // Target max dimension of 2048px which usually results in <5MB
+                    const maxDimension = 2048;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxDimension || height > maxDimension) {
+                        if (width > height) {
+                            height = (height / width) * maxDimension;
+                            width = maxDimension;
+                        } else {
+                            width = (width / height) * maxDimension;
+                            height = maxDimension;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    resolve(canvas.toDataURL('image/jpeg', 0.85));
+                };
+                img.onerror = reject;
+                img.src = e.target?.result as string;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handlePhotoSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (!file || !user || !userData) return;
+        if (!file) return;
 
         // Validate file type
         if (!file.type.startsWith('image/')) {
@@ -63,14 +126,135 @@ const Profile = () => {
             return;
         }
 
-        // Validate file size (5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            alert('Image must be smaller than 5MB');
-            return;
+        try {
+            // Resize image if needed and load for cropping
+            const resizedDataUrl = await resizeImageIfNeeded(file);
+            setSelectedImage(resizedDataUrl);
+            setImageFile(file);
+            setZoom(1);
+            setPosition({ x: 0, y: 0 });
+            setShowCropModal(true);
+        } catch (error) {
+            console.error('Error loading image:', error);
+            alert('Failed to load image. Please try again.');
         }
+    };
+
+    const handleCropCancel = () => {
+        setShowCropModal(false);
+        setSelectedImage(null);
+        setImageFile(null);
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        setIsDragging(true);
+        setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging) return;
+        setPosition({
+            x: e.clientX - dragStart.x,
+            y: e.clientY - dragStart.y
+        });
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        setIsDragging(true);
+        setDragStart({ x: touch.clientX - position.x, y: touch.clientY - position.y });
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!isDragging) return;
+        const touch = e.touches[0];
+        setPosition({
+            x: touch.clientX - dragStart.x,
+            y: touch.clientY - dragStart.y
+        });
+    };
+
+    const handleTouchEnd = () => {
+        setIsDragging(false);
+    };
+
+    const getCroppedImage = (): Promise<Blob> => {
+        return new Promise((resolve, reject) => {
+            const canvas = canvasRef.current;
+            const image = imageRef.current;
+
+            if (!canvas || !image) {
+                reject(new Error('Canvas or image not ready'));
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                reject(new Error('Could not get canvas context'));
+                return;
+            }
+
+            // Set canvas size to desired output (400x400 for profile photos)
+            const outputSize = 400;
+            canvas.width = outputSize;
+            canvas.height = outputSize;
+
+            // Get the natural dimensions of the image
+            const imgWidth = image.naturalWidth;
+            const imgHeight = image.naturalHeight;
+
+            // Calculate the size the image should be to fill the preview circle
+            // The preview circle is 300px, so we need to scale accordingly
+            const previewSize = 300;
+            const scale = Math.max(previewSize / imgWidth, previewSize / imgHeight);
+
+            // Apply zoom on top of the base scale
+            const totalScale = scale * zoom;
+
+            // Calculate scaled dimensions
+            const scaledWidth = imgWidth * totalScale;
+            const scaledHeight = imgHeight * totalScale;
+
+            // Apply position offset (scaled to output size)
+            const scaleRatio = outputSize / previewSize;
+            const x = (outputSize - scaledWidth) / 2 + (position.x * scaleRatio);
+            const y = (outputSize - scaledHeight) / 2 + (position.y * scaleRatio);
+
+            // Fill with white background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, outputSize, outputSize);
+
+            // Draw the image with the same transformation as the preview
+            ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
+
+            // Convert to blob
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    resolve(blob);
+                } else {
+                    reject(new Error('Failed to create blob'));
+                }
+            }, 'image/jpeg', 0.9);
+        });
+    };
+
+    const handleCropConfirm = async () => {
+        if (!user || !userData || !imageFile) return;
 
         setUploadingPhoto(true);
         try {
+            // Get cropped image
+            const croppedBlob = await getCroppedImage();
+
             const actualUid = getUserDocumentId(user, userData);
 
             // Delete old custom photo if exists
@@ -79,14 +263,13 @@ const Profile = () => {
                     const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
                     await deleteObject(oldPhotoRef);
                 } catch (error) {
-                    // Ignore errors if file doesn't exist
                     console.log('No previous photo to delete or deletion failed');
                 }
             }
 
             // Upload new photo
             const storageRef = ref(storage, `profile-photos/${actualUid}`);
-            await uploadBytes(storageRef, file);
+            await uploadBytes(storageRef, croppedBlob);
             const downloadURL = await getDownloadURL(storageRef);
 
             // Update user document
@@ -107,15 +290,14 @@ const Profile = () => {
             `;
             document.body.appendChild(successDiv);
             setTimeout(() => document.body.contains(successDiv) && document.body.removeChild(successDiv), 3000);
+
+            handleCropCancel();
         } catch (error) {
             console.error('Error uploading photo:', error);
             alert('Failed to upload photo. Please try again.');
+            setUploadingPhoto(false);
         } finally {
             setUploadingPhoto(false);
-            // Reset file input
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
         }
     };
 
@@ -274,22 +456,16 @@ const Profile = () => {
                                 disabled={uploadingPhoto}
                                 title="Change photo"
                             >
-                                {uploadingPhoto ? (
-                                    <svg className="upload-spinner" viewBox="0 0 24 24">
-                                        <circle className="spinner-circle" cx="12" cy="12" r="10" fill="none" strokeWidth="3" />
-                                    </svg>
-                                ) : (
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                    </svg>
-                                )}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
                             </button>
                             <input
                                 ref={fileInputRef}
                                 type="file"
                                 accept="image/*"
-                                onChange={handlePhotoUpload}
+                                onChange={handlePhotoSelect}
                                 style={{ display: 'none' }}
                             />
                         </div>
@@ -389,6 +565,81 @@ const Profile = () => {
                     </div>
                 </div>
             </div>
+
+            {showCropModal && selectedImage && (
+                <div className="crop-modal-overlay" onClick={handleCropCancel}>
+                    <div className="crop-modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>Adjust Your Photo</h3>
+                        <p className="crop-instructions">Drag to reposition, use slider to zoom</p>
+
+                        <div
+                            ref={previewRef}
+                            className="crop-preview-container"
+                            onMouseDown={handleMouseDown}
+                            onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp}
+                            onMouseLeave={handleMouseUp}
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                        >
+                            <div className="crop-preview-circle">
+                                <img
+                                    ref={imageRef}
+                                    src={selectedImage}
+                                    alt="Preview"
+                                    style={{
+                                        transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
+                                        maxWidth: '100%',
+                                        maxHeight: '100%',
+                                        objectFit: 'contain',
+                                        cursor: isDragging ? 'grabbing' : 'grab',
+                                        userSelect: 'none',
+                                        WebkitUserSelect: 'none'
+                                    }}
+                                    draggable={false}
+                                    onLoad={() => {
+                                        if (imageRef.current) {
+                                            imageRef.current.style.display = 'block';
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="zoom-control">
+                            <label>Zoom</label>
+                            <input
+                                type="range"
+                                min="0.5"
+                                max="3"
+                                step="0.1"
+                                value={zoom}
+                                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                            />
+                        </div>
+
+                        <div className="crop-modal-actions">
+                            <button
+                                className="crop-confirm-btn"
+                                onClick={handleCropConfirm}
+                                disabled={uploadingPhoto}
+                            >
+                                {uploadingPhoto ? 'Uploading...' : 'Set Photo'}
+                            </button>
+                            <button
+                                className="crop-cancel-btn"
+                                onClick={handleCropCancel}
+                                disabled={uploadingPhoto}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+
+                        <canvas ref={canvasRef} style={{ display: 'none' }} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -37,6 +37,7 @@
     justify-content: center;
     transition: all 0.2s;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    padding: 0;
 }
 
 .photo-edit-button:hover:not(:disabled) {
@@ -50,27 +51,8 @@
 }
 
 .photo-edit-button svg {
-    width: 16px;
-    height: 16px;
-}
-
-.upload-spinner {
-    animation: spin 1s linear infinite;
-}
-
-.spinner-circle {
-    stroke: white;
-    stroke-dasharray: 50;
-    stroke-dashoffset: 25;
-}
-
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+    width: 18px;
+    height: 18px;
 }
 
 .profile-name {
@@ -304,6 +286,166 @@
     background-color: #fff5f5;
 }
 
+/* Crop Modal Styles */
+.crop-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
+.crop-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.crop-modal h3 {
+    margin: 0 0 8px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #212529;
+    text-align: center;
+}
+
+.crop-instructions {
+    margin: 0 0 24px 0;
+    font-size: 13px;
+    color: #6c757d;
+    text-align: center;
+}
+
+.crop-preview-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+    touch-action: none;
+}
+
+.crop-preview-circle {
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    position: relative;
+}
+
+.crop-preview-circle img {
+    transition: none;
+}
+
+.zoom-control {
+    margin-bottom: 24px;
+}
+
+.zoom-control label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+}
+
+.zoom-control input[type="range"] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #e9ecef;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.zoom-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8C1515;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.zoom-control input[type="range"]::-webkit-slider-thumb:hover {
+    background: #a01a1a;
+    transform: scale(1.1);
+}
+
+.zoom-control input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8C1515;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.zoom-control input[type="range"]::-moz-range-thumb:hover {
+    background: #a01a1a;
+    transform: scale(1.1);
+}
+
+.crop-modal-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.crop-confirm-btn,
+.crop-cancel-btn {
+    flex: 1;
+    padding: 14px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.crop-confirm-btn {
+    background-color: #8C1515;
+    color: white;
+}
+
+.crop-confirm-btn:hover:not(:disabled) {
+    background-color: #a01a1a;
+}
+
+.crop-confirm-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.crop-cancel-btn {
+    background-color: #6c757d;
+    color: white;
+}
+
+.crop-cancel-btn:hover:not(:disabled) {
+    background-color: #5a6268;
+}
+
+.crop-cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
     .profile-content {
@@ -340,5 +482,14 @@
     .profile-actions button {
         flex: 1;
         min-width: 120px;
+    }
+
+    .crop-modal {
+        padding: 20px;
+    }
+
+    .crop-preview-circle {
+        width: 250px;
+        height: 250px;
     }
 }
