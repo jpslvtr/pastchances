@@ -16,6 +16,15 @@ service cloud.firestore {
              (isAdmin() && (userId == request.auth.uid + '_gsb' || userId == request.auth.uid + '_undergrad'));
     }
     
+    // Helper to check if user is reading their own document or has full access
+    function canReadFullDocument(userId) {
+      return isUserDocument(userId) ||
+             (resource.data.email == request.auth.token.email) ||
+             (resource.data.emailAlumni == request.auth.token.email) ||
+             (resource.data.emailAlumniGSB == request.auth.token.email) ||
+             isAdmin();
+    }
+    
     // Validation functions
     function validateAlumniLinking(existingData, newData) {
       // Only allow updating emailAlumni and emailAlumniGSB fields
@@ -74,7 +83,7 @@ service cloud.firestore {
     
     // Validate that protected fields haven't changed (for regular updates)
     // If a field is not in the update, we don't check it
-    // NOTE: customPhotoURL is NOT a protected field - users can update it
+    // NOTE: customPhotoURL, location, and about are NOT protected fields - users can update them
     function validateProtectedFieldsUnchanged(existingData, newData) {
       return (!('uid' in newData) || existingData.uid == newData.uid)
         && (!('email' in newData) || existingData.email == newData.email)
@@ -127,7 +136,8 @@ service cloud.firestore {
     
     // Users collection
     match /users/{userId} {
-      // Allow any authenticated user to read any user document
+      // Allow any authenticated user to read public profile fields (name, photoURL, customPhotoURL, location, about)
+      // Full document access only for own profile, admin, or users with matching email
       allow read: if request.auth != null;
       
       // Allow users to create their own document

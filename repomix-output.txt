@@ -124,10 +124,10 @@ src/
   vite-env.d.ts
 .firebaserc
 eslint.config.js
+firestore-rules-storage.txt
+firestore.rules
 index.html
 package.json
-rules-database.txt
-rules-storage.txt
 tsconfig.app.json
 tsconfig.json
 tsconfig.node.json
@@ -513,231 +513,6 @@ export default tseslint.config(
     },
   },
 )
-
-================
-File: rules-database.txt
-================
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    
-    // Helper function to check if user is admin
-    function isAdmin() {
-      let email = request.auth.token.email;
-      return email == 'jpark22@stanford.edu' || 
-             email == 'jamespark@alumni.stanford.edu' ||
-             email == 'jamespark@alumni.gsb.stanford.edu';
-    }
-    
-    // Helper to check if this is the user's document (including admin suffix)
-    function isUserDocument(userId) {
-      return request.auth.uid == userId ||
-             (isAdmin() && (userId == request.auth.uid + '_gsb' || userId == request.auth.uid + '_undergrad'));
-    }
-    
-    // Validation functions
-    function validateAlumniLinking(existingData, newData) {
-      // Only allow updating emailAlumni and emailAlumniGSB fields
-      // All other fields must remain unchanged
-      return existingData.uid == newData.uid
-        && existingData.email == newData.email
-        && existingData.name == newData.name
-        && existingData.photoURL == newData.photoURL
-        && existingData.crushes == newData.crushes
-        && existingData.lockedCrushes == newData.lockedCrushes
-        && existingData.matches == newData.matches
-        && existingData.crushCount == newData.crushCount
-        && existingData.userClass == newData.userClass
-        && existingData.createdAt == newData.createdAt
-        && newData.emailAlumni is string
-        && newData.emailAlumniGSB is string
-        && (newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$') ||
-            newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
-    }
-    
-    // Admin unlinking validation - allows clearing emailAlumni/emailAlumniGSB
-    function validateAdminUnlinkingAlumni(existingData, newData) {
-      // All fields except emailAlumni and emailAlumniGSB must remain unchanged
-      return existingData.uid == newData.uid
-        && existingData.email == newData.email
-        && existingData.name == newData.name
-        && existingData.photoURL == newData.photoURL
-        && existingData.crushes == newData.crushes
-        && existingData.lockedCrushes == newData.lockedCrushes
-        && existingData.matches == newData.matches
-        && existingData.crushCount == newData.crushCount
-        && existingData.userClass == newData.userClass
-        && existingData.createdAt == newData.createdAt
-        && newData.emailAlumni is string
-        && newData.emailAlumniGSB is string
-        && newData.emailAlumni == ''
-        && newData.emailAlumniGSB == '';
-    }
-    
-    // Admin unlinking validation - allows clearing uid and email for TC2 case
-    function validateAdminUnlinkingClaim(existingData, newData) {
-      // All fields except uid and email must remain unchanged
-      return existingData.name == newData.name
-        && existingData.photoURL == newData.photoURL
-        && existingData.crushes == newData.crushes
-        && existingData.lockedCrushes == newData.lockedCrushes
-        && existingData.matches == newData.matches
-        && existingData.crushCount == newData.crushCount
-        && existingData.userClass == newData.userClass
-        && existingData.createdAt == newData.createdAt
-        && newData.uid is string
-        && newData.uid == ''
-        && newData.email is string
-        && newData.email == '';
-    }
-    
-    // Validate that protected fields haven't changed (for regular updates)
-    // If a field is not in the update, we don't check it
-    // NOTE: customPhotoURL is NOT a protected field - users can update it
-    function validateProtectedFieldsUnchanged(existingData, newData) {
-      return (!('uid' in newData) || existingData.uid == newData.uid)
-        && (!('email' in newData) || existingData.email == newData.email)
-        && (!('name' in newData) || existingData.name == newData.name)
-        && (!('photoURL' in newData) || existingData.photoURL == newData.photoURL)
-        && (!('userClass' in newData) || existingData.userClass == newData.userClass)
-        && (!('createdAt' in newData) || existingData.createdAt == newData.createdAt)
-        && (!('emailAlumni' in newData) || !('emailAlumni' in existingData) || existingData.emailAlumni == newData.emailAlumni)
-        && (!('emailAlumniGSB' in newData) || !('emailAlumniGSB' in existingData) || existingData.emailAlumniGSB == newData.emailAlumniGSB);
-    }
-    
-    function validateUserUpdate(existingData, newData) {
-      return validateProtectedFieldsUnchanged(existingData, newData)
-        && newData.crushes is list
-        && validateCrushes(newData.crushes)
-        && validateLockedCrushes(existingData, newData);
-    }
-    
-    function validateUserCreation(newData) {
-      return newData.uid is string
-        && (
-          (newData.email is string && newData.email.matches('.*@stanford\\.edu$')) ||
-          (newData.email is string && newData.email == '' && 
-           (('emailAlumni' in newData && newData.emailAlumni is string && newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$')) ||
-            ('emailAlumniGSB' in newData && newData.emailAlumniGSB is string && newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))))
-        )
-        && newData.crushes is list
-        && newData.crushes.size() == 0
-        && newData.matches is list
-        && newData.matches.size() == 0
-        && (!('lockedCrushes' in newData) || (newData.lockedCrushes is list && newData.lockedCrushes.size() == 0));
-    }
-    
-    function validateCrushes(crushes) {
-      return crushes.toSet().size() == crushes.size();
-    }
-    
-    function validateLockedCrushes(existingData, newData) {
-      return !('lockedCrushes' in existingData) || 
-             !('lockedCrushes' in newData) ||
-             (existingData.lockedCrushes is list && 
-              newData.lockedCrushes is list &&
-              existingData.lockedCrushes.toSet().difference(newData.crushes.toSet()).size() == 0);
-    }
-    
-    // Users collection
-    match /users/{userId} {
-      // Allow any authenticated user to read any user document
-      allow read: if request.auth != null;
-      
-      // Allow users to create their own document
-      allow create: if request.auth != null 
-        && isUserDocument(userId)
-        && (request.auth.token.email.matches('.*@stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
-        && validateUserCreation(request.resource.data);
-      
-      // ADMIN UNLINKING - Allow admin to clear alumni emails (TC4/5)
-      allow update: if request.auth != null
-        && isAdmin()
-        && validateAdminUnlinkingAlumni(resource.data, request.resource.data);
-      
-      // ADMIN UNLINKING - Allow admin to clear uid and email (TC2)
-      allow update: if request.auth != null
-        && isAdmin()
-        && validateAdminUnlinkingClaim(resource.data, request.resource.data);
-      
-      // Allow linking alumni emails to accounts with empty alumni email fields
-      // IMPORTANT: This prevents hijacking by requiring emails to be empty before linking
-      allow update: if request.auth != null
-        && (request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
-        && resource.data.emailAlumni == ''
-        && resource.data.emailAlumniGSB == ''
-        && validateAlumniLinking(resource.data, request.resource.data);
-      
-      // Allow users to update documents where their email matches any email field
-      // This allows alumni email users to update their original @stanford.edu document
-      allow update: if request.auth != null 
-        && (isUserDocument(userId) ||
-            resource.data.email == request.auth.token.email ||
-            resource.data.emailAlumni == request.auth.token.email ||
-            resource.data.emailAlumniGSB == request.auth.token.email)
-        && (request.auth.token.email.matches('.*@stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
-            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
-        && validateUserUpdate(resource.data, request.resource.data);
-    }
-    
-    // Class list collection
-    match /classList/{classId} {
-      allow read: if request.auth != null && 
-        (request.auth.token.email.matches('.*@stanford\\.edu$') ||
-         request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
-         request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
-      allow write: if false;
-    }
-    
-    // Analytics collection
-    match /analytics/{analyticsDoc} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-    
-    // Account Linking Audit collection
-    match /accountLinkingAudit/{auditId} {
-      allow read: if isAdmin();
-      allow create: if false; // Only created through transactions in code
-      allow update: if isAdmin(); // Allow admin to mark as unlinked
-      allow delete: if false; // Never delete audit records
-    }
-  }
-}
-
-================
-File: rules-storage.txt
-================
-rules_version = '2';
-
-service firebase.storage {
-  match /b/{bucket}/o {
-    // Profile photos
-    // We rely on Firestore rules for the real security - users can only update 
-    // customPhotoURL in their own document. Storage just ensures the user is authenticated
-    // and the file is a valid image under 5MB.
-    match /profile-photos/{userId} {
-      // Allow any authenticated user to read profile photos
-      allow read: if request.auth != null;
-      
-      // Allow any authenticated user to upload
-      // Real security is in Firestore - users can only update their own document's customPhotoURL
-      allow write: if request.auth != null 
-        && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$')
-        && request.resource.size < 5 * 1024 * 1024  // Max 5MB
-        && request.resource.contentType.matches('image/.*');  // Only images
-      
-      // Allow any authenticated user to delete
-      // This is needed when updating photos (delete old, upload new)
-      allow delete: if request.auth != null 
-        && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$');
-    }
-  }
-}
 
 ================
 File: tsconfig.app.json
@@ -2620,625 +2395,6 @@ File: src/styles/admin/admin-responsive.css
   }
 
 ================
-File: src/styles/dashboard/dashboard-components.css
-================
-/* Dashboard Component Styles */
-
-/* Crush count section */
-.crush-count-section {
-    padding: 15px;
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-    border-radius: 8px;
-    border-left: 4px solid #f39c12;
-    text-align: left;
-    flex-shrink: 0;
-    margin-bottom: 20px;
-  }
-  
-  .crush-count-section h2 {
-    color: #d68910;
-    margin: 0;
-    font-size: 18px;
-    font-weight: normal;
-    font-style: italic;
-  }
-  
-  /* Matches section */
-  .matches-section {
-    padding: 15px;
-    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-    border-radius: 8px;
-    border-left: 4px solid #28a745;
-    text-align: left;
-    flex-shrink: 0;
-  }
-  
-  .matches-section h2 {
-    color: #155724;
-    margin-bottom: 15px;
-    font-size: 18px;
-    font-weight: normal;
-    font-style: italic;
-  }
-  
-  .matches-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
-    margin-top: 15px;
-  }
-  
-  .match-item {
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    border-left: 4px solid #28a745;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .match-details {
-    flex: 1;
-  }
-  
-  .match-name {
-    font-size: 16px;
-    font-weight: 600;
-    color: #155724;
-    margin-bottom: 6px;
-  }
-  
-  .match-email {
-    font-size: 12px;
-    color: #6c757d;
-    font-family: 'Courier New', monospace;
-    word-break: break-all;
-  }
-  
-  .no-matches {
-    margin-top: 8px;
-    padding: 8px;
-    background: #fff3cd;
-    color: #856404;
-    border-radius: 6px;
-    font-weight: 500;
-    font-size: 13px;
-  }
-  
-  /* Selection counter */
-  .selection-counter {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: #8C1515;
-    color: white;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 13px;
-    flex-shrink: 0;
-  }
-  
-  .submitted-badge {
-    background: rgba(255, 255, 255, 0.3);
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-  }
-  
-  .updating-badge {
-    background: rgba(255, 255, 255, 0.3);
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-    animation: pulse 1.5s ease-in-out infinite alternate;
-  }
-  
-  .unsaved-badge {
-    background: #dc3545;
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-    color: white;
-    animation: pulse 1.5s ease-in-out infinite alternate;
-  }
-  
-  /* Locked crush styles */
-  .locked-badge {
-    background: #dc3545;
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-    color: white;
-  }
-  
-  @keyframes pulse {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0.7;
-    }
-  }
-  
-  /* Selected names section - OLD CHIP STYLES (keeping for reference, can be removed if not needed) */
-  .selected-names {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    flex-shrink: 0;
-  }
-  
-  .selected-names h3 {
-    color: #8C1515;
-    margin-bottom: 12px;
-    font-size: 16px;
-    font-weight: 600;
-  }
-  
-  .name-chips {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 8px;
-  }
-  
-  .name-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: white;
-    padding: 8px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 500;
-    border: 2px solid #dee2e6;
-    transition: all 0.2s ease;
-    position: relative;
-    min-height: 36px;
-  }
-  
-  .name-chip.selected {
-    border-color: #8C1515;
-    background: #fff;
-  }
-  
-  .name-chip.locked {
-    border-color: #28a745;
-    background: #d4edda;
-  }
-  
-  .name-chip span {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  
-  .remove-btn {
-    background: none;
-    border: none;
-    color: #dc3545;
-    font-size: 20px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: transform 0.2s;
-  }
-  
-  .remove-btn:hover {
-    transform: scale(1.2);
-  }
-  
-  .remove-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-  
-  .lock-icon {
-    color: #28a745;
-    font-size: 14px;
-    flex-shrink: 0;
-  }
-
-  /* NEW Selected names section - LIST STYLE */
-  .selected-section {
-    margin-bottom: 20px;
-    flex-shrink: 0;
-  }
-
-  .selected-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  .selected-section-header h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #8C1515;
-  }
-  
-  /* Selections list - variable height, no max-height */
-  .selections-list {
-    max-height: none !important;
-    height: auto !important;
-    min-height: auto !important;
-  }
-  
-  /* Search section */
-  .search-section {
-    flex-shrink: 0;
-    margin-bottom: 15px;
-  }
-  
-  .search-input-container {
-    position: relative;
-  }
-  
-  .search-input {
-    width: 100%;
-    padding: 12px 40px 12px 15px;
-    border: 2px solid #e1e5e9;
-    border-radius: 8px;
-    font-size: 14px;
-    transition: all 0.3s ease;
-    background: white;
-    box-sizing: border-box;
-  }
-  
-  .search-input:focus {
-    outline: none;
-    border-color: #8C1515;
-    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
-  }
-  
-  .search-clear-btn {
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #999;
-    font-size: 24px;
-    cursor: pointer;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s;
-  }
-  
-  .search-clear-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: #666;
-  }
-  
-  .search-hint {
-    font-size: 11px;
-    color: #666;
-    padding: 6px 10px;
-    background: #f8f9fa;
-    border-radius: 4px;
-    margin-top: 8px;
-    border-left: 3px solid #8C1515;
-  }
-  
-  /* Available names section - Enhanced for large lists */
-  .available-names {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .available-names-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-    flex-shrink: 0;
-  }
-  
-  .available-names h3, .available-names-header h3 {
-    color: #8C1515;
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-  }
-  
-  /* Names list - Optimized for large datasets */
-  .names-simple-list {
-    flex: 1;
-    overflow-y: auto;
-    border: 1px solid #e1e5e9;
-    border-radius: 8px;
-    background: white;
-    min-height: 400px;
-    max-height: 60vh;
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
-    transform: translateZ(0);
-    will-change: scroll-position;
-    contain: layout style paint;
-  }
-  
-  .name-list-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 15px;
-    border-bottom: 1px solid #f0f0f0;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 14px;
-    height: 48px;
-    min-height: 48px;
-    box-sizing: border-box;
-    contain: layout style paint;
-    gap: 12px;
-  }
-  
-  .name-list-item:last-child {
-    border-bottom: none;
-  }
-  
-  .name-list-item:hover:not(.disabled) {
-    background: #f8f9fa;
-  }
-  
-  .name-list-item.disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    background: #f9f9f9;
-  }
-  
-  .name-text {
-    flex: 1;
-    text-align: left;
-    font-weight: 500;
-  }
-  
-  .add-btn {
-    font-weight: bold;
-    font-size: 18px;
-    color: #8C1515;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(140, 21, 21, 0.1);
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-  }
-  
-  .add-btn:hover {
-    background: rgba(140, 21, 21, 0.2);
-    transform: scale(1.1);
-  }
-
-  .lock-btn {
-    font-weight: bold;
-    font-size: 16px;
-    color: #28a745;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(40, 167, 69, 0.1);
-    flex-shrink: 0;
-  }
-
-  .remove-btn-icon {
-    font-weight: bold;
-    font-size: 24px;
-    color: #dc3545;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(220, 53, 69, 0.1);
-    transition: all 0.2s ease;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-
-  .remove-btn-icon:hover {
-    background: rgba(220, 53, 69, 0.2);
-    transform: scale(1.1);
-  }
-
-  .remove-btn-icon:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-  
-  .no-results {
-    padding: 20px;
-    text-align: center;
-    color: #666;
-    font-style: italic;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-  
-  .no-results small {
-    display: block;
-    margin: 8px 0;
-    color: #888;
-    font-size: 12px;
-  }
-  
-  .clear-search-link {
-    background: none;
-    border: none;
-    color: #8C1515;
-    text-decoration: underline;
-    cursor: pointer;
-    font-size: 13px;
-    margin-left: 8px;
-    padding: 0;
-    margin-top: 8px;
-    display: inline-block;
-  }
-  
-  .clear-search-link:hover {
-    color: #a01a1a;
-  }
-  
-  /* Action section */
-  .action-section {
-    text-align: center;
-    padding-top: 15px;
-    border-top: 1px solid #e1e5e9;
-    flex-shrink: 0;
-  }
-  
-  .action-buttons {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  
-  .save-draft-btn, .submit-btn, .update-btn {
-    padding: 12px 20px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: none;
-  }
-  
-  .save-draft-btn {
-    background: #6c757d;
-    color: white;
-  }
-  
-  .save-draft-btn:hover:not(:disabled) {
-    background: #5a6268;
-  }
-  
-  .submit-btn, .update-btn {
-    background: #8C1515;
-    color: white;
-  }
-  
-  .submit-btn:hover:not(:disabled), .update-btn:hover:not(:disabled) {
-    background: #6b1010;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.3);
-  }
-  
-  .save-draft-btn:disabled,
-  .submit-btn:disabled,
-  .update-btn:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-  
-  .submitted-message {
-    background: #d4edda;
-    color: #155724;
-    padding: 20px;
-    border-radius: 8px;
-    text-align: center;
-    border-left: 4px solid #28a745;
-  }
-  
-  .submitted-message h2 {
-    margin-bottom: 10px;
-    color: #155724;
-  }
-  
-  /* Error message */
-  .error-message {
-    background: #f8d7da;
-    color: #721c24;
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid #f5c6cb;
-    margin-bottom: 16px;
-    flex-shrink: 0;
-  }
-
-  /* Icon-based update button */
-.update-btn-icon {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    padding: 0;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: none;
-    background: #8C1515;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.update-btn-icon:hover:not(:disabled) {
-    background: #6b1010;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.3);
-}
-
-.update-btn-icon:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-    transform: none;
-}
-
-.update-btn-icon .spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-================
 File: src/styles/dashboard/dashboard-header.css
 ================
 /* Available names header with button */
@@ -3451,6 +2607,36 @@ File: .firebaserc
 }
 
 ================
+File: firestore-rules-storage.txt
+================
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Profile photos
+    // We rely on Firestore rules for the real security - users can only update 
+    // customPhotoURL in their own document. Storage just ensures the user is authenticated
+    // and the file is a valid image under 5MB.
+    match /profile-photos/{userId} {
+      // Allow any authenticated user to read profile photos
+      allow read: if request.auth != null;
+      
+      // Allow any authenticated user to upload
+      // Real security is in Firestore - users can only update their own document's customPhotoURL
+      allow write: if request.auth != null 
+        && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$')
+        && request.resource.size < 5 * 1024 * 1024  // Max 5MB
+        && request.resource.contentType.matches('image/.*');  // Only images
+      
+      // Allow any authenticated user to delete
+      // This is needed when updating photos (delete old, upload new)
+      allow delete: if request.auth != null 
+        && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$');
+    }
+  }
+}
+
+================
 File: functions/src/types.ts
 ================
 export type UserClass = 'gsb' | 'undergrad';
@@ -3510,173 +2696,6 @@ export const MatchesSection: React.FC<MatchesSectionProps> = ({ matches, userCla
         </div>
     );
 };
-
-================
-File: src/components/dashboard/SelectedNamesSection.tsx
-================
-import { useEffect, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import UserPhoto from '../shared/UserPhoto';
-
-interface SelectedNamesSectionProps {
-    selectedNames: string[];
-    savedNames: string[];
-    lockedCrushes: string[];
-    matches: Array<{ name: string; email: string }>;
-    onRemove: (name: string) => void;
-    userClass: string;
-}
-
-interface UserPhotoData {
-    name: string;
-    customPhotoURL?: string;
-}
-
-const SelectedNamesSection = ({
-    selectedNames,
-    savedNames,
-    lockedCrushes,
-    matches,
-    onRemove,
-    userClass
-}: SelectedNamesSectionProps) => {
-    const [photoCache, setPhotoCache] = useState<Map<string, string>>(new Map());
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const loadPhotos = async () => {
-            if (selectedNames.length === 0) {
-                setLoading(false);
-                return;
-            }
-
-            try {
-                const usersRef = collection(db, 'users');
-                const snapshot = await getDocs(usersRef);
-
-                const cache = new Map<string, string>();
-                snapshot.forEach(doc => {
-                    const data = doc.data() as UserPhotoData;
-                    if (data.customPhotoURL) {
-                        cache.set(data.name, data.customPhotoURL);
-                    }
-                });
-
-                setPhotoCache(cache);
-            } catch (error) {
-                console.error('Error loading photos:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadPhotos();
-    }, [selectedNames]);
-
-    const hasUnsavedChanges = JSON.stringify([...selectedNames].sort()) !== JSON.stringify([...savedNames].sort());
-    const matchedNames = new Set(matches.map(m => m.name));
-
-    const handleRemoveClick = (name: string) => {
-        if (lockedCrushes.includes(name)) {
-            return;
-        }
-        onRemove(name);
-    };
-
-    if (loading) {
-        return (
-            <div className="selected-section">
-                <h3>Your Selections ({selectedNames.length})</h3>
-                <div className="classmates-list">
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                        Loading...
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="selected-section">
-            <h3>Your Selections ({selectedNames.length})</h3>
-
-            {selectedNames.length === 0 ? (
-                <div className="classmates-list">
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                        No selections yet. Add classmates from below.
-                    </div>
-                </div>
-            ) : (
-                <div className="classmates-list">
-                    {selectedNames.map((name) => {
-                        const isLocked = lockedCrushes.includes(name);
-                        const isMatched = matchedNames.has(name);
-                        const photoURL = photoCache.get(name);
-
-                        return (
-                            <div
-                                key={name}
-                                className="classmate-item"
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                                    <UserPhoto
-                                        name={name}
-                                        userClass={userClass}
-                                        size="small"
-                                        photoUrl={photoURL}
-                                    />
-                                    <span style={{
-                                        flex: 1,
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {name}
-                                    </span>
-                                </div>
-
-                                {isLocked ? (
-                                    <button
-                                        className="action-btn locked"
-                                        disabled
-                                        title={isMatched ? "Matched!" : "Locked"}
-                                    >
-                                        🔒
-                                    </button>
-                                ) : (
-                                    <button
-                                        className="action-btn remove"
-                                        onClick={() => handleRemoveClick(name)}
-                                        title="Remove"
-                                    >
-                                        ×
-                                    </button>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {hasUnsavedChanges && selectedNames.length > 0 && (
-                <div style={{
-                    marginTop: '12px',
-                    padding: '8px 12px',
-                    background: '#fff3cd',
-                    border: '1px solid #ffc107',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    color: '#856404'
-                }}>
-                    You have unsaved changes. Click "Update Preferences" to save.
-                </div>
-            )}
-        </div>
-    );
-};
-
-export default SelectedNamesSection;
 
 ================
 File: src/components/shared/MatchItem.tsx
@@ -4405,6 +3424,625 @@ export const useUserDocumentManager = (
 };
 
 ================
+File: src/styles/dashboard/dashboard-components.css
+================
+/* Dashboard Component Styles */
+
+/* Crush count section */
+.crush-count-section {
+    padding: 15px;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border-radius: 8px;
+    border-left: 4px solid #f39c12;
+    text-align: left;
+    flex-shrink: 0;
+    margin-bottom: 20px;
+  }
+  
+  .crush-count-section h2 {
+    color: #d68910;
+    margin: 0;
+    font-size: 18px;
+    font-weight: normal;
+    font-style: italic;
+  }
+  
+  /* Matches section */
+  .matches-section {
+    padding: 15px;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+    text-align: left;
+    flex-shrink: 0;
+  }
+  
+  .matches-section h2 {
+    color: #155724;
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-weight: normal;
+    font-style: italic;
+  }
+  
+  .matches-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+  }
+  
+  .match-item {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #28a745;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .match-details {
+    flex: 1;
+  }
+  
+  .match-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #155724;
+    margin-bottom: 6px;
+  }
+  
+  .match-email {
+    font-size: 12px;
+    color: #6c757d;
+    font-family: 'Courier New', monospace;
+    word-break: break-all;
+  }
+  
+  .no-matches {
+    margin-top: 8px;
+    padding: 8px;
+    background: #fff3cd;
+    color: #856404;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 13px;
+  }
+  
+  /* Selection counter */
+  .selection-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #8C1515;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  
+  .submitted-badge {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  
+  .updating-badge {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    animation: pulse 1.5s ease-in-out infinite alternate;
+  }
+  
+  .unsaved-badge {
+    background: #dc3545;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    animation: pulse 1.5s ease-in-out infinite alternate;
+  }
+  
+  /* Locked crush styles */
+  .locked-badge {
+    background: #dc3545;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+  }
+  
+  @keyframes pulse {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.7;
+    }
+  }
+  
+  /* Selected names section - OLD CHIP STYLES (keeping for reference, can be removed if not needed) */
+  .selected-names {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+  }
+  
+  .selected-names h3 {
+    color: #8C1515;
+    margin-bottom: 12px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  .name-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+  }
+  
+  .name-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 2px solid #dee2e6;
+    transition: all 0.2s ease;
+    position: relative;
+    min-height: 36px;
+  }
+  
+  .name-chip.selected {
+    border-color: #8C1515;
+    background: #fff;
+  }
+  
+  .name-chip.locked {
+    border-color: #28a745;
+    background: #d4edda;
+  }
+  
+  .name-chip span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .remove-btn {
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  
+  .remove-btn:hover {
+    transform: scale(1.2);
+  }
+  
+  .remove-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  
+  .lock-icon {
+    color: #28a745;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  /* NEW Selected names section - LIST STYLE */
+  .selected-section {
+    margin-bottom: 20px;
+    flex-shrink: 0;
+  }
+
+  .selected-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .selected-section-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #8C1515;
+  }
+  
+  /* Selections list - variable height, no max-height */
+  .selections-list {
+    max-height: none !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+  
+  /* Search section */
+  .search-section {
+    flex-shrink: 0;
+    margin-bottom: 15px;
+  }
+  
+  .search-input-container {
+    position: relative;
+  }
+  
+  .search-input {
+    width: 100%;
+    padding: 12px 40px 12px 15px;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: white;
+    box-sizing: border-box;
+  }
+  
+  .search-input:focus {
+    outline: none;
+    border-color: #8C1515;
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+  }
+  
+  .search-clear-btn {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  
+  .search-clear-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #666;
+  }
+  
+  .search-hint {
+    font-size: 11px;
+    color: #666;
+    padding: 6px 10px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin-top: 8px;
+    border-left: 3px solid #8C1515;
+  }
+  
+  /* Available names section - Enhanced for large lists */
+  .available-names {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .available-names-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
+  
+  .available-names h3, .available-names-header h3 {
+    color: #8C1515;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  /* Names list - Optimized for large datasets */
+  .names-simple-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    background: white;
+    min-height: 400px;
+    max-height: 60vh;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    transform: translateZ(0);
+    will-change: scroll-position;
+    contain: layout style paint;
+  }
+  
+  .name-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    height: 48px;
+    min-height: 48px;
+    box-sizing: border-box;
+    contain: layout style paint;
+    gap: 12px;
+  }
+  
+  .name-list-item:last-child {
+    border-bottom: none;
+  }
+  
+  .name-list-item:hover:not(.disabled) {
+    background: #f8f9fa;
+  }
+  
+  .name-list-item.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #f9f9f9;
+  }
+  
+  .name-text {
+    flex: 1;
+    text-align: left;
+    font-weight: 500;
+  }
+  
+  .add-btn {
+    font-weight: bold;
+    font-size: 18px;
+    color: #8C1515;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(140, 21, 21, 0.1);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  
+  .add-btn:hover {
+    background: rgba(140, 21, 21, 0.2);
+    transform: scale(1.1);
+  }
+
+  .lock-btn {
+    font-weight: bold;
+    font-size: 16px;
+    color: #28a745;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(40, 167, 69, 0.1);
+    flex-shrink: 0;
+  }
+
+  .remove-btn-icon {
+    font-weight: bold;
+    font-size: 24px;
+    color: #dc3545;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(220, 53, 69, 0.1);
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .remove-btn-icon:hover {
+    background: rgba(220, 53, 69, 0.2);
+    transform: scale(1.1);
+  }
+
+  .remove-btn-icon:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  
+  .no-results {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  
+  .no-results small {
+    display: block;
+    margin: 8px 0;
+    color: #888;
+    font-size: 12px;
+  }
+  
+  .clear-search-link {
+    background: none;
+    border: none;
+    color: #8C1515;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 13px;
+    margin-left: 8px;
+    padding: 0;
+    margin-top: 8px;
+    display: inline-block;
+  }
+  
+  .clear-search-link:hover {
+    color: #a01a1a;
+  }
+  
+  /* Action section */
+  .action-section {
+    text-align: center;
+    padding-top: 15px;
+    border-top: 1px solid #e1e5e9;
+    flex-shrink: 0;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .save-draft-btn, .submit-btn, .update-btn {
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+  }
+  
+  .save-draft-btn {
+    background: #6c757d;
+    color: white;
+  }
+  
+  .save-draft-btn:hover:not(:disabled) {
+    background: #5a6268;
+  }
+  
+  .submit-btn, .update-btn {
+    background: #8C1515;
+    color: white;
+  }
+  
+  .submit-btn:hover:not(:disabled), .update-btn:hover:not(:disabled) {
+    background: #6b1010;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.3);
+  }
+  
+  .save-draft-btn:disabled,
+  .submit-btn:disabled,
+  .update-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  
+  .submitted-message {
+    background: #d4edda;
+    color: #155724;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    border-left: 4px solid #28a745;
+  }
+  
+  .submitted-message h2 {
+    margin-bottom: 10px;
+    color: #155724;
+  }
+  
+  /* Error message */
+  .error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid #f5c6cb;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+  }
+
+  /* Icon-based update button */
+.update-btn-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    background: #8C1515;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.update-btn-icon:hover:not(:disabled) {
+    background: #6b1010;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.3);
+}
+
+.update-btn-icon:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+}
+
+.update-btn-icon .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+================
 File: src/styles/legal.css
 ================
 .legal-container {
@@ -4656,404 +4294,171 @@ const calculateMatchScore = (name1: string, name2: string): number => {
 };
 
 ================
-File: functions/src/index.ts
+File: src/components/dashboard/SelectedNamesSection.tsx
 ================
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
-import { UserData, UserWithId } from './types';
-import { findUserByName, getUserIdentityName } from './utils';
-import { processUpdatedCrushes, fixAllCrushCounts, fixAllMatchTimestampsToNow } from './matchingEngine';
+import { useEffect, useState } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import UserPhoto from '../shared/UserPhoto';
 
-export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
-
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-    admin.initializeApp();
+interface SelectedNamesSectionProps {
+    selectedNames: string[];
+    savedNames: string[];
+    lockedCrushes: string[];
+    matches: Array<{ name: string; email: string }>;
+    onRemove: (name: string) => void;
+    userClass: string;
 }
 
-const db = admin.firestore();
+interface UserPhotoData {
+    name: string;
+    customPhotoURL?: string;
+}
 
-// Enhanced function to find matches and update crush counts
-export const findMatches = functions.firestore
-    .document('users/{userId}')
-    .onUpdate(async (change, context) => {
-        const userId = context.params.userId;
-        const beforeData = change.before.data() as UserData;
-        const afterData = change.after.data() as UserData;
+const SelectedNamesSection = ({
+    selectedNames,
+    savedNames,
+    lockedCrushes,
+    matches,
+    onRemove,
+    userClass
+}: SelectedNamesSectionProps) => {
+    const [photoCache, setPhotoCache] = useState<Map<string, string>>(new Map());
+    const [loading, setLoading] = useState(true);
 
-        // Check if crushes were updated OR if name was updated
-        const beforeCrushes = beforeData?.crushes || [];
-        const afterCrushes = afterData?.crushes || [];
-        const beforeName = getUserIdentityName(beforeData as any);
-        const afterName = getUserIdentityName(afterData as any);
-
-        // Normalize arrays for comparison
-        const normalizedBefore = beforeCrushes.map(crush => crush.trim().toLowerCase()).sort();
-        const normalizedAfter = afterCrushes.map(crush => crush.trim().toLowerCase()).sort();
-
-        const crushesChanged = JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter);
-        const nameChanged = beforeName !== afterName;
-
-        console.log(`Checking update for user ${userId} (${afterName})`);
-        console.log(`Crushes changed: ${crushesChanged}, Name changed: ${nameChanged}`);
-
-        // Process if crushes changed OR if name changed (which affects how others' crushes map to this user)
-        if (crushesChanged || nameChanged) {
-            console.log(`✅ Processing update for user ${userId} (${afterName})`);
-
-            // Validate that locked crushes are still present (only for crush changes)
-            if (crushesChanged) {
-                const lockedCrushes = beforeData?.lockedCrushes || [];
-                const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
-
-                if (missingLockedCrushes.length > 0) {
-                    console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
-                    // Restore the locked crushes
-                    const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
-
-                    const userRef = db.collection('users').doc(userId);
-                    await userRef.update({
-                        crushes: restoredCrushes,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    console.log(`✅ Restored locked crushes for user ${userId}`);
-                    return null;
-                }
+    useEffect(() => {
+        const loadPhotos = async () => {
+            if (selectedNames.length === 0) {
+                setLoading(false);
+                return;
             }
 
-            // Add a small delay to prevent race conditions
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            try {
+                const usersRef = collection(db, 'users');
+                const snapshot = await getDocs(usersRef);
 
-            await processUpdatedCrushes();
-        } else {
-            console.log(`❌ No relevant changes detected for user ${userId} (${afterName}), skipping`);
-        }
-
-        return null;
-    });
-
-// Manual function to trigger complete recalculation
-export const recalculateAllMatches = functions.https.onRequest(async (req, res) => {
-    try {
-        await processUpdatedCrushes();
-        res.json({
-            success: true,
-            message: 'Successfully recalculated all matches and crush counts with enhanced name matching'
-        });
-    } catch (error) {
-        console.error('Error in recalculateAllMatches:', error);
-        res.status(500).json({ error: 'Failed to recalculate matches and crush counts' });
-    }
-});
-
-// NEW: Manual function to fix crush count discrepancies
-export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting manual fix of crush count discrepancies...');
-        await fixAllCrushCounts();
-        res.json({
-            success: true,
-            message: 'Successfully fixed all crush count discrepancies'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing crush count discrepancies:', error);
-        res.status(500).json({ error: 'Failed to fix crush count discrepancies' });
-    }
-});
-
-// NEW: Function to fix all match timestamps to now (one-time)
-export const fixMatchTimestampsToNow = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Setting all existing match timestamps to now...');
-        await fixAllMatchTimestampsToNow();
-        res.json({
-            success: true,
-            message: 'Successfully set all existing match timestamps to now (except James Park matches)'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing match timestamps:', error);
-        res.status(500).json({ error: 'Failed to fix match timestamps' });
-    }
-});
-
-// Legacy timestamp function
-export const fixMatchTimestamps = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting one-time fix for missing match timestamps...');
-        await fixAllMatchTimestampsToNow();
-        res.json({
-            success: true,
-            message: 'Successfully fixed missing match timestamps'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing match timestamps:', error);
-        res.status(500).json({ error: 'Failed to fix match timestamps' });
-    }
-});
-
-// New function to add timestamps to existing matches
-export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔄 Adding timestamps to existing matches...');
-
-        // Use current timestamp for all existing matches
-        const currentTimestamp = admin.firestore.Timestamp.now();
-
-        let updatedUsers = 0;
-        let totalMatchesUpdated = 0;
-
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const usersSnapshot = await transaction.get(db.collection('users'));
-
-            usersSnapshot.forEach(doc => {
-                const userData = doc.data();
-                const matches = userData.matches || [];
-
-                if (matches.length > 0) {
-                    // Check if any matches are missing timestamps
-                    let needsUpdate = false;
-                    const updatedMatches = matches.map((match: any) => {
-                        if (!match.matchedAt) {
-                            needsUpdate = true;
-                            totalMatchesUpdated++;
-                            return {
-                                ...match,
-                                matchedAt: currentTimestamp
-                            };
-                        }
-                        return match;
-                    });
-
-                    if (needsUpdate) {
-                        const userRef = db.collection('users').doc(doc.id);
-                        transaction.update(userRef, {
-                            matches: updatedMatches,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                        });
-                        updatedUsers++;
-
-                        console.log(`✅ Updated ${updatedMatches.filter((m: any) => m.matchedAt === currentTimestamp).length} matches for user: ${userData.name || userData.email}`);
+                const cache = new Map<string, string>();
+                snapshot.forEach(doc => {
+                    const data = doc.data() as UserPhotoData;
+                    if (data.customPhotoURL) {
+                        cache.set(data.name, data.customPhotoURL);
                     }
-                }
-            });
-
-            console.log(`\n🎉 Migration completed!`);
-            console.log(`📊 Updated ${updatedUsers} users`);
-            console.log(`💕 Added timestamps to ${totalMatchesUpdated} existing matches`);
-        });
-
-        res.json({
-            success: true,
-            message: `Successfully added timestamps to ${totalMatchesUpdated} existing matches across ${updatedUsers} users`
-        });
-
-    } catch (error) {
-        console.error('❌ Error adding timestamps to matches:', error);
-        res.status(500).json({ error: 'Failed to add timestamps to matches' });
-    }
-});
-
-// Migration function to clean up and standardize the database
-export const migrateToSingleNameField = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔄 Starting migration to single name field...');
-
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-
-            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data() as any
-            }));
-
-            console.log(`📊 Processing ${allUsers.length} users for migration`);
-
-            let migratedUsers = 0;
-            let errorUsers = 0;
-
-            for (const user of allUsers) {
-                const userRef = db.collection('users').doc(user.id);
-
-                try {
-                    // Determine the best name to use
-                    let finalName = user.name;
-
-                    if (!finalName || finalName.trim() === '') {
-                        // Try verifiedName first, then displayName
-                        finalName = user.verifiedName || user.displayName || '';
-                    }
-
-                    if (!finalName || finalName.trim() === '') {
-                        console.log(`⚠️ User ${user.id} (${user.email}) has no name - skipping`);
-                        errorUsers++;
-                        continue;
-                    }
-
-                    // Prepare update data
-                    const updateData: any = {
-                        name: finalName,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    };
-
-                    // Remove legacy fields if they exist
-                    if (user.displayName !== undefined) {
-                        updateData.displayName = admin.firestore.FieldValue.delete();
-                    }
-                    if (user.verifiedName !== undefined) {
-                        updateData.verifiedName = admin.firestore.FieldValue.delete();
-                    }
-
-                    transaction.update(userRef, updateData);
-                    migratedUsers++;
-
-                    console.log(`✅ Migrated user ${user.email}: "${finalName}"`);
-
-                } catch (error) {
-                    console.error(`❌ Error migrating user ${user.id}:`, error);
-                    errorUsers++;
-                }
-            }
-
-            console.log(`🎉 Migration completed! Migrated: ${migratedUsers}, Errors: ${errorUsers}`);
-
-            // Now trigger a recalculation to fix any crush references
-            setTimeout(async () => {
-                await processUpdatedCrushes();
-            }, 2000);
-        });
-
-        res.json({
-            success: true,
-            message: 'Successfully migrated users to single name field'
-        });
-    } catch (error) {
-        console.error('❌ Error in migration:', error);
-        res.status(500).json({ error: 'Failed to migrate users' });
-    }
-});
-
-// Clean up orphaned crushes function
-export const cleanupOrphanedCrushes = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting cleanup of orphaned crushes...');
-
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-
-            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data() as any
-            }));
-
-            console.log(`📊 Processing ${allUsers.length} users for cleanup`);
-
-            // Find all unique crush names and map them to actual users
-            const allCrushNames = new Set<string>();
-            const crushToUserMap = new Map<string, UserWithId>();
-
-            allUsers.forEach(user => {
-                const userCrushes = user.crushes || [];
-                userCrushes.forEach(crushName => {
-                    allCrushNames.add(crushName);
                 });
 
-                // Map user's identity name to the user
-                const identityName = getUserIdentityName(user);
-                if (identityName) {
-                    crushToUserMap.set(identityName, user);
-                }
-            });
-
-            console.log(`🔍 Found ${allCrushNames.size} unique crush names`);
-
-            // Update crushes to use consistent names
-            let updatedUsers = 0;
-
-            for (const user of allUsers) {
-                const userCrushes = user.crushes || [];
-                let needsUpdate = false;
-                const updatedCrushes: string[] = [];
-                const userClass = user.userClass || 'gsb';
-
-                for (const crushName of userCrushes) {
-                    const targetUser = findUserByName(crushName, allUsers, userClass);
-
-                    if (targetUser) {
-                        const correctName = getUserIdentityName(targetUser);
-                        if (correctName && correctName !== crushName) {
-                            console.log(`🔧 Updating crush "${crushName}" -> "${correctName}" for user ${user.email}`);
-                            needsUpdate = true;
-                        }
-                        updatedCrushes.push(correctName || crushName);
-                    } else {
-                        // Keep orphaned crushes as-is (they might sign up later)
-                        updatedCrushes.push(crushName);
-                    }
-                }
-
-                if (needsUpdate) {
-                    const userRef = db.collection('users').doc(user.id);
-                    transaction.update(userRef, {
-                        crushes: updatedCrushes,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                    updatedUsers++;
-                }
+                setPhotoCache(cache);
+            } catch (error) {
+                console.error('Error loading photos:', error);
+            } finally {
+                setLoading(false);
             }
+        };
 
-            console.log(`✅ Updated ${updatedUsers} users with cleaned crush references`);
+        loadPhotos();
+    }, [selectedNames]);
 
-            // Trigger recalculation
-            setTimeout(async () => {
-                await processUpdatedCrushes();
-            }, 2000);
-        });
+    const hasUnsavedChanges = JSON.stringify([...selectedNames].sort()) !== JSON.stringify([...savedNames].sort());
+    const matchedNames = new Set(matches.map(m => m.name));
 
-        res.json({
-            success: true,
-            message: 'Successfully cleaned up orphaned crushes'
-        });
-    } catch (error) {
-        console.error('❌ Error in cleanup:', error);
-        res.status(500).json({ error: 'Failed to cleanup orphaned crushes' });
-    }
-});
-
-// Clean up takenNames collection since we're not using it anymore
-export const removeTakenNamesCollection = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🗑️ Removing takenNames collection...');
-
-        const takenNamesSnapshot = await db.collection('takenNames').get();
-
-        if (takenNamesSnapshot.empty) {
-            res.json({
-                success: true,
-                message: 'takenNames collection is already empty'
-            });
+    const handleRemoveClick = (name: string) => {
+        if (lockedCrushes.includes(name)) {
             return;
         }
+        onRemove(name);
+    };
 
-        const batch = db.batch();
-        takenNamesSnapshot.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-
-        await batch.commit();
-
-        res.json({
-            success: true,
-            message: `Deleted ${takenNamesSnapshot.size} documents from takenNames collection`
-        });
-    } catch (error) {
-        console.error('❌ Error removing takenNames collection:', error);
-        res.status(500).json({ error: 'Failed to remove takenNames collection' });
+    if (loading) {
+        return (
+            <div className="selected-section">
+                <h3>Your Selections ({selectedNames.length})</h3>
+                <div className="classmates-list">
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                        Loading...
+                    </div>
+                </div>
+            </div>
+        );
     }
-});
+
+    return (
+        <div className="selected-section">
+            <h3>Your Selections ({selectedNames.length})</h3>
+
+            {selectedNames.length === 0 ? (
+                <div className="classmates-list">
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                        No selections yet. Add classmates from below.
+                    </div>
+                </div>
+            ) : (
+                <div className="classmates-list">
+                    {selectedNames.map((name) => {
+                        const isLocked = lockedCrushes.includes(name);
+                        const isMatched = matchedNames.has(name);
+                        const photoURL = photoCache.get(name);
+
+                        return (
+                            <div
+                                key={name}
+                                className="classmate-item"
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                    <UserPhoto
+                                        name={name}
+                                        userClass={userClass}
+                                        size="small"
+                                        photoUrl={photoURL}
+                                    />
+                                    <span style={{
+                                        flex: 1,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        {name}
+                                    </span>
+                                </div>
+
+                                {isLocked ? (
+                                    <button
+                                        className="action-btn locked"
+                                        disabled
+                                        title={isMatched ? "Matched!" : "Locked"}
+                                    >
+                                        🔒
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="action-btn remove"
+                                        onClick={() => handleRemoveClick(name)}
+                                        title="Remove"
+                                    >
+                                        ×
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {hasUnsavedChanges && selectedNames.length > 0 && (
+                <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    background: '#fff3cd',
+                    border: '1px solid #ffc107',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#856404'
+                }}>
+                    You have unsaved changes. Click "Update Preferences" to save.
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default SelectedNamesSection;
 
 ================
 File: src/components/shared/Navbar.tsx
@@ -6062,6 +5467,209 @@ export default defineConfig({
     port: 3000
   }
 })
+
+================
+File: functions/src/index.ts
+================
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+import { UserData, UserWithId } from './types';
+import { findUserByName, getUserIdentityName } from './utils';
+import { processUpdatedCrushes, fixAllCrushCounts, fixAllMatchTimestampsToNow, processIncrementalUpdate } from './matchingEngine';
+
+export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
+
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
+
+const db = admin.firestore();
+
+// Enhanced function to find matches and update crush counts
+export const findMatches = functions.firestore
+    .document('users/{userId}')
+    .onUpdate(async (change, context) => {
+        const userId = context.params.userId;
+        const beforeData = change.before.data() as UserData;
+        const afterData = change.after.data() as UserData;
+
+        // Check if crushes were updated OR if name was updated
+        const beforeCrushes = beforeData?.crushes || [];
+        const afterCrushes = afterData?.crushes || [];
+        const beforeName = getUserIdentityName(beforeData as any);
+        const afterName = getUserIdentityName(afterData as any);
+
+        // Normalize arrays for comparison
+        const normalizedBefore = beforeCrushes.map(crush => crush.trim().toLowerCase()).sort();
+        const normalizedAfter = afterCrushes.map(crush => crush.trim().toLowerCase()).sort();
+
+        const crushesChanged = JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter);
+        const nameChanged = beforeName !== afterName;
+
+        console.log(`Checking update for user ${userId} (${afterName})`);
+        console.log(`Crushes changed: ${crushesChanged}, Name changed: ${nameChanged}`);
+
+        // Process if crushes changed OR if name changed
+        if (crushesChanged || nameChanged) {
+            console.log(`✅ Processing update for user ${userId} (${afterName})`);
+
+            // Validate that locked crushes are still present (only for crush changes)
+            if (crushesChanged) {
+                const lockedCrushes = beforeData?.lockedCrushes || [];
+                const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
+
+                if (missingLockedCrushes.length > 0) {
+                    console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
+                    // Restore the locked crushes
+                    const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
+
+                    const userRef = db.collection('users').doc(userId);
+                    await userRef.update({
+                        crushes: restoredCrushes,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    console.log(`✅ Restored locked crushes for user ${userId}`);
+                    return null;
+                }
+            }
+
+            // Use incremental update for crush changes, full recalc for name changes
+            if (crushesChanged && !nameChanged) {
+                const userClass = afterData.userClass || 'gsb';
+                await processIncrementalUpdate(userId, beforeCrushes, afterCrushes, afterName, userClass);
+            } else {
+                // Name changed - need full recalculation since it affects how others match
+                await processUpdatedCrushes();
+            }
+        } else {
+            console.log(`❌ No relevant changes detected for user ${userId} (${afterName}), skipping`);
+        }
+
+        return null;
+    });
+
+// Manual function to trigger complete recalculation
+export const recalculateAllMatches = functions.https.onRequest(async (req, res) => {
+    try {
+        await processUpdatedCrushes();
+        res.json({
+            success: true,
+            message: 'Successfully recalculated all matches and crush counts with enhanced name matching'
+        });
+    } catch (error) {
+        console.error('Error in recalculateAllMatches:', error);
+        res.status(500).json({ error: 'Failed to recalculate matches and crush counts' });
+    }
+});
+
+// NEW: Manual function to fix crush count discrepancies
+export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting manual fix of crush count discrepancies...');
+        await fixAllCrushCounts();
+        res.json({
+            success: true,
+            message: 'Successfully fixed all crush count discrepancies'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing crush count discrepancies:', error);
+        res.status(500).json({ error: 'Failed to fix crush count discrepancies' });
+    }
+});
+
+// NEW: Function to fix all match timestamps to now (one-time)
+export const fixMatchTimestampsToNow = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Setting all existing match timestamps to now...');
+        await fixAllMatchTimestampsToNow();
+        res.json({
+            success: true,
+            message: 'Successfully set all existing match timestamps to now (except James Park matches)'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing match timestamps:', error);
+        res.status(500).json({ error: 'Failed to fix match timestamps' });
+    }
+});
+
+// Legacy timestamp function
+export const fixMatchTimestamps = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting one-time fix for missing match timestamps...');
+        await fixAllMatchTimestampsToNow();
+        res.json({
+            success: true,
+            message: 'Successfully fixed missing match timestamps'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing match timestamps:', error);
+        res.status(500).json({ error: 'Failed to fix match timestamps' });
+    }
+});
+
+// New function to add timestamps to existing matches
+export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔄 Adding timestamps to existing matches...');
+
+        // Use current timestamp for all existing matches
+        const currentTimestamp = admin.firestore.Timestamp.now();
+
+        let updatedUsers = 0;
+        let totalMatchesUpdated = 0;
+
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const usersSnapshot = await transaction.get(db.collection('users'));
+
+            usersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                const matches = userData.matches || [];
+
+                if (matches.length > 0) {
+                    // Check if any matches are missing timestamps
+                    let needsUpdate = false;
+                    const updatedMatches = matches.map((match: any) => {
+                        if (!match.matchedAt) {
+                            needsUpdate = true;
+                            totalMatchesUpdated++;
+                            return {
+                                ...match,
+                                matchedAt: currentTimestamp
+                            };
+                        }
+                        return match;
+                    });
+
+                    if (needsUpdate) {
+                        const userRef = db.collection('users').doc(doc.id);
+                        transaction.update(userRef, {
+                            matches: updatedMatches,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        updatedUsers++;
+
+                        console.log(`✅ Updated ${updatedMatches.filter((m: any) => m.matchedAt === currentTimestamp).length} matches for user: ${userData.name || userData.email}`);
+                    }
+                }
+            });
+
+            console.log(`\n🎉 Migration completed!`);
+            console.log(`📊 Updated ${updatedUsers} users`);
+            console.log(`💕 Added timestamps to ${totalMatchesUpdated} existing matches`);
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully added timestamps to ${totalMatchesUpdated} existing matches across ${updatedUsers} users`
+        });
+    } catch (error) {
+        console.error('❌ Error adding timestamps to matches:', error);
+        res.status(500).json({ error: 'Failed to add timestamps to existing matches' });
+    }
+});
 
 ================
 File: src/components/admin/AdminAnalytics.tsx
@@ -8508,6 +8116,410 @@ export interface UserWithId extends UserData {
 }
 
 ================
+File: firestore.rules
+================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      let email = request.auth.token.email;
+      return email == 'jpark22@stanford.edu' || 
+             email == 'jamespark@alumni.stanford.edu' ||
+             email == 'jamespark@alumni.gsb.stanford.edu';
+    }
+    
+    // Helper to check if this is the user's document (including admin suffix)
+    function isUserDocument(userId) {
+      return request.auth.uid == userId ||
+             (isAdmin() && (userId == request.auth.uid + '_gsb' || userId == request.auth.uid + '_undergrad'));
+    }
+    
+    // Validation functions
+    function validateAlumniLinking(existingData, newData) {
+      // Only allow updating emailAlumni and emailAlumniGSB fields
+      // All other fields must remain unchanged
+      return existingData.uid == newData.uid
+        && existingData.email == newData.email
+        && existingData.name == newData.name
+        && existingData.photoURL == newData.photoURL
+        && existingData.crushes == newData.crushes
+        && existingData.lockedCrushes == newData.lockedCrushes
+        && existingData.matches == newData.matches
+        && existingData.crushCount == newData.crushCount
+        && existingData.userClass == newData.userClass
+        && existingData.createdAt == newData.createdAt
+        && newData.emailAlumni is string
+        && newData.emailAlumniGSB is string
+        && (newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$') ||
+            newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
+    }
+    
+    // Admin unlinking validation - allows clearing emailAlumni/emailAlumniGSB
+    function validateAdminUnlinkingAlumni(existingData, newData) {
+      // All fields except emailAlumni and emailAlumniGSB must remain unchanged
+      return existingData.uid == newData.uid
+        && existingData.email == newData.email
+        && existingData.name == newData.name
+        && existingData.photoURL == newData.photoURL
+        && existingData.crushes == newData.crushes
+        && existingData.lockedCrushes == newData.lockedCrushes
+        && existingData.matches == newData.matches
+        && existingData.crushCount == newData.crushCount
+        && existingData.userClass == newData.userClass
+        && existingData.createdAt == newData.createdAt
+        && newData.emailAlumni is string
+        && newData.emailAlumniGSB is string
+        && newData.emailAlumni == ''
+        && newData.emailAlumniGSB == '';
+    }
+    
+    // Admin unlinking validation - allows clearing uid and email for TC2 case
+    function validateAdminUnlinkingClaim(existingData, newData) {
+      // All fields except uid and email must remain unchanged
+      return existingData.name == newData.name
+        && existingData.photoURL == newData.photoURL
+        && existingData.crushes == newData.crushes
+        && existingData.lockedCrushes == newData.lockedCrushes
+        && existingData.matches == newData.matches
+        && existingData.crushCount == newData.crushCount
+        && existingData.userClass == newData.userClass
+        && existingData.createdAt == newData.createdAt
+        && newData.uid is string
+        && newData.uid == ''
+        && newData.email is string
+        && newData.email == '';
+    }
+    
+    // Validate that protected fields haven't changed (for regular updates)
+    // If a field is not in the update, we don't check it
+    // NOTE: customPhotoURL is NOT a protected field - users can update it
+    function validateProtectedFieldsUnchanged(existingData, newData) {
+      return (!('uid' in newData) || existingData.uid == newData.uid)
+        && (!('email' in newData) || existingData.email == newData.email)
+        && (!('name' in newData) || existingData.name == newData.name)
+        && (!('photoURL' in newData) || existingData.photoURL == newData.photoURL)
+        && (!('userClass' in newData) || existingData.userClass == newData.userClass)
+        && (!('createdAt' in newData) || existingData.createdAt == newData.createdAt)
+        && (!('emailAlumni' in newData) || !('emailAlumni' in existingData) || existingData.emailAlumni == newData.emailAlumni)
+        && (!('emailAlumniGSB' in newData) || !('emailAlumniGSB' in existingData) || existingData.emailAlumniGSB == newData.emailAlumniGSB);
+    }
+    
+    function validateUserUpdate(existingData, newData) {
+      return validateProtectedFieldsUnchanged(existingData, newData)
+        && newData.crushes is list
+        && validateCrushes(newData.crushes)
+        && validateLockedCrushes(existingData, newData);
+    }
+    
+    function validateUserCreation(newData) {
+      return newData.uid is string
+        && (
+          (newData.email is string && newData.email.matches('.*@stanford\\.edu$')) ||
+          (newData.email is string && newData.email == '' && 
+           (('emailAlumni' in newData && newData.emailAlumni is string && newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$')) ||
+            ('emailAlumniGSB' in newData && newData.emailAlumniGSB is string && newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))))
+        )
+        && newData.crushes is list
+        && newData.crushes.size() == 0
+        && newData.matches is list
+        && newData.matches.size() == 0
+        && (!('lockedCrushes' in newData) || (newData.lockedCrushes is list && newData.lockedCrushes.size() == 0));
+    }
+    
+    function validateCrushes(crushes) {
+      return crushes.toSet().size() == crushes.size();
+    }
+    
+    function validateLockedCrushes(existingData, newData) {
+      // If document doesn't have lockedCrushes, allow
+      return !('lockedCrushes' in existingData) || 
+             !('lockedCrushes' in newData) ||
+             // If lockedCrushes hasn't changed, skip validation
+             existingData.lockedCrushes == newData.lockedCrushes ||
+             // Otherwise ensure all locked crushes remain in crushes
+             (existingData.lockedCrushes is list && 
+              newData.lockedCrushes is list &&
+              newData.crushes is list &&
+              existingData.lockedCrushes.toSet().difference(newData.crushes.toSet()).size() == 0);
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Allow any authenticated user to read any user document
+      allow read: if request.auth != null;
+      
+      // Allow users to create their own document
+      allow create: if request.auth != null 
+        && isUserDocument(userId)
+        && (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
+        && validateUserCreation(request.resource.data);
+      
+      // ADMIN UNLINKING - Allow admin to clear alumni emails (TC4/5)
+      allow update: if request.auth != null
+        && isAdmin()
+        && validateAdminUnlinkingAlumni(resource.data, request.resource.data);
+      
+      // ADMIN UNLINKING - Allow admin to clear uid and email (TC2)
+      allow update: if request.auth != null
+        && isAdmin()
+        && validateAdminUnlinkingClaim(resource.data, request.resource.data);
+      
+      // Allow linking alumni emails to accounts with empty alumni email fields
+      // IMPORTANT: This prevents hijacking by requiring emails to be empty before linking
+      allow update: if request.auth != null
+        && (request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
+        && resource.data.emailAlumni == ''
+        && resource.data.emailAlumniGSB == ''
+        && validateAlumniLinking(resource.data, request.resource.data);
+      
+      // Allow users to update documents where their email matches any email field
+      // This allows alumni email users to update their original @stanford.edu document
+      allow update: if request.auth != null 
+        && (isUserDocument(userId) ||
+            resource.data.email == request.auth.token.email ||
+            resource.data.emailAlumni == request.auth.token.email ||
+            resource.data.emailAlumniGSB == request.auth.token.email)
+        && (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+            request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
+        && validateUserUpdate(resource.data, request.resource.data);
+    }
+    
+    // Class list collection
+    match /classList/{classId} {
+      allow read: if request.auth != null && 
+        (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+         request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+         request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
+      allow write: if false;
+    }
+    
+    // Analytics collection
+    match /analytics/{analyticsDoc} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    
+    // Account Linking Audit collection
+    match /accountLinkingAudit/{auditId} {
+      allow read: if isAdmin();
+      allow create: if false; // Only created through transactions in code
+      allow update: if isAdmin(); // Allow admin to mark as unlinked
+      allow delete: if false; // Never delete audit records
+    }
+  }
+}
+
+================
+File: src/components/AdminView.tsx
+================
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import AdminAnalytics from './admin/AdminAnalytics';
+import AdminUsers from './admin/AdminUsers';
+import { useAdminData } from '../hooks/useAdminData';
+import { useAdminUtils } from '../hooks/useAdminUtils';
+import type { UserData, UserClass } from '../types/userTypes';
+import { isAdminUser } from '../utils/adminUtils';
+
+type ViewMode = 'analytics' | 'users';
+type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
+
+interface AdminViewProps {
+    user: any;
+    userData: UserData | null;
+}
+
+const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
+    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
+    const [adminSearchTerm, setAdminSearchTerm] = useState('');
+    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+    const [userFilter, setUserFilter] = useState<UserFilter>('all');
+    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const currentClassView: UserClass = userData?.userClass || 'gsb';
+    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
+
+    const {
+        allUsers,
+        loadingUsers,
+        currentAnalytics,
+        loadingAnalytics,
+        loadAllUsers
+    } = useAdminData(user, currentClassView, refreshKey);
+
+    const { findCrushersForUser } = useAdminUtils(allUsers || []);
+
+    // Admin access control
+    useEffect(() => {
+        if (!isAdminUser(user, userData)) {
+            setAdminAccessDenied(true);
+            return;
+        }
+        setAdminAccessDenied(false);
+    }, [user, userData]);
+
+    // Early return for non-admin users
+    if (adminAccessDenied) {
+        return (
+            <div className="admin-access-denied">
+                <div className="access-denied-card">
+                    <h2>Access Denied</h2>
+                    <p>You do not have permission to view this page.</p>
+                    <p>Admin access is restricted to authorized personnel only.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Double-check admin status
+    if (!isAdminUser(user, userData)) {
+        return (
+            <div className="admin-loading">
+                Verifying admin access...
+            </div>
+        );
+    }
+
+    // Set up real-time listener for analytics with error handling
+    useEffect(() => {
+        if (!isAdminUser(user, userData)) return;
+
+        const analyticsQuery = query(
+            collection(db, 'analytics'),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+        );
+
+        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                console.log('Live analytics updated');
+                setRefreshKey(prev => prev + 1);
+            }
+        }, (error) => {
+            console.error('Error listening to analytics:', error);
+            if (error.code === 'permission-denied') {
+                setAdminAccessDenied(true);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user, userData]);
+
+    const currentClassStats = useMemo(() => {
+        if (!allUsers || !Array.isArray(allUsers)) {
+            return {
+                activeUsers: 0,
+                inactiveUsers: 0,
+                ghostUsers: 0,
+                total: 0
+            };
+        }
+
+        const realUsers = allUsers.filter(u => !(u as any).isInactive && !(u as any).isGhost);
+        const inactiveUsers = allUsers.filter(u => (u as any).isInactive);
+        const ghostUsers = allUsers.filter(u => (u as any).isGhost);
+
+        return {
+            activeUsers: realUsers.length,
+            inactiveUsers: inactiveUsers.length,
+            ghostUsers: ghostUsers.length,
+            total: allUsers.length
+        };
+    }, [allUsers]);
+
+    const handleViewUser = useCallback((userId: string) => {
+        setViewingUserId(viewingUserId === userId ? null : userId);
+    }, [viewingUserId]);
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshKey(prev => prev + 1);
+        await loadAllUsers();
+    }, [loadAllUsers]);
+
+    if (!allUsers && loadingUsers) {
+        return (
+            <div className="admin-loading">
+                Loading {classDisplayName} admin data...
+            </div>
+        );
+    }
+
+    return (
+        <div className="admin-section">
+            <div className="admin-header-section">
+                <div className="admin-title-row">
+                    <h3>{classDisplayName} Admin Dashboard</h3>
+                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
+                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
+                    </button>
+                </div>
+
+                <div className="admin-definitions">
+                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
+                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
+                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
+                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
+                </div>
+            </div>
+
+            <div className="admin-nav">
+                <button
+                    onClick={() => setViewMode('analytics')}
+                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
+                    disabled={loadingAnalytics}
+                >
+                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
+                </button>
+                <button
+                    onClick={() => setViewMode('users')}
+                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
+                    disabled={loadingUsers}
+                >
+                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
+                </button>
+            </div>
+
+            <div className="admin-content">
+                {viewMode === 'analytics' && (
+                    <AdminAnalytics
+                        analytics={currentAnalytics}
+                        classView={currentClassView}
+                        classDisplayName={classDisplayName}
+                        allUsers={allUsers || []}
+                    />
+                )}
+                {viewMode === 'users' && (
+                    <AdminUsers
+                        allUsers={allUsers || []}
+                        loadingUsers={loadingUsers}
+                        adminSearchTerm={adminSearchTerm}
+                        setAdminSearchTerm={setAdminSearchTerm}
+                        userFilter={userFilter}
+                        setUserFilter={setUserFilter}
+                        viewingUserId={viewingUserId}
+                        handleViewUser={handleViewUser}
+                        findCrushersForUser={findCrushersForUser}
+                        userStats={currentClassStats}
+                        classView={currentClassView}
+                        classDisplayName={classDisplayName}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default AdminView;
+
+================
 File: src/components/UserDashboard.tsx
 ================
 import React from 'react';
@@ -8970,581 +8982,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 };
 
 export default UserDashboard;
-
-================
-File: src/components/AdminView.tsx
-================
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import AdminAnalytics from './admin/AdminAnalytics';
-import AdminUsers from './admin/AdminUsers';
-import { useAdminData } from '../hooks/useAdminData';
-import { useAdminUtils } from '../hooks/useAdminUtils';
-import type { UserData, UserClass } from '../types/userTypes';
-import { isAdminUser } from '../utils/adminUtils';
-
-type ViewMode = 'analytics' | 'users';
-type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
-
-interface AdminViewProps {
-    user: any;
-    userData: UserData | null;
-}
-
-const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
-    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
-    const [adminSearchTerm, setAdminSearchTerm] = useState('');
-    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
-    const [userFilter, setUserFilter] = useState<UserFilter>('all');
-    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
-    const [refreshKey, setRefreshKey] = useState(0);
-
-    const currentClassView: UserClass = userData?.userClass || 'gsb';
-    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
-
-    const {
-        allUsers,
-        loadingUsers,
-        currentAnalytics,
-        loadingAnalytics,
-        loadAllUsers
-    } = useAdminData(user, currentClassView, refreshKey);
-
-    const { findCrushersForUser } = useAdminUtils(allUsers || []);
-
-    // Admin access control
-    useEffect(() => {
-        if (!isAdminUser(user, userData)) {
-            setAdminAccessDenied(true);
-            return;
-        }
-        setAdminAccessDenied(false);
-    }, [user, userData]);
-
-    // Early return for non-admin users
-    if (adminAccessDenied) {
-        return (
-            <div className="admin-access-denied">
-                <div className="access-denied-card">
-                    <h2>Access Denied</h2>
-                    <p>You do not have permission to view this page.</p>
-                    <p>Admin access is restricted to authorized personnel only.</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Double-check admin status
-    if (!isAdminUser(user, userData)) {
-        return (
-            <div className="admin-loading">
-                Verifying admin access...
-            </div>
-        );
-    }
-
-    // Set up real-time listener for analytics with error handling
-    useEffect(() => {
-        if (!isAdminUser(user, userData)) return;
-
-        const analyticsQuery = query(
-            collection(db, 'analytics'),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-        );
-
-        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                console.log('Live analytics updated');
-                setRefreshKey(prev => prev + 1);
-            }
-        }, (error) => {
-            console.error('Error listening to analytics:', error);
-            if (error.code === 'permission-denied') {
-                setAdminAccessDenied(true);
-            }
-        });
-
-        return () => unsubscribe();
-    }, [user, userData]);
-
-    const currentClassStats = useMemo(() => {
-        if (!allUsers || !Array.isArray(allUsers)) {
-            return {
-                activeUsers: 0,
-                inactiveUsers: 0,
-                ghostUsers: 0,
-                total: 0
-            };
-        }
-
-        const realUsers = allUsers.filter(u => !(u as any).isInactive && !(u as any).isGhost);
-        const inactiveUsers = allUsers.filter(u => (u as any).isInactive);
-        const ghostUsers = allUsers.filter(u => (u as any).isGhost);
-
-        return {
-            activeUsers: realUsers.length,
-            inactiveUsers: inactiveUsers.length,
-            ghostUsers: ghostUsers.length,
-            total: allUsers.length
-        };
-    }, [allUsers]);
-
-    const handleViewUser = useCallback((userId: string) => {
-        setViewingUserId(viewingUserId === userId ? null : userId);
-    }, [viewingUserId]);
-
-    const handleRefresh = useCallback(async () => {
-        setRefreshKey(prev => prev + 1);
-        await loadAllUsers();
-    }, [loadAllUsers]);
-
-    if (!allUsers && loadingUsers) {
-        return (
-            <div className="admin-loading">
-                Loading {classDisplayName} admin data...
-            </div>
-        );
-    }
-
-    return (
-        <div className="admin-section">
-            <div className="admin-header-section">
-                <div className="admin-title-row">
-                    <h3>{classDisplayName} Admin Dashboard</h3>
-                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
-                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
-                    </button>
-                </div>
-
-                <div className="admin-definitions">
-                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
-                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
-                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
-                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
-                </div>
-            </div>
-
-            <div className="admin-nav">
-                <button
-                    onClick={() => setViewMode('analytics')}
-                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
-                    disabled={loadingAnalytics}
-                >
-                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
-                </button>
-                <button
-                    onClick={() => setViewMode('users')}
-                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
-                    disabled={loadingUsers}
-                >
-                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
-                </button>
-            </div>
-
-            <div className="admin-content">
-                {viewMode === 'analytics' && (
-                    <AdminAnalytics
-                        analytics={currentAnalytics}
-                        classView={currentClassView}
-                        classDisplayName={classDisplayName}
-                        allUsers={allUsers || []}
-                    />
-                )}
-                {viewMode === 'users' && (
-                    <AdminUsers
-                        allUsers={allUsers || []}
-                        loadingUsers={loadingUsers}
-                        adminSearchTerm={adminSearchTerm}
-                        setAdminSearchTerm={setAdminSearchTerm}
-                        userFilter={userFilter}
-                        setUserFilter={setUserFilter}
-                        viewingUserId={viewingUserId}
-                        handleViewUser={handleViewUser}
-                        findCrushersForUser={findCrushersForUser}
-                        userStats={currentClassStats}
-                        classView={currentClassView}
-                        classDisplayName={classDisplayName}
-                    />
-                )}
-            </div>
-        </div>
-    );
-};
-
-export default AdminView;
-
-================
-File: functions/src/matchingEngine.ts
-================
-import * as admin from 'firebase-admin';
-import { UserWithId, MatchInfo } from './types';
-import { findUserByName, getUserIdentityName } from './utils';
-
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-    admin.initializeApp();
-}
-
-const db = admin.firestore();
-
-// Helper function to determine if a match should have a timestamp
-function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
-    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
-    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') ||
-        user1Name === 'James Park' ||
-        user1Id.includes('_gsb') && user1Id.includes('jpark22@stanford.edu') ||
-        user1Id.includes('_undergrad') && user1Id.includes('jpark22@stanford.edu');
-
-    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') ||
-        user2Name === 'James Park' ||
-        user2Id.includes('_gsb') && user2Id.includes('jpark22@stanford.edu') ||
-        user2Id.includes('_undergrad') && user2Id.includes('jpark22@stanford.edu');
-
-    // Skip timestamp for ANY James Park matches (GSB or undergrad)
-    if (isUser1JamesPark || isUser2JamesPark) {
-        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
-        return false;
-    }
-
-    // All other matches should have timestamps
-    return true;
-}
-
-// Enhanced function to recalculate all matches and crush counts with better name matching
-// Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
-export async function processUpdatedCrushes(): Promise<void> {
-    console.log('🔄 Starting enhanced recalculation of all matches and crush counts with class separation...');
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-
-            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data() as any
-            }));
-
-            console.log(`📊 Processing ${allUsers.length} users`);
-
-            // Separate users by class
-            const gsbUsers = allUsers.filter(user => user.userClass === 'gsb' || !user.userClass); // Default to GSB for backwards compatibility
-            const undergradUsers = allUsers.filter(user => user.userClass === 'undergrad');
-
-            console.log(`📊 GSB users: ${gsbUsers.length}, Undergrad users: ${undergradUsers.length}`);
-
-            // Enhanced crush count calculation with better name matching and class separation
-            const crushCounts = new Map<string, number>();
-            const crushersMap = new Map<string, string[]>(); // Track who is crushing on whom
-
-            // Process GSB users
-            for (const user of gsbUsers) {
-                const userCrushes = user.crushes || [];
-                for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name within GSB class
-                    const targetUser = findUserByName(crushName, gsbUsers, 'gsb');
-
-                    if (targetUser) {
-                        // Use the user's identity name
-                        const actualName = getUserIdentityName(targetUser);
-                        if (actualName) {
-                            const key = `gsb:${actualName}`;
-                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                            // Track the crusher
-                            if (!crushersMap.has(key)) {
-                                crushersMap.set(key, []);
-                            }
-                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                        }
-                    } else {
-                        // If no user found, still count it but use the crush name directly
-                        console.log(`⚠️ No GSB user found for crush name: "${crushName}" - counting anyway`);
-                        const key = `gsb:${crushName}`;
-                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                        // Track the crusher for orphaned crushes too
-                        if (!crushersMap.has(key)) {
-                            crushersMap.set(key, []);
-                        }
-                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                    }
-                }
-            }
-
-            // Process Undergrad users
-            for (const user of undergradUsers) {
-                const userCrushes = user.crushes || [];
-                for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name within undergrad class
-                    const targetUser = findUserByName(crushName, undergradUsers, 'undergrad');
-
-                    if (targetUser) {
-                        // Use the user's identity name
-                        const actualName = getUserIdentityName(targetUser);
-                        if (actualName) {
-                            const key = `undergrad:${actualName}`;
-                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                            // Track the crusher
-                            if (!crushersMap.has(key)) {
-                                crushersMap.set(key, []);
-                            }
-                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                        }
-                    } else {
-                        // If no user found, still count it but use the crush name directly
-                        console.log(`⚠️ No undergrad user found for crush name: "${crushName}" - counting anyway`);
-                        const key = `undergrad:${crushName}`;
-                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                        // Track the crusher for orphaned crushes too
-                        if (!crushersMap.has(key)) {
-                            crushersMap.set(key, []);
-                        }
-                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                    }
-                }
-            }
-
-            console.log('💕 Enhanced crush counts calculated:', Object.fromEntries(crushCounts));
-
-            // Calculate matches and locked crushes with enhanced matching and class separation
-            const allMatches = new Map<string, MatchInfo[]>();
-            const allLockedCrushes = new Map<string, string[]>();
-
-            // Process both classes together but only allow matches within same class
-            for (const user of allUsers) {
-                const userMatches: MatchInfo[] = [];
-                const userLockedCrushes: string[] = [];
-                const userCrushes = user.crushes || [];
-                const userIdentityName = getUserIdentityName(user);
-                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
-
-                if (!userIdentityName || !userIdentityName.trim()) {
-                    console.log(`⏭️ Skipping user ${user.id} - no identity name`);
-                    allMatches.set(user.id, userMatches);
-                    allLockedCrushes.set(user.id, userLockedCrushes);
-                    continue;
-                }
-
-                // Get users from the same class only
-                const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
-
-                // Get existing matches to preserve timestamps (CRITICAL: preserve exact timestamp objects)
-                const existingMatches = user.matches || [];
-                const existingMatchMap = new Map<string, any>();
-                existingMatches.forEach(match => {
-                    if (match.name) {
-                        existingMatchMap.set(match.name, match);
-                    }
-                });
-
-                // Find mutual matches with enhanced name matching within same class
-                for (const crushName of userCrushes) {
-                    const crushedUser = findUserByName(crushName, sameClassUsers, userClass);
-
-                    if (!crushedUser) {
-                        console.log(`⚠️ No ${userClass} user found for crush name: "${crushName}"`);
-                        continue;
-                    }
-
-                    const crushedUserCrushes = crushedUser.crushes || [];
-
-                    // Check if it's a mutual match using enhanced matching within same class
-                    const hasMutualCrush = crushedUserCrushes.some(crush => {
-                        const matchedUser = findUserByName(crush, sameClassUsers, userClass);
-                        return matchedUser && matchedUser.id === user.id;
-                    });
-
-                    if (hasMutualCrush) {
-                        const crushedUserIdentityName = getUserIdentityName(crushedUser);
-
-                        // Check if this is an existing match to preserve timestamp
-                        const existingMatch = existingMatchMap.get(crushedUserIdentityName);
-
-                        // Determine if this match should have a timestamp
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(user.id, crushedUser.id, userIdentityName, crushedUserIdentityName);
-
-                        let matchInfo: MatchInfo;
-
-                        if (shouldHaveTimestamp) {
-                            if (existingMatch && existingMatch.matchedAt) {
-                                // PRESERVE the exact existing timestamp object - don't convert it
-                                matchInfo = {
-                                    name: crushedUserIdentityName,
-                                    email: crushedUser.email,
-                                    matchedAt: existingMatch.matchedAt
-                                };
-                                console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                            } else {
-                                // NEW MATCH - Create timestamp at the exact moment this match is discovered
-                                matchInfo = {
-                                    name: crushedUserIdentityName,
-                                    email: crushedUser.email,
-                                    matchedAt: admin.firestore.Timestamp.now() // Real-time timestamp for new matches
-                                };
-                                console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                            }
-                        } else {
-                            // No timestamp for James Park matches
-                            matchInfo = {
-                                name: crushedUserIdentityName,
-                                email: crushedUser.email
-                                // No matchedAt field
-                            };
-                            console.log(`🚫 No timestamp for James Park match: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                        }
-
-                        userMatches.push(matchInfo);
-
-                        // Lock this crush ONLY if there's a mutual match
-                        if (!userLockedCrushes.includes(crushName)) {
-                            userLockedCrushes.push(crushName);
-                        }
-
-                        const isNewMatch = !existingMatchMap.has(crushedUserIdentityName);
-                        const timestampStatus = shouldHaveTimestamp ? (isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING') : 'NO_TIMESTAMP';
-                        console.log(`💕 ${userClass.toUpperCase()} Match ${isNewMatch ? 'NEW' : 'EXISTING'} (${timestampStatus}): ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                    }
-                }
-
-                allMatches.set(user.id, userMatches);
-                allLockedCrushes.set(user.id, userLockedCrushes);
-            }
-
-            // Update all users with their matches, crush counts, and locked crushes
-            for (const user of allUsers) {
-                const userRef = db.collection('users').doc(user.id);
-                const userIdentityName = getUserIdentityName(user);
-                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
-
-                // For crush count, we need to check the user's identity name with class prefix
-                let userCrushCount = 0;
-                if (userIdentityName) {
-                    const key = `${userClass}:${userIdentityName}`;
-                    userCrushCount = crushCounts.get(key) || 0;
-
-                    // Log discrepancies for debugging
-                    const currentCrushCount = user.crushCount || 0;
-                    if (currentCrushCount !== userCrushCount) {
-                        const crushers = crushersMap.get(key) || [];
-                        console.log(`🔧 Fixing crush count for ${userIdentityName}: ${currentCrushCount} -> ${userCrushCount} (crushers: ${crushers.join(', ')})`);
-                    }
-                }
-
-                const updateData = {
-                    matches: allMatches.get(user.id) || [],
-                    lockedCrushes: allLockedCrushes.get(user.id) || [],
-                    crushCount: userCrushCount,
-                    userClass: userClass, // Ensure userClass is set for legacy users
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                };
-
-                transaction.update(userRef, updateData);
-            }
-
-            console.log(`✅ Updated all ${allUsers.length} users with enhanced matches and crush counts (class-separated)`);
-        });
-
-    } catch (error) {
-        console.error('❌ Error in enhanced processUpdatedCrushes:', error);
-        throw error;
-    }
-}
-
-// One-time function to set current timestamp for all existing matches (except James Park)
-export async function fixAllMatchTimestampsToNow(): Promise<void> {
-    console.log('🔧 Setting all existing match timestamps to now (except James Park matches)...');
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-            const currentTimestamp = admin.firestore.Timestamp.now();
-
-            let updatedUsers = 0;
-            let fixedMatches = 0;
-
-            allUsersSnapshot.forEach(doc => {
-                const userData = doc.data();
-                const matches = userData.matches || [];
-                const userId = doc.id;
-                const userName = userData.name || userData.verifiedName || userData.displayName || userData.email;
-
-                if (matches.length > 0) {
-                    let needsUpdate = false;
-                    const updatedMatches = matches.map((match: any) => {
-                        // Check both the document owner AND the match partner for James Park
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userId, '', userName, match.name || '');
-
-                        if (shouldHaveTimestamp) {
-                            // Set timestamp to now for all non-James Park matches
-                            needsUpdate = true;
-                            fixedMatches++;
-                            console.log(`🔧 Setting timestamp to now for match: ${match.name} ↔ ${userName}`);
-                            return {
-                                name: match.name || 'Unknown',
-                                email: match.email || 'unknown@stanford.edu',
-                                matchedAt: currentTimestamp
-                            };
-                        } else {
-                            // Remove timestamp for James Park matches
-                            if (match.matchedAt) {
-                                needsUpdate = true;
-                                console.log(`🔧 Removing timestamp for James Park match: ${match.name} ↔ ${userName}`);
-                            }
-                            return {
-                                name: match.name || 'Unknown',
-                                email: match.email || 'unknown@stanford.edu'
-                                // No matchedAt field
-                            };
-                        }
-                    });
-
-                    if (needsUpdate) {
-                        const userRef = db.collection('users').doc(userId);
-                        transaction.update(userRef, {
-                            matches: updatedMatches,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                        });
-                        updatedUsers++;
-                    }
-                }
-            });
-
-            console.log(`✅ Fixed timestamps for ${fixedMatches} matches across ${updatedUsers} users`);
-        });
-    } catch (error) {
-        console.error('❌ Error fixing all match timestamps:', error);
-        throw error;
-    }
-}
-
-// New function to manually fix all crush count discrepancies
-export async function fixAllCrushCounts(): Promise<void> {
-    console.log('🔧 Starting manual fix of all crush count discrepancies...');
-
-    try {
-        await processUpdatedCrushes();
-        console.log('✅ All crush counts have been synchronized');
-    } catch (error) {
-        console.error('❌ Error fixing crush counts:', error);
-        throw error;
-    }
-}
-
-// Legacy function - keeping for backward compatibility
-export async function fixAllMatchTimestampsOnce(): Promise<void> {
-    await fixAllMatchTimestampsToNow();
-}
-
-// Legacy function - keeping for backward compatibility
-export async function fixMissingMatchTimestamps(): Promise<void> {
-    await fixAllMatchTimestampsToNow();
-}
 
 ================
 File: src/components/Profile.tsx
@@ -10470,6 +9907,532 @@ File: src/styles/dashboard/dashboard-layout.css
 }
 
 ================
+File: functions/src/matchingEngine.ts
+================
+import * as admin from 'firebase-admin';
+import { UserWithId, MatchInfo } from './types';
+import { findUserByName, getUserIdentityName } from './utils';
+
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
+
+const db = admin.firestore();
+
+// Helper function to determine if a match should have a timestamp
+function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
+    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
+    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') ||
+        user1Name === 'James Park' ||
+        user1Id.includes('_gsb') && user1Id.includes('jpark22@stanford.edu') ||
+        user1Id.includes('_undergrad') && user1Id.includes('jpark22@stanford.edu');
+
+    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') ||
+        user2Name === 'James Park' ||
+        user2Id.includes('_gsb') && user2Id.includes('jpark22@stanford.edu') ||
+        user2Id.includes('_undergrad') && user2Id.includes('jpark22@stanford.edu');
+
+    // Skip timestamp for ANY James Park matches (GSB or undergrad)
+    if (isUser1JamesPark || isUser2JamesPark) {
+        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
+        return false;
+    }
+
+    // All other matches should have timestamps
+    return true;
+}
+
+// Incremental update - only processes users affected by the change
+export async function processIncrementalUpdate(
+    userId: string,
+    beforeCrushes: string[],
+    afterCrushes: string[],
+    userName: string,
+    userClass: string
+): Promise<void> {
+    console.log(`🚀 Starting incremental update for ${userName}`);
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // Find users whose state might have changed
+            const added = afterCrushes.filter(c => !beforeCrushes.includes(c));
+            const removed = beforeCrushes.filter(c => !afterCrushes.includes(c));
+
+            console.log(`➕ Added crushes: ${added.join(', ')}`);
+            console.log(`➖ Removed crushes: ${removed.join(', ')}`);
+
+            // Get all users in this class (needed for name lookups)
+            const allUsersSnapshot = await transaction.get(
+                db.collection('users').where('userClass', '==', userClass)
+            );
+
+            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as any
+            }));
+
+            // Set of user IDs that need updates
+            const affectedUserIds = new Set<string>();
+            affectedUserIds.add(userId); // The user who made the change
+
+            // Find users affected by additions
+            for (const crushName of added) {
+                const crushedUser = findUserByName(crushName, allUsers, userClass);
+                if (crushedUser) {
+                    affectedUserIds.add(crushedUser.id);
+                }
+            }
+
+            // Find users affected by removals
+            for (const crushName of removed) {
+                const crushedUser = findUserByName(crushName, allUsers, userClass);
+                if (crushedUser) {
+                    affectedUserIds.add(crushedUser.id);
+                }
+            }
+
+            console.log(`👥 Affected users: ${affectedUserIds.size}`);
+
+            // For each affected user, recalculate their matches and crushCount
+            for (const affectedId of affectedUserIds) {
+                const affectedUser = allUsers.find(u => u.id === affectedId);
+                if (!affectedUser) continue;
+
+                const affectedUserName = getUserIdentityName(affectedUser);
+                if (!affectedUserName) continue;
+
+                // Recalculate crushCount for this user
+                let crushCount = 0;
+                for (const user of allUsers) {
+                    const userCrushes = user.crushes || [];
+                    for (const crushName of userCrushes) {
+                        const targetUser = findUserByName(crushName, allUsers, userClass);
+                        if (targetUser && targetUser.id === affectedId) {
+                            crushCount++;
+                        }
+                    }
+                }
+
+                // Recalculate matches for this user
+                const userCrushes = affectedUser.crushes || [];
+                const existingMatches = affectedUser.matches || [];
+                const existingMatchMap = new Map<string, any>();
+                existingMatches.forEach(match => {
+                    if (match.name) {
+                        existingMatchMap.set(match.name, match);
+                    }
+                });
+
+                const userMatches: MatchInfo[] = [];
+                const userLockedCrushes: string[] = [];
+
+                for (const crushName of userCrushes) {
+                    const crushedUser = findUserByName(crushName, allUsers, userClass);
+                    if (!crushedUser) continue;
+
+                    const crushedUserName = getUserIdentityName(crushedUser);
+                    if (!crushedUserName) continue;
+
+                    const crushedUserCrushes = crushedUser.crushes || [];
+
+                    // Check if it's a mutual crush
+                    const isMutual = crushedUserCrushes.some(crushBack => {
+                        const matchedUser = findUserByName(crushBack, allUsers, userClass);
+                        return matchedUser && matchedUser.id === affectedId;
+                    });
+
+                    if (isMutual) {
+                        const existingMatch = existingMatchMap.get(crushedUserName);
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(
+                            affectedId,
+                            crushedUser.id,
+                            affectedUserName,
+                            crushedUserName
+                        );
+
+                        if (existingMatch && existingMatch.matchedAt) {
+                            // Preserve existing timestamp
+                            userMatches.push({
+                                name: crushedUserName,
+                                email: crushedUser.email || 'unknown@stanford.edu',
+                                matchedAt: existingMatch.matchedAt
+                            });
+                        } else if (shouldHaveTimestamp) {
+                            // New match - add timestamp
+                            userMatches.push({
+                                name: crushedUserName,
+                                email: crushedUser.email || 'unknown@stanford.edu',
+                                matchedAt: admin.firestore.Timestamp.now()
+                            });
+                        } else {
+                            // No timestamp for James Park matches
+                            userMatches.push({
+                                name: crushedUserName,
+                                email: crushedUser.email || 'unknown@stanford.edu'
+                            });
+                        }
+
+                        userLockedCrushes.push(crushedUserName);
+                    }
+                }
+
+                // Update this user's document
+                const userRef = db.collection('users').doc(affectedId);
+                const updateData = {
+                    matches: userMatches,
+                    lockedCrushes: userLockedCrushes,
+                    crushCount: crushCount,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+
+                transaction.update(userRef, updateData);
+                console.log(`✅ Updated ${affectedUserName}: ${userMatches.length} matches, ${crushCount} crush count`);
+            }
+
+            console.log(`✅ Incremental update complete - updated ${affectedUserIds.size} users`);
+        });
+    } catch (error) {
+        console.error('❌ Error in processIncrementalUpdate:', error);
+        throw error;
+    }
+}
+
+// Enhanced function to recalculate all matches and crush counts with better name matching
+// Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
+export async function processUpdatedCrushes(): Promise<void> {
+    console.log('🔄 Starting enhanced recalculation of all matches and crush counts with class separation...');
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const allUsersSnapshot = await transaction.get(db.collection('users'));
+
+            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as any
+            }));
+
+            console.log(`📊 Processing ${allUsers.length} users`);
+
+            // Separate users by class
+            const gsbUsers = allUsers.filter(user => user.userClass === 'gsb' || !user.userClass); // Default to GSB for backwards compatibility
+            const undergradUsers = allUsers.filter(user => user.userClass === 'undergrad');
+
+            console.log(`📊 GSB users: ${gsbUsers.length}, Undergrad users: ${undergradUsers.length}`);
+
+            // Enhanced crush count calculation with better name matching and class separation
+            const crushCounts = new Map<string, number>();
+            const crushersMap = new Map<string, string[]>(); // Track who is crushing on whom
+
+            // Process GSB users
+            for (const user of gsbUsers) {
+                const userCrushes = user.crushes || [];
+                for (const crushName of userCrushes) {
+                    // Find the actual user that matches this crush name within GSB class
+                    const targetUser = findUserByName(crushName, gsbUsers, 'gsb');
+
+                    if (targetUser) {
+                        // Use the user's identity name
+                        const actualName = getUserIdentityName(targetUser);
+                        if (actualName) {
+                            const key = `gsb:${actualName}`;
+                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+
+                            // Track the crusher
+                            if (!crushersMap.has(key)) {
+                                crushersMap.set(key, []);
+                            }
+                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                        }
+                    } else {
+                        // If no user found, still count it but use the crush name directly
+                        console.log(`⚠️ No GSB user found for crush name: "${crushName}" - counting anyway`);
+                        const key = `gsb:${crushName}`;
+                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+
+                        // Track the crusher for orphaned crushes too
+                        if (!crushersMap.has(key)) {
+                            crushersMap.set(key, []);
+                        }
+                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                    }
+                }
+            }
+
+            // Process Undergrad users
+            for (const user of undergradUsers) {
+                const userCrushes = user.crushes || [];
+                for (const crushName of userCrushes) {
+                    // Find the actual user that matches this crush name within undergrad class
+                    const targetUser = findUserByName(crushName, undergradUsers, 'undergrad');
+
+                    if (targetUser) {
+                        // Use the user's identity name
+                        const actualName = getUserIdentityName(targetUser);
+                        if (actualName) {
+                            const key = `undergrad:${actualName}`;
+                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+
+                            // Track the crusher
+                            if (!crushersMap.has(key)) {
+                                crushersMap.set(key, []);
+                            }
+                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                        }
+                    } else {
+                        // If no user found, still count it but use the crush name directly
+                        console.log(`⚠️ No undergrad user found for crush name: "${crushName}" - counting anyway`);
+                        const key = `undergrad:${crushName}`;
+                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+
+                        // Track the crusher for orphaned crushes too
+                        if (!crushersMap.has(key)) {
+                            crushersMap.set(key, []);
+                        }
+                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                    }
+                }
+            }
+
+            console.log('💕 Enhanced crush counts calculated:', Object.fromEntries(crushCounts));
+
+            // Calculate matches and locked crushes with enhanced matching and class separation
+            const allMatches = new Map<string, MatchInfo[]>();
+            const allLockedCrushes = new Map<string, string[]>();
+
+            // Process both classes together but only allow matches within same class
+            for (const user of allUsers) {
+                const userMatches: MatchInfo[] = [];
+                const userLockedCrushes: string[] = [];
+                const userCrushes = user.crushes || [];
+                const userIdentityName = getUserIdentityName(user);
+                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
+
+                if (!userIdentityName || !userIdentityName.trim()) {
+                    console.log(`⏭️ Skipping user ${user.id} - no identity name`);
+                    allMatches.set(user.id, userMatches);
+                    allLockedCrushes.set(user.id, userLockedCrushes);
+                    continue;
+                }
+
+                // Get users from the same class only
+                const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
+
+                // Get existing matches to preserve timestamps (CRITICAL: preserve exact timestamp objects)
+                const existingMatches = user.matches || [];
+                const existingMatchMap = new Map<string, any>();
+                existingMatches.forEach(match => {
+                    if (match.name) {
+                        existingMatchMap.set(match.name, match);
+                    }
+                });
+
+                // Find mutual matches with enhanced name matching within same class
+                for (const crushName of userCrushes) {
+                    const crushedUser = findUserByName(crushName, sameClassUsers, userClass);
+
+                    if (!crushedUser) {
+                        console.log(`⚠️ No ${userClass} user found for crush name: "${crushName}"`);
+                        continue;
+                    }
+
+                    const crushedUserCrushes = crushedUser.crushes || [];
+
+                    // Check if it's a mutual match using enhanced matching within same class
+                    const hasMutualCrush = crushedUserCrushes.some(crush => {
+                        const matchedUser = findUserByName(crush, sameClassUsers, userClass);
+                        return matchedUser && matchedUser.id === user.id;
+                    });
+
+                    if (hasMutualCrush) {
+                        const crushedUserIdentityName = getUserIdentityName(crushedUser);
+
+                        // Check if this is an existing match to preserve timestamp
+                        const existingMatch = existingMatchMap.get(crushedUserIdentityName);
+
+                        // Determine if this match should have a timestamp
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(user.id, crushedUser.id, userIdentityName, crushedUserIdentityName);
+
+                        let matchInfo: MatchInfo;
+
+                        if (shouldHaveTimestamp) {
+                            if (existingMatch && existingMatch.matchedAt) {
+                                // PRESERVE the exact existing timestamp object - don't convert it
+                                matchInfo = {
+                                    name: crushedUserIdentityName,
+                                    email: crushedUser.email,
+                                    matchedAt: existingMatch.matchedAt
+                                };
+                                console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                            } else {
+                                // NEW MATCH - Create timestamp at the exact moment this match is discovered
+                                matchInfo = {
+                                    name: crushedUserIdentityName,
+                                    email: crushedUser.email,
+                                    matchedAt: admin.firestore.Timestamp.now() // Real-time timestamp for new matches
+                                };
+                                console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                            }
+                        } else {
+                            // No timestamp for James Park matches
+                            matchInfo = {
+                                name: crushedUserIdentityName,
+                                email: crushedUser.email
+                                // No matchedAt field
+                            };
+                            console.log(`🚫 No timestamp for James Park match: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                        }
+
+                        userMatches.push(matchInfo);
+
+                        // Lock this crush ONLY if there's a mutual match
+                        if (!userLockedCrushes.includes(crushName)) {
+                            userLockedCrushes.push(crushName);
+                        }
+
+                        const isNewMatch = !existingMatchMap.has(crushedUserIdentityName);
+                        const timestampStatus = shouldHaveTimestamp ? (isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING') : 'NO_TIMESTAMP';
+                        console.log(`💕 ${userClass.toUpperCase()} Match ${isNewMatch ? 'NEW' : 'EXISTING'} (${timestampStatus}): ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                    }
+                }
+
+                allMatches.set(user.id, userMatches);
+                allLockedCrushes.set(user.id, userLockedCrushes);
+            }
+
+            // Update all users with their matches, crush counts, and locked crushes
+            for (const user of allUsers) {
+                const userRef = db.collection('users').doc(user.id);
+                const userIdentityName = getUserIdentityName(user);
+                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
+
+                // For crush count, we need to check the user's identity name with class prefix
+                let userCrushCount = 0;
+                if (userIdentityName) {
+                    const key = `${userClass}:${userIdentityName}`;
+                    userCrushCount = crushCounts.get(key) || 0;
+
+                    // Log discrepancies for debugging
+                    const currentCrushCount = user.crushCount || 0;
+                    if (currentCrushCount !== userCrushCount) {
+                        const crushers = crushersMap.get(key) || [];
+                        console.log(`🔧 Fixing crush count for ${userIdentityName}: ${currentCrushCount} -> ${userCrushCount} (crushers: ${crushers.join(', ')})`);
+                    }
+                }
+
+                const updateData = {
+                    matches: allMatches.get(user.id) || [],
+                    lockedCrushes: allLockedCrushes.get(user.id) || [],
+                    crushCount: userCrushCount,
+                    userClass: userClass, // Ensure userClass is set for legacy users
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+
+                transaction.update(userRef, updateData);
+            }
+
+            console.log(`✅ Updated all ${allUsers.length} users with enhanced matches and crush counts (class-separated)`);
+        });
+
+    } catch (error) {
+        console.error('❌ Error in enhanced processUpdatedCrushes:', error);
+        throw error;
+    }
+}
+
+// One-time function to set current timestamp for all existing matches (except James Park)
+export async function fixAllMatchTimestampsToNow(): Promise<void> {
+    console.log('🔧 Setting all existing match timestamps to now (except James Park matches)...');
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const allUsersSnapshot = await transaction.get(db.collection('users'));
+            const currentTimestamp = admin.firestore.Timestamp.now();
+
+            let updatedUsers = 0;
+            let fixedMatches = 0;
+
+            allUsersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                const matches = userData.matches || [];
+                const userId = doc.id;
+                const userName = userData.name || userData.verifiedName || userData.displayName || userData.email;
+
+                if (matches.length > 0) {
+                    let needsUpdate = false;
+                    const updatedMatches = matches.map((match: any) => {
+                        // Check both the document owner AND the match partner for James Park
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userId, '', userName, match.name || '');
+
+                        if (shouldHaveTimestamp) {
+                            // Set timestamp to now for all non-James Park matches
+                            needsUpdate = true;
+                            fixedMatches++;
+                            console.log(`🔧 Setting timestamp to now for match: ${match.name} ↔ ${userName}`);
+                            return {
+                                name: match.name || 'Unknown',
+                                email: match.email || 'unknown@stanford.edu',
+                                matchedAt: currentTimestamp
+                            };
+                        } else {
+                            // Remove timestamp for James Park matches
+                            if (match.matchedAt) {
+                                needsUpdate = true;
+                                console.log(`🔧 Removing timestamp for James Park match: ${match.name} ↔ ${userName}`);
+                            }
+                            return {
+                                name: match.name || 'Unknown',
+                                email: match.email || 'unknown@stanford.edu'
+                                // No matchedAt field
+                            };
+                        }
+                    });
+
+                    if (needsUpdate) {
+                        const userRef = db.collection('users').doc(userId);
+                        transaction.update(userRef, {
+                            matches: updatedMatches,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        updatedUsers++;
+                    }
+                }
+            });
+
+            console.log(`✅ Fixed timestamps for ${fixedMatches} matches across ${updatedUsers} users`);
+        });
+    } catch (error) {
+        console.error('❌ Error fixing all match timestamps:', error);
+        throw error;
+    }
+}
+
+// New function to manually fix all crush count discrepancies
+export async function fixAllCrushCounts(): Promise<void> {
+    console.log('🔧 Starting manual fix of all crush count discrepancies...');
+
+    try {
+        await processUpdatedCrushes();
+        console.log('✅ All crush counts have been synchronized');
+    } catch (error) {
+        console.error('❌ Error fixing crush counts:', error);
+        throw error;
+    }
+}
+
+// Legacy function - keeping for backward compatibility
+export async function fixAllMatchTimestampsOnce(): Promise<void> {
+    await fixAllMatchTimestampsToNow();
+}
+
+// Legacy function - keeping for backward compatibility
+export async function fixMissingMatchTimestamps(): Promise<void> {
+    await fixAllMatchTimestampsToNow();
+}
+
+================
 File: src/styles/profile.css
 ================
 .profile-content {
@@ -10970,6 +10933,115 @@ File: src/styles/profile.css
 }
 
 ================
+File: vercel.json
+================
+{
+    "version": 2,
+    "buildCommand": "npm run build",
+    "outputDirectory": "dist",
+    "installCommand": "npm install",
+    "framework": "vite",
+    "headers": [
+        {
+            "source": "/logo.svg",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "image/png"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=86400, must-revalidate"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                }
+            ]
+        },
+        {
+            "source": "/logo.svg",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "image/svg+xml"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=86400, must-revalidate"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                }
+            ]
+        },
+        {
+            "source": "/share.png",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "image/png"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=86400, must-revalidate"
+                },
+                {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                }
+            ]
+        },
+        {
+            "source": "/robots.txt",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "text/plain"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=3600, must-revalidate"
+                }
+            ]
+        },
+        {
+            "source": "/sitemap.xml",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/xml"
+                },
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=3600, must-revalidate"
+                }
+            ]
+        },
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "X-Frame-Options",
+                    "value": "SAMEORIGIN"
+                },
+                {
+                    "key": "X-Content-Type-Options",
+                    "value": "nosniff"
+                }
+            ]
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/((?!.*\\.).*)",
+            "destination": "/index.html"
+        }
+    ]
+}
+
+================
 File: src/contexts/AuthContext.tsx
 ================
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
@@ -11001,6 +11073,7 @@ interface AuthContextType {
     selectName: (name: string) => Promise<void>;
     completeAccountLinking: () => void;
     startNewAccount: () => void;
+    updateUserDataOptimistically: (updates: Partial<UserData>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -11312,6 +11385,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
     };
 
+    const updateUserDataOptimistically = (updates: Partial<UserData>) => {
+        setUserData(prev => prev ? { ...prev, ...updates } : null);
+    };
+
     const value = {
         user,
         userData,
@@ -11325,120 +11402,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         refreshUserData,
         selectName,
         completeAccountLinking,
-        startNewAccount
+        startNewAccount,
+        updateUserDataOptimistically
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
-================
-File: vercel.json
-================
-{
-    "version": 2,
-    "buildCommand": "npm run build",
-    "outputDirectory": "dist",
-    "installCommand": "npm install",
-    "framework": "vite",
-    "headers": [
-        {
-            "source": "/logo.svg",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "image/png"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=86400, must-revalidate"
-                },
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                }
-            ]
-        },
-        {
-            "source": "/logo.svg",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "image/svg+xml"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=86400, must-revalidate"
-                },
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                }
-            ]
-        },
-        {
-            "source": "/share.png",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "image/png"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=86400, must-revalidate"
-                },
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                }
-            ]
-        },
-        {
-            "source": "/robots.txt",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "text/plain"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=3600, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/sitemap.xml",
-            "headers": [
-                {
-                    "key": "Content-Type",
-                    "value": "application/xml"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=3600, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/(.*)",
-            "headers": [
-                {
-                    "key": "X-Frame-Options",
-                    "value": "SAMEORIGIN"
-                },
-                {
-                    "key": "X-Content-Type-Options",
-                    "value": "nosniff"
-                }
-            ]
-        }
-    ],
-    "rewrites": [
-        {
-            "source": "/((?!.*\\.).*)",
-            "destination": "/index.html"
-        }
-    ]
-}
 
 ================
 File: src/components/Home.tsx
@@ -11455,7 +11424,7 @@ import { isAdminUser } from '../utils/adminUtils';
 import { getUserDocumentId } from '../utils';
 
 const Home = () => {
-    const { user, userData, refreshUserData } = useAuth();
+    const { user, userData, updateUserDataOptimistically } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
@@ -11543,18 +11512,17 @@ const Home = () => {
             const actualUid = getUserDocumentId(user, userData);
             const userRef = doc(db, 'users', actualUid);
             const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
+            const now = new Date();
 
-            // Optimistic update - update local state immediately
+            // Optimistic update - update all local state immediately
             setSelectedNames(finalCrushes);
             setSavedNames(finalCrushes);
-
-            // Update Firestore
-            await updateDoc(userRef, {
+            updateUserDataOptimistically({
                 crushes: finalCrushes,
-                updatedAt: new Date()
+                updatedAt: now
             });
 
-            // Show success message
+            // Show success message immediately
             const successDiv = document.createElement('div');
             successDiv.textContent = 'Preferences updated successfully!';
             successDiv.style.cssText = `
@@ -11577,6 +11545,17 @@ const Home = () => {
                 }
             }, 3000);
 
+            // Fire and forget - update Firestore in background
+            updateDoc(userRef, {
+                crushes: finalCrushes,
+                updatedAt: now
+            }).catch(error => {
+                console.error('Error updating preferences:', error);
+                // Revert optimistic updates on error
+                setSelectedNames(savedNames);
+                setError('Failed to update preferences. Please try again.');
+            });
+
         } catch (error) {
             console.error('Error updating preferences:', error);
             setError('Failed to update preferences. Please try again.');
@@ -11586,7 +11565,7 @@ const Home = () => {
         } finally {
             setUpdating(false);
         }
-    }, [user, userData, updating, selectedNames, savedNames]);
+    }, [user, userData, updating, selectedNames, savedNames, updateUserDataOptimistically]);
 
     const handleAdminToggle = useCallback(() => {
         setIsAdminMode(prev => !prev);
@@ -11723,7 +11702,7 @@ File: index.html
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/logo-rounded.png" />
   <link rel="apple-touch-icon" href="/logo-rounded.png" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Second Chances</title>
 
   <!-- Open Graph Meta Tags (no image) -->

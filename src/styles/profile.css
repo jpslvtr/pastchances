@@ -472,6 +472,10 @@
         width: 100%;
     }
 
+    .location-row > div {
+        width: 100%;
+    }
+
     .location-suggestions {
         left: 0;
     }
@@ -493,4 +497,32 @@
         width: 250px;
         height: 250px;
     }
+}
+
+/* New style for plain text display without border */
+.info-value-plain {
+    font-size: 14px;
+    color: #212529;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    flex: 1;
+    min-height: 20px;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+/* Override existing styles to remove borders when not editing */
+.info-row .info-value-plain {
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+.info-field-full .info-value-plain {
+    padding: 0;
+    border: none;
+    background: transparent;
+    min-height: auto;
+    display: block;
 }
