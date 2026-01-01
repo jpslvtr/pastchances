@@ -3410,107 +3410,6 @@ export const useUserDocumentManager = (
 };
 
 ================
-File: src/styles/dashboard/dashboard-photos.css
-================
-/* User Photo Styles */
-.user-photo {
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-    border: 2px solid #e0e0e0;
-}
-
-.user-photo-clickable {
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.user-photo-clickable:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.user-photo-small {
-    width: 32px;
-    height: 32px;
-    font-size: 13px;
-}
-
-.user-photo-medium {
-    width: 48px;
-    height: 48px;
-    font-size: 18px;
-}
-
-.user-photo-large {
-    width: 150px;
-    height: 150px;
-    font-size: 48px;
-}
-
-.user-photo-initials {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 600;
-    user-select: none;
-}
-
-.user-photo-loading {
-    background-color: #f0f0f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.user-photo-spinner {
-    width: 50%;
-    height: 50%;
-    border: 2px solid #e0e0e0;
-    border-top-color: #666;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* Update match-item to work with photos */
-.match-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.match-details {
-    flex: 1;
-    min-width: 0;
-}
-
-/* Update name-chip to work with photos */
-.name-chip {
-    gap: 8px;
-}
-
-/* Update name-list-item to work with photos */
-.name-list-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-/* Mobile responsive for photos */
-@media (max-width: 768px) {
-    .user-photo-large {
-        width: 120px;
-        height: 120px;
-        font-size: 38px;
-    }
-}
-
-================
 File: src/styles/legal.css
 ================
 .legal-container {
@@ -5631,6 +5530,107 @@ File: src/styles/dashboard/dashboard-components.css
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+================
+File: src/styles/dashboard/dashboard-photos.css
+================
+/* User Photo Styles */
+.user-photo {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid #e0e0e0;
+}
+
+.user-photo-clickable {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.user-photo-clickable:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.user-photo-small {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+}
+
+.user-photo-medium {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+}
+
+.user-photo-large {
+    width: 150px;
+    height: 150px;
+    font-size: 48px;
+}
+
+.user-photo-initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    user-select: none;
+}
+
+.user-photo-loading {
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-photo-spinner {
+    width: 50%;
+    height: 50%;
+    border: 2px solid #e0e0e0;
+    border-top-color: #666;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Update match-item to work with photos */
+.match-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.match-details {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Update name-chip to work with photos */
+.name-chip {
+    gap: 8px;
+}
+
+/* Update name-list-item to work with photos */
+.name-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Mobile responsive for photos */
+@media (max-width: 768px) {
+    .user-photo-large {
+        width: 120px;
+        height: 120px;
+        font-size: 38px;
+    }
 }
 
 ================
@@ -10347,28 +10347,28 @@ const Profile = () => {
 
                                 <div className="info-row">
                                     <label>Email:</label>
-                                    <div className={`info-value-inline readonly ${profileData?.email === currentEmail ? 'current' : ''}`}>
+                                    <div className={`info-value-plain ${profileData?.email === currentEmail ? 'current' : ''}`}>
                                         {profileData?.email || 'Not linked'}
                                     </div>
                                 </div>
 
                                 <div className="info-row">
                                     <label>Stanford Alumni:</label>
-                                    <div className={`info-value-inline readonly ${profileData?.emailAlumni === currentEmail ? 'current' : ''}`}>
+                                    <div className={`info-value-plain ${profileData?.emailAlumni === currentEmail ? 'current' : ''}`}>
                                         {profileData?.emailAlumni || 'Not linked'}
                                     </div>
                                 </div>
 
                                 <div className="info-row">
                                     <label>GSB Alumni:</label>
-                                    <div className={`info-value-inline readonly ${profileData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
+                                    <div className={`info-value-plain ${profileData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
                                         {profileData?.emailAlumniGSB || 'Not linked'}
                                     </div>
                                 </div>
 
                                 <div className="info-row">
                                     <label>Account Created:</label>
-                                    <div className="info-value-inline readonly">{formatDate(profileData?.createdAt)}</div>
+                                    <div className="info-value-plain">{formatDate(profileData?.createdAt)}</div>
                                 </div>
                             </>
                         )}
@@ -10998,7 +10998,12 @@ File: src/styles/profile.css
     border: none;
     background: transparent;
     min-height: auto;
-    display: block;
+}
+
+/* Styling for current email - highlighted in Stanford red */
+.info-value-plain.current {
+    color: #8C1515;
+    font-weight: 600;
 }
 
 ================

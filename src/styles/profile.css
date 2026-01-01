@@ -529,5 +529,10 @@
     border: none;
     background: transparent;
     min-height: auto;
-    display: block;
+}
+
+/* Styling for current email - highlighted in Stanford red */
+.info-value-plain.current {
+    color: #8C1515;
+    font-weight: 600;
 }
