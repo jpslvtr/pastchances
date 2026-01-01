@@ -32,6 +32,161 @@ function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: s
     return true;
 }
 
+// Incremental update - only processes users affected by the change
+export async function processIncrementalUpdate(
+    userId: string,
+    beforeCrushes: string[],
+    afterCrushes: string[],
+    userName: string,
+    userClass: string
+): Promise<void> {
+    console.log(`🚀 Starting incremental update for ${userName}`);
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // Find users whose state might have changed
+            const added = afterCrushes.filter(c => !beforeCrushes.includes(c));
+            const removed = beforeCrushes.filter(c => !afterCrushes.includes(c));
+
+            console.log(`➕ Added crushes: ${added.join(', ')}`);
+            console.log(`➖ Removed crushes: ${removed.join(', ')}`);
+
+            // Get all users in this class (needed for name lookups)
+            const allUsersSnapshot = await transaction.get(
+                db.collection('users').where('userClass', '==', userClass)
+            );
+
+            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as any
+            }));
+
+            // Set of user IDs that need updates
+            const affectedUserIds = new Set<string>();
+            affectedUserIds.add(userId); // The user who made the change
+
+            // Find users affected by additions
+            for (const crushName of added) {
+                const crushedUser = findUserByName(crushName, allUsers, userClass);
+                if (crushedUser) {
+                    affectedUserIds.add(crushedUser.id);
+                }
+            }
+
+            // Find users affected by removals
+            for (const crushName of removed) {
+                const crushedUser = findUserByName(crushName, allUsers, userClass);
+                if (crushedUser) {
+                    affectedUserIds.add(crushedUser.id);
+                }
+            }
+
+            console.log(`👥 Affected users: ${affectedUserIds.size}`);
+
+            // For each affected user, recalculate their matches and crushCount
+            for (const affectedId of affectedUserIds) {
+                const affectedUser = allUsers.find(u => u.id === affectedId);
+                if (!affectedUser) continue;
+
+                const affectedUserName = getUserIdentityName(affectedUser);
+                if (!affectedUserName) continue;
+
+                // Recalculate crushCount for this user
+                let crushCount = 0;
+                for (const user of allUsers) {
+                    const userCrushes = user.crushes || [];
+                    for (const crushName of userCrushes) {
+                        const targetUser = findUserByName(crushName, allUsers, userClass);
+                        if (targetUser && targetUser.id === affectedId) {
+                            crushCount++;
+                        }
+                    }
+                }
+
+                // Recalculate matches for this user
+                const userCrushes = affectedUser.crushes || [];
+                const existingMatches = affectedUser.matches || [];
+                const existingMatchMap = new Map<string, any>();
+                existingMatches.forEach(match => {
+                    if (match.name) {
+                        existingMatchMap.set(match.name, match);
+                    }
+                });
+
+                const userMatches: MatchInfo[] = [];
+                const userLockedCrushes: string[] = [];
+
+                for (const crushName of userCrushes) {
+                    const crushedUser = findUserByName(crushName, allUsers, userClass);
+                    if (!crushedUser) continue;
+
+                    const crushedUserName = getUserIdentityName(crushedUser);
+                    if (!crushedUserName) continue;
+
+                    const crushedUserCrushes = crushedUser.crushes || [];
+
+                    // Check if it's a mutual crush
+                    const isMutual = crushedUserCrushes.some(crushBack => {
+                        const matchedUser = findUserByName(crushBack, allUsers, userClass);
+                        return matchedUser && matchedUser.id === affectedId;
+                    });
+
+                    if (isMutual) {
+                        const existingMatch = existingMatchMap.get(crushedUserName);
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(
+                            affectedId,
+                            crushedUser.id,
+                            affectedUserName,
+                            crushedUserName
+                        );
+
+                        if (existingMatch && existingMatch.matchedAt) {
+                            // Preserve existing timestamp
+                            userMatches.push({
+                                name: crushedUserName,
+                                email: crushedUser.email || 'unknown@stanford.edu',
+                                matchedAt: existingMatch.matchedAt
+                            });
+                        } else if (shouldHaveTimestamp) {
+                            // New match - add timestamp
+                            userMatches.push({
+                                name: crushedUserName,
+                                email: crushedUser.email || 'unknown@stanford.edu',
+                                matchedAt: admin.firestore.Timestamp.now()
+                            });
+                        } else {
+                            // No timestamp for James Park matches
+                            userMatches.push({
+                                name: crushedUserName,
+                                email: crushedUser.email || 'unknown@stanford.edu'
+                            });
+                        }
+
+                        userLockedCrushes.push(crushedUserName);
+                    }
+                }
+
+                // Update this user's document
+                const userRef = db.collection('users').doc(affectedId);
+                const updateData = {
+                    matches: userMatches,
+                    lockedCrushes: userLockedCrushes,
+                    crushCount: crushCount,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+
+                transaction.update(userRef, updateData);
+                console.log(`✅ Updated ${affectedUserName}: ${userMatches.length} matches, ${crushCount} crush count`);
+            }
+
+            console.log(`✅ Incremental update complete - updated ${affectedUserIds.size} users`);
+        });
+    } catch (error) {
+        console.error('❌ Error in processIncrementalUpdate:', error);
+        throw error;
+    }
+}
+
 // Enhanced function to recalculate all matches and crush counts with better name matching
 // Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
 export async function processUpdatedCrushes(): Promise<void> {

@@ -10,7 +10,7 @@ import { isAdminUser } from '../utils/adminUtils';
 import { getUserDocumentId } from '../utils';
 
 const Home = () => {
-    const { user, userData } = useAuth();
+    const { user, userData, updateUserDataOptimistically } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
@@ -98,15 +98,20 @@ const Home = () => {
             const actualUid = getUserDocumentId(user, userData);
             const userRef = doc(db, 'users', actualUid);
             const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
+            const now = new Date();
 
-            // Optimistic update - update local state immediately
+            // Optimistic update - update all local state immediately
             setSelectedNames(finalCrushes);
             setSavedNames(finalCrushes);
+            updateUserDataOptimistically({
+                crushes: finalCrushes,
+                updatedAt: now
+            });
 
             // Update Firestore
             await updateDoc(userRef, {
                 crushes: finalCrushes,
-                updatedAt: new Date()
+                updatedAt: now
             });
 
             // Show success message
@@ -141,7 +146,7 @@ const Home = () => {
         } finally {
             setUpdating(false);
         }
-    }, [user, userData, updating, selectedNames, savedNames]);
+    }, [user, userData, updating, selectedNames, savedNames, updateUserDataOptimistically]);
 
     const handleAdminToggle = useCallback(() => {
         setIsAdminMode(prev => !prev);
