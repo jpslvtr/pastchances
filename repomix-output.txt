@@ -622,6 +622,88 @@ File: tsconfig.node.json
 }
 
 ================
+File: functions/src/utils.ts
+================
+import { UserWithId } from './types';
+
+// Helper function to normalize names for case-insensitive comparison
+export function normalizeName(name: string): string {
+    if (!name || typeof name !== 'string') return '';
+
+    return name
+        .normalize('NFD')  // Decompose accented characters
+        .replace(/[\u0300-\u036f]/g, '')  // Remove accent marks
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s]/g, ' ')  // Replace non-alphanumeric with spaces
+        .replace(/\s+/g, ' ')  // Normalize spaces
+        .trim();
+}
+
+// Enhanced function to find the best matching user for a crush name
+// Only matches users within the same class
+export function findUserByName(crushName: string, allUsers: UserWithId[], userClass?: string): UserWithId | null {
+    if (!crushName || !crushName.trim()) return null;
+
+    const normalizedCrush = normalizeName(crushName);
+
+    // Filter users by class if specified
+    const filteredUsers = userClass
+        ? allUsers.filter(user => (user.userClass || 'gsb') === userClass)
+        : allUsers;
+
+    // First try exact match on name field
+    let match = filteredUsers.find(user =>
+        user.name &&
+        normalizeName(user.name) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try exact match on legacy verifiedName field (for migration)
+    match = filteredUsers.find(user =>
+        user.verifiedName &&
+        normalizeName(user.verifiedName) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try exact match on legacy displayName field (for migration)
+    match = filteredUsers.find(user =>
+        user.displayName &&
+        normalizeName(user.displayName) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try partial match (first and last name only) for cases with middle names
+    const crushParts = normalizedCrush.split(' ');
+    if (crushParts.length >= 2) {
+        const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
+
+        // Try partial match with name field
+        match = filteredUsers.find(user => {
+            const userIdentityName = user.name || user.verifiedName || user.displayName;
+            if (userIdentityName) {
+                const nameParts = normalizeName(userIdentityName).split(' ');
+                if (nameParts.length >= 2) {
+                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                    return nameFirstLast === crushFirstLast;
+                }
+            }
+            return false;
+        });
+    }
+
+    return match || null;
+}
+
+// Helper function to get user's identity name (with migration support)
+export function getUserIdentityName(user: UserWithId): string {
+    return user.name || user.verifiedName || user.displayName || '';
+}
+
+================
 File: functions/package.json
 ================
 {
@@ -6095,85 +6177,37 @@ File: .firebaserc
 }
 
 ================
-File: functions/src/utils.ts
+File: functions/src/types.ts
 ================
-import { UserWithId } from './types';
+export type UserClass = 'gsb' | 'undergrad';
 
-// Helper function to normalize names for case-insensitive comparison
-export function normalizeName(name: string): string {
-    if (!name || typeof name !== 'string') return '';
+export interface UserData {
+    uid: string;
+    email: string;
+    name: string;  // Single name field instead of displayName/verifiedName
+    photoURL: string;
+    crushes: string[];
+    lockedCrushes?: string[];
+    matches?: MatchInfo[];
+    crushCount?: number;
+    userClass: UserClass;
+    createdAt: any;
+    updatedAt: any;
+    lastLogin: any;
 
-    return name
-        .normalize('NFD')  // Decompose accented characters
-        .replace(/[\u0300-\u036f]/g, '')  // Remove accent marks
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s]/g, ' ')  // Replace non-alphanumeric with spaces
-        .replace(/\s+/g, ' ')  // Normalize spaces
-        .trim();
+    // Legacy fields for migration support
+    displayName?: string;
+    verifiedName?: string;
 }
 
-// Enhanced function to find the best matching user for a crush name
-// Only matches users within the same class
-export function findUserByName(crushName: string, allUsers: UserWithId[], userClass?: string): UserWithId | null {
-    if (!crushName || !crushName.trim()) return null;
-
-    const normalizedCrush = normalizeName(crushName);
-
-    // Filter users by class if specified
-    const filteredUsers = userClass
-        ? allUsers.filter(user => (user.userClass || 'gsb') === userClass)
-        : allUsers;
-
-    // First try exact match on name field
-    let match = filteredUsers.find(user =>
-        user.name &&
-        normalizeName(user.name) === normalizedCrush
-    );
-
-    if (match) return match;
-
-    // Try exact match on legacy verifiedName field (for migration)
-    match = filteredUsers.find(user =>
-        user.verifiedName &&
-        normalizeName(user.verifiedName) === normalizedCrush
-    );
-
-    if (match) return match;
-
-    // Try exact match on legacy displayName field (for migration)
-    match = filteredUsers.find(user =>
-        user.displayName &&
-        normalizeName(user.displayName) === normalizedCrush
-    );
-
-    if (match) return match;
-
-    // Try partial match (first and last name only) for cases with middle names
-    const crushParts = normalizedCrush.split(' ');
-    if (crushParts.length >= 2) {
-        const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
-
-        // Try partial match with name field
-        match = filteredUsers.find(user => {
-            const userIdentityName = user.name || user.verifiedName || user.displayName;
-            if (userIdentityName) {
-                const nameParts = normalizeName(userIdentityName).split(' ');
-                if (nameParts.length >= 2) {
-                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
-                    return nameFirstLast === crushFirstLast;
-                }
-            }
-            return false;
-        });
-    }
-
-    return match || null;
+export interface UserWithId extends UserData {
+    id: string;
 }
 
-// Helper function to get user's identity name (with migration support)
-export function getUserIdentityName(user: UserWithId): string {
-    return user.name || user.verifiedName || user.displayName || '';
+export interface MatchInfo {
+    name: string;
+    email: string;
+    matchedAt?: any; // Firebase Timestamp or Date - now optional
 }
 
 ================
@@ -7681,38 +7715,404 @@ const calculateMatchScore = (name1: string, name2: string): number => {
 };
 
 ================
-File: functions/src/types.ts
+File: functions/src/index.ts
 ================
-export type UserClass = 'gsb' | 'undergrad';
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+import { UserData, UserWithId } from './types';
+import { findUserByName, getUserIdentityName } from './utils';
+import { processUpdatedCrushes, fixAllCrushCounts, fixAllMatchTimestampsToNow } from './matchingEngine';
 
-export interface UserData {
-    uid: string;
-    email: string;
-    name: string;  // Single name field instead of displayName/verifiedName
-    photoURL: string;
-    crushes: string[];
-    lockedCrushes?: string[];
-    matches?: MatchInfo[];
-    crushCount?: number;
-    userClass: UserClass;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
+export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
 
-    // Legacy fields for migration support
-    displayName?: string;
-    verifiedName?: string;
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+    admin.initializeApp();
 }
 
-export interface UserWithId extends UserData {
-    id: string;
-}
+const db = admin.firestore();
 
-export interface MatchInfo {
-    name: string;
-    email: string;
-    matchedAt?: any; // Firebase Timestamp or Date - now optional
-}
+// Enhanced function to find matches and update crush counts
+export const findMatches = functions.firestore
+    .document('users/{userId}')
+    .onUpdate(async (change, context) => {
+        const userId = context.params.userId;
+        const beforeData = change.before.data() as UserData;
+        const afterData = change.after.data() as UserData;
+
+        // Check if crushes were updated OR if name was updated
+        const beforeCrushes = beforeData?.crushes || [];
+        const afterCrushes = afterData?.crushes || [];
+        const beforeName = getUserIdentityName(beforeData as any);
+        const afterName = getUserIdentityName(afterData as any);
+
+        // Normalize arrays for comparison
+        const normalizedBefore = beforeCrushes.map(crush => crush.trim().toLowerCase()).sort();
+        const normalizedAfter = afterCrushes.map(crush => crush.trim().toLowerCase()).sort();
+
+        const crushesChanged = JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter);
+        const nameChanged = beforeName !== afterName;
+
+        console.log(`Checking update for user ${userId} (${afterName})`);
+        console.log(`Crushes changed: ${crushesChanged}, Name changed: ${nameChanged}`);
+
+        // Process if crushes changed OR if name changed (which affects how others' crushes map to this user)
+        if (crushesChanged || nameChanged) {
+            console.log(`✅ Processing update for user ${userId} (${afterName})`);
+
+            // Validate that locked crushes are still present (only for crush changes)
+            if (crushesChanged) {
+                const lockedCrushes = beforeData?.lockedCrushes || [];
+                const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
+
+                if (missingLockedCrushes.length > 0) {
+                    console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
+                    // Restore the locked crushes
+                    const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
+
+                    const userRef = db.collection('users').doc(userId);
+                    await userRef.update({
+                        crushes: restoredCrushes,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    console.log(`✅ Restored locked crushes for user ${userId}`);
+                    return null;
+                }
+            }
+
+            // Add a small delay to prevent race conditions
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            await processUpdatedCrushes();
+        } else {
+            console.log(`❌ No relevant changes detected for user ${userId} (${afterName}), skipping`);
+        }
+
+        return null;
+    });
+
+// Manual function to trigger complete recalculation
+export const recalculateAllMatches = functions.https.onRequest(async (req, res) => {
+    try {
+        await processUpdatedCrushes();
+        res.json({
+            success: true,
+            message: 'Successfully recalculated all matches and crush counts with enhanced name matching'
+        });
+    } catch (error) {
+        console.error('Error in recalculateAllMatches:', error);
+        res.status(500).json({ error: 'Failed to recalculate matches and crush counts' });
+    }
+});
+
+// NEW: Manual function to fix crush count discrepancies
+export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting manual fix of crush count discrepancies...');
+        await fixAllCrushCounts();
+        res.json({
+            success: true,
+            message: 'Successfully fixed all crush count discrepancies'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing crush count discrepancies:', error);
+        res.status(500).json({ error: 'Failed to fix crush count discrepancies' });
+    }
+});
+
+// NEW: Function to fix all match timestamps to now (one-time)
+export const fixMatchTimestampsToNow = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Setting all existing match timestamps to now...');
+        await fixAllMatchTimestampsToNow();
+        res.json({
+            success: true,
+            message: 'Successfully set all existing match timestamps to now (except James Park matches)'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing match timestamps:', error);
+        res.status(500).json({ error: 'Failed to fix match timestamps' });
+    }
+});
+
+// Legacy timestamp function
+export const fixMatchTimestamps = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting one-time fix for missing match timestamps...');
+        await fixAllMatchTimestampsToNow();
+        res.json({
+            success: true,
+            message: 'Successfully fixed missing match timestamps'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing match timestamps:', error);
+        res.status(500).json({ error: 'Failed to fix match timestamps' });
+    }
+});
+
+// New function to add timestamps to existing matches
+export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔄 Adding timestamps to existing matches...');
+
+        // Use current timestamp for all existing matches
+        const currentTimestamp = admin.firestore.Timestamp.now();
+
+        let updatedUsers = 0;
+        let totalMatchesUpdated = 0;
+
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const usersSnapshot = await transaction.get(db.collection('users'));
+
+            usersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                const matches = userData.matches || [];
+
+                if (matches.length > 0) {
+                    // Check if any matches are missing timestamps
+                    let needsUpdate = false;
+                    const updatedMatches = matches.map((match: any) => {
+                        if (!match.matchedAt) {
+                            needsUpdate = true;
+                            totalMatchesUpdated++;
+                            return {
+                                ...match,
+                                matchedAt: currentTimestamp
+                            };
+                        }
+                        return match;
+                    });
+
+                    if (needsUpdate) {
+                        const userRef = db.collection('users').doc(doc.id);
+                        transaction.update(userRef, {
+                            matches: updatedMatches,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        updatedUsers++;
+
+                        console.log(`✅ Updated ${updatedMatches.filter((m: any) => m.matchedAt === currentTimestamp).length} matches for user: ${userData.name || userData.email}`);
+                    }
+                }
+            });
+
+            console.log(`\n🎉 Migration completed!`);
+            console.log(`📊 Updated ${updatedUsers} users`);
+            console.log(`💕 Added timestamps to ${totalMatchesUpdated} existing matches`);
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully added timestamps to ${totalMatchesUpdated} existing matches across ${updatedUsers} users`
+        });
+
+    } catch (error) {
+        console.error('❌ Error adding timestamps to matches:', error);
+        res.status(500).json({ error: 'Failed to add timestamps to matches' });
+    }
+});
+
+// Migration function to clean up and standardize the database
+export const migrateToSingleNameField = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔄 Starting migration to single name field...');
+
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const allUsersSnapshot = await transaction.get(db.collection('users'));
+
+            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as any
+            }));
+
+            console.log(`📊 Processing ${allUsers.length} users for migration`);
+
+            let migratedUsers = 0;
+            let errorUsers = 0;
+
+            for (const user of allUsers) {
+                const userRef = db.collection('users').doc(user.id);
+
+                try {
+                    // Determine the best name to use
+                    let finalName = user.name;
+
+                    if (!finalName || finalName.trim() === '') {
+                        // Try verifiedName first, then displayName
+                        finalName = user.verifiedName || user.displayName || '';
+                    }
+
+                    if (!finalName || finalName.trim() === '') {
+                        console.log(`⚠️ User ${user.id} (${user.email}) has no name - skipping`);
+                        errorUsers++;
+                        continue;
+                    }
+
+                    // Prepare update data
+                    const updateData: any = {
+                        name: finalName,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    };
+
+                    // Remove legacy fields if they exist
+                    if (user.displayName !== undefined) {
+                        updateData.displayName = admin.firestore.FieldValue.delete();
+                    }
+                    if (user.verifiedName !== undefined) {
+                        updateData.verifiedName = admin.firestore.FieldValue.delete();
+                    }
+
+                    transaction.update(userRef, updateData);
+                    migratedUsers++;
+
+                    console.log(`✅ Migrated user ${user.email}: "${finalName}"`);
+
+                } catch (error) {
+                    console.error(`❌ Error migrating user ${user.id}:`, error);
+                    errorUsers++;
+                }
+            }
+
+            console.log(`🎉 Migration completed! Migrated: ${migratedUsers}, Errors: ${errorUsers}`);
+
+            // Now trigger a recalculation to fix any crush references
+            setTimeout(async () => {
+                await processUpdatedCrushes();
+            }, 2000);
+        });
+
+        res.json({
+            success: true,
+            message: 'Successfully migrated users to single name field'
+        });
+    } catch (error) {
+        console.error('❌ Error in migration:', error);
+        res.status(500).json({ error: 'Failed to migrate users' });
+    }
+});
+
+// Clean up orphaned crushes function
+export const cleanupOrphanedCrushes = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting cleanup of orphaned crushes...');
+
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const allUsersSnapshot = await transaction.get(db.collection('users'));
+
+            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as any
+            }));
+
+            console.log(`📊 Processing ${allUsers.length} users for cleanup`);
+
+            // Find all unique crush names and map them to actual users
+            const allCrushNames = new Set<string>();
+            const crushToUserMap = new Map<string, UserWithId>();
+
+            allUsers.forEach(user => {
+                const userCrushes = user.crushes || [];
+                userCrushes.forEach(crushName => {
+                    allCrushNames.add(crushName);
+                });
+
+                // Map user's identity name to the user
+                const identityName = getUserIdentityName(user);
+                if (identityName) {
+                    crushToUserMap.set(identityName, user);
+                }
+            });
+
+            console.log(`🔍 Found ${allCrushNames.size} unique crush names`);
+
+            // Update crushes to use consistent names
+            let updatedUsers = 0;
+
+            for (const user of allUsers) {
+                const userCrushes = user.crushes || [];
+                let needsUpdate = false;
+                const updatedCrushes: string[] = [];
+                const userClass = user.userClass || 'gsb';
+
+                for (const crushName of userCrushes) {
+                    const targetUser = findUserByName(crushName, allUsers, userClass);
+
+                    if (targetUser) {
+                        const correctName = getUserIdentityName(targetUser);
+                        if (correctName && correctName !== crushName) {
+                            console.log(`🔧 Updating crush "${crushName}" -> "${correctName}" for user ${user.email}`);
+                            needsUpdate = true;
+                        }
+                        updatedCrushes.push(correctName || crushName);
+                    } else {
+                        // Keep orphaned crushes as-is (they might sign up later)
+                        updatedCrushes.push(crushName);
+                    }
+                }
+
+                if (needsUpdate) {
+                    const userRef = db.collection('users').doc(user.id);
+                    transaction.update(userRef, {
+                        crushes: updatedCrushes,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                    updatedUsers++;
+                }
+            }
+
+            console.log(`✅ Updated ${updatedUsers} users with cleaned crush references`);
+
+            // Trigger recalculation
+            setTimeout(async () => {
+                await processUpdatedCrushes();
+            }, 2000);
+        });
+
+        res.json({
+            success: true,
+            message: 'Successfully cleaned up orphaned crushes'
+        });
+    } catch (error) {
+        console.error('❌ Error in cleanup:', error);
+        res.status(500).json({ error: 'Failed to cleanup orphaned crushes' });
+    }
+});
+
+// Clean up takenNames collection since we're not using it anymore
+export const removeTakenNamesCollection = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🗑️ Removing takenNames collection...');
+
+        const takenNamesSnapshot = await db.collection('takenNames').get();
+
+        if (takenNamesSnapshot.empty) {
+            res.json({
+                success: true,
+                message: 'takenNames collection is already empty'
+            });
+            return;
+        }
+
+        const batch = db.batch();
+        takenNamesSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        res.json({
+            success: true,
+            message: `Deleted ${takenNamesSnapshot.size} documents from takenNames collection`
+        });
+    } catch (error) {
+        console.error('❌ Error removing takenNames collection:', error);
+        res.status(500).json({ error: 'Failed to remove takenNames collection' });
+    }
+});
 
 ================
 File: src/components/shared/Navbar.tsx
@@ -8270,6 +8670,154 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
 export default AccountLinking;
 
 ================
+File: src/components/NameSelection.tsx
+================
+import React, { useState, useMemo } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { fuzzyNameMatch } from '../utils/emailUtils';
+
+const NameSelection: React.FC = () => {
+    const { user, nameOptions, selectName, logout } = useAuth();
+    const [selecting, setSelecting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Calculate match scores and check for high-confidence matches
+    const { scoredOptions, hasHighConfidenceMatch } = useMemo(() => {
+        if (!nameOptions || !user?.displayName) {
+            return { scoredOptions: nameOptions || [], hasHighConfidenceMatch: false };
+        }
+
+        const googleName = user.displayName;
+        const MIN_SCORE = 60;
+        const HIGH_CONFIDENCE_SCORE = 75;
+
+        const scored = nameOptions
+            .map(name => ({
+                name,
+                score: fuzzyNameMatch(googleName, name)
+            }))
+            .filter(item => item.score >= MIN_SCORE)
+            .sort((a, b) => b.score - a.score);
+
+        const hasHighConfidence = scored.some(item => item.score >= HIGH_CONFIDENCE_SCORE);
+
+        return {
+            scoredOptions: scored.map(item => item.name),
+            hasHighConfidenceMatch: hasHighConfidence
+        };
+    }, [nameOptions, user?.displayName]);
+
+    const handleNameSelect = async (selectedName: string) => {
+        if (selecting) return;
+
+        setSelecting(true);
+        setError(null);
+
+        try {
+            await selectName(selectedName);
+        } catch (error) {
+            console.error('Error selecting name:', error);
+            setError('Failed to save your selection. Please try again.');
+        } finally {
+            setSelecting(false);
+        }
+    };
+
+    if (!nameOptions) {
+        return <div className="loading">Loading...</div>;
+    }
+
+    const displayOptions = scoredOptions.length > 0 ? scoredOptions : nameOptions;
+
+    return (
+        <div className="verification-container">
+            <div className="verification-card">
+                <div className="verification-header">
+                    <h1>Second Chances</h1>
+                    <div className="user-info">
+                        <span>{user?.email}</span>
+                        <button className="logout-btn" onClick={logout}>Logout</button>
+                    </div>
+                </div>
+
+                <div className="verification-content">
+                    <h2>Select Your Name</h2>
+                    {user?.displayName && (
+                        <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
+                            Google account name: <strong>{user.displayName}</strong>
+                        </p>
+                    )}
+                    <p>Please select which of these options matches your identity:</p>
+
+                    {displayOptions.length > 0 ? (
+                        <>
+                            <div className="names-list">
+                                <h3>Potential Matches</h3>
+                                <div className="names-verification-list">
+                                    {displayOptions.map((name) => (
+                                        <div
+                                            key={name}
+                                            onClick={() => !selecting && handleNameSelect(name)}
+                                            className={`name-verification-item ${selecting ? 'disabled' : ''}`}
+                                        >
+                                            <span className="name-text">{name}</span>
+                                            <span className="select-btn">
+                                                Select
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="help-notice" style={{
+                                marginTop: '20px',
+                                padding: '12px',
+                                background: '#f8f9fa',
+                                borderRadius: '4px',
+                                fontSize: '0.9em',
+                                color: '#666'
+                            }}>
+                                {hasHighConfidenceMatch
+                                    ? <>We found strong matches to your Google name. If none of these are correct, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                                    : <>Don't see your name? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance</>
+                                }
+                            </div>
+                        </>
+                    ) : (
+                        <div style={{
+                            marginTop: '20px',
+                            padding: '20px',
+                            background: '#f8f9fa',
+                            borderRadius: '4px',
+                            textAlign: 'center'
+                        }}>
+                            <p>We couldn't find any matching names.</p>
+                            <p style={{ fontSize: '0.9em', color: '#666' }}>
+                                Please email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance.
+                            </p>
+                        </div>
+                    )}
+
+                    {selecting && (
+                        <div className="saving-indicator">
+                            Saving your selection...
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
+                            {error}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default NameSelection;
+
+================
 File: src/hooks/useAuthHelpers.ts
 ================
 import { useCallback } from 'react';
@@ -8583,406 +9131,6 @@ export default defineConfig({
 })
 
 ================
-File: functions/src/index.ts
-================
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
-import { UserData, UserWithId } from './types';
-import { findUserByName, getUserIdentityName } from './utils';
-import { processUpdatedCrushes, fixAllCrushCounts, fixAllMatchTimestampsToNow } from './matchingEngine';
-
-export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
-
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-    admin.initializeApp();
-}
-
-const db = admin.firestore();
-
-// Enhanced function to find matches and update crush counts
-export const findMatches = functions.firestore
-    .document('users/{userId}')
-    .onUpdate(async (change, context) => {
-        const userId = context.params.userId;
-        const beforeData = change.before.data() as UserData;
-        const afterData = change.after.data() as UserData;
-
-        // Check if crushes were updated OR if name was updated
-        const beforeCrushes = beforeData?.crushes || [];
-        const afterCrushes = afterData?.crushes || [];
-        const beforeName = getUserIdentityName(beforeData as any);
-        const afterName = getUserIdentityName(afterData as any);
-
-        // Normalize arrays for comparison
-        const normalizedBefore = beforeCrushes.map(crush => crush.trim().toLowerCase()).sort();
-        const normalizedAfter = afterCrushes.map(crush => crush.trim().toLowerCase()).sort();
-
-        const crushesChanged = JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter);
-        const nameChanged = beforeName !== afterName;
-
-        console.log(`Checking update for user ${userId} (${afterName})`);
-        console.log(`Crushes changed: ${crushesChanged}, Name changed: ${nameChanged}`);
-
-        // Process if crushes changed OR if name changed (which affects how others' crushes map to this user)
-        if (crushesChanged || nameChanged) {
-            console.log(`✅ Processing update for user ${userId} (${afterName})`);
-
-            // Validate that locked crushes are still present (only for crush changes)
-            if (crushesChanged) {
-                const lockedCrushes = beforeData?.lockedCrushes || [];
-                const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
-
-                if (missingLockedCrushes.length > 0) {
-                    console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
-                    // Restore the locked crushes
-                    const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
-
-                    const userRef = db.collection('users').doc(userId);
-                    await userRef.update({
-                        crushes: restoredCrushes,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    console.log(`✅ Restored locked crushes for user ${userId}`);
-                    return null;
-                }
-            }
-
-            // Add a small delay to prevent race conditions
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            await processUpdatedCrushes();
-        } else {
-            console.log(`❌ No relevant changes detected for user ${userId} (${afterName}), skipping`);
-        }
-
-        return null;
-    });
-
-// Manual function to trigger complete recalculation
-export const recalculateAllMatches = functions.https.onRequest(async (req, res) => {
-    try {
-        await processUpdatedCrushes();
-        res.json({
-            success: true,
-            message: 'Successfully recalculated all matches and crush counts with enhanced name matching'
-        });
-    } catch (error) {
-        console.error('Error in recalculateAllMatches:', error);
-        res.status(500).json({ error: 'Failed to recalculate matches and crush counts' });
-    }
-});
-
-// NEW: Manual function to fix crush count discrepancies
-export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting manual fix of crush count discrepancies...');
-        await fixAllCrushCounts();
-        res.json({
-            success: true,
-            message: 'Successfully fixed all crush count discrepancies'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing crush count discrepancies:', error);
-        res.status(500).json({ error: 'Failed to fix crush count discrepancies' });
-    }
-});
-
-// NEW: Function to fix all match timestamps to now (one-time)
-export const fixMatchTimestampsToNow = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Setting all existing match timestamps to now...');
-        await fixAllMatchTimestampsToNow();
-        res.json({
-            success: true,
-            message: 'Successfully set all existing match timestamps to now (except James Park matches)'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing match timestamps:', error);
-        res.status(500).json({ error: 'Failed to fix match timestamps' });
-    }
-});
-
-// Legacy timestamp function
-export const fixMatchTimestamps = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting one-time fix for missing match timestamps...');
-        await fixAllMatchTimestampsToNow();
-        res.json({
-            success: true,
-            message: 'Successfully fixed missing match timestamps'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing match timestamps:', error);
-        res.status(500).json({ error: 'Failed to fix match timestamps' });
-    }
-});
-
-// New function to add timestamps to existing matches
-export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔄 Adding timestamps to existing matches...');
-
-        // Use current timestamp for all existing matches
-        const currentTimestamp = admin.firestore.Timestamp.now();
-
-        let updatedUsers = 0;
-        let totalMatchesUpdated = 0;
-
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const usersSnapshot = await transaction.get(db.collection('users'));
-
-            usersSnapshot.forEach(doc => {
-                const userData = doc.data();
-                const matches = userData.matches || [];
-
-                if (matches.length > 0) {
-                    // Check if any matches are missing timestamps
-                    let needsUpdate = false;
-                    const updatedMatches = matches.map((match: any) => {
-                        if (!match.matchedAt) {
-                            needsUpdate = true;
-                            totalMatchesUpdated++;
-                            return {
-                                ...match,
-                                matchedAt: currentTimestamp
-                            };
-                        }
-                        return match;
-                    });
-
-                    if (needsUpdate) {
-                        const userRef = db.collection('users').doc(doc.id);
-                        transaction.update(userRef, {
-                            matches: updatedMatches,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                        });
-                        updatedUsers++;
-
-                        console.log(`✅ Updated ${updatedMatches.filter((m: any) => m.matchedAt === currentTimestamp).length} matches for user: ${userData.name || userData.email}`);
-                    }
-                }
-            });
-
-            console.log(`\n🎉 Migration completed!`);
-            console.log(`📊 Updated ${updatedUsers} users`);
-            console.log(`💕 Added timestamps to ${totalMatchesUpdated} existing matches`);
-        });
-
-        res.json({
-            success: true,
-            message: `Successfully added timestamps to ${totalMatchesUpdated} existing matches across ${updatedUsers} users`
-        });
-
-    } catch (error) {
-        console.error('❌ Error adding timestamps to matches:', error);
-        res.status(500).json({ error: 'Failed to add timestamps to matches' });
-    }
-});
-
-// Migration function to clean up and standardize the database
-export const migrateToSingleNameField = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔄 Starting migration to single name field...');
-
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-
-            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data() as any
-            }));
-
-            console.log(`📊 Processing ${allUsers.length} users for migration`);
-
-            let migratedUsers = 0;
-            let errorUsers = 0;
-
-            for (const user of allUsers) {
-                const userRef = db.collection('users').doc(user.id);
-
-                try {
-                    // Determine the best name to use
-                    let finalName = user.name;
-
-                    if (!finalName || finalName.trim() === '') {
-                        // Try verifiedName first, then displayName
-                        finalName = user.verifiedName || user.displayName || '';
-                    }
-
-                    if (!finalName || finalName.trim() === '') {
-                        console.log(`⚠️ User ${user.id} (${user.email}) has no name - skipping`);
-                        errorUsers++;
-                        continue;
-                    }
-
-                    // Prepare update data
-                    const updateData: any = {
-                        name: finalName,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    };
-
-                    // Remove legacy fields if they exist
-                    if (user.displayName !== undefined) {
-                        updateData.displayName = admin.firestore.FieldValue.delete();
-                    }
-                    if (user.verifiedName !== undefined) {
-                        updateData.verifiedName = admin.firestore.FieldValue.delete();
-                    }
-
-                    transaction.update(userRef, updateData);
-                    migratedUsers++;
-
-                    console.log(`✅ Migrated user ${user.email}: "${finalName}"`);
-
-                } catch (error) {
-                    console.error(`❌ Error migrating user ${user.id}:`, error);
-                    errorUsers++;
-                }
-            }
-
-            console.log(`🎉 Migration completed! Migrated: ${migratedUsers}, Errors: ${errorUsers}`);
-
-            // Now trigger a recalculation to fix any crush references
-            setTimeout(async () => {
-                await processUpdatedCrushes();
-            }, 2000);
-        });
-
-        res.json({
-            success: true,
-            message: 'Successfully migrated users to single name field'
-        });
-    } catch (error) {
-        console.error('❌ Error in migration:', error);
-        res.status(500).json({ error: 'Failed to migrate users' });
-    }
-});
-
-// Clean up orphaned crushes function
-export const cleanupOrphanedCrushes = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting cleanup of orphaned crushes...');
-
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-
-            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data() as any
-            }));
-
-            console.log(`📊 Processing ${allUsers.length} users for cleanup`);
-
-            // Find all unique crush names and map them to actual users
-            const allCrushNames = new Set<string>();
-            const crushToUserMap = new Map<string, UserWithId>();
-
-            allUsers.forEach(user => {
-                const userCrushes = user.crushes || [];
-                userCrushes.forEach(crushName => {
-                    allCrushNames.add(crushName);
-                });
-
-                // Map user's identity name to the user
-                const identityName = getUserIdentityName(user);
-                if (identityName) {
-                    crushToUserMap.set(identityName, user);
-                }
-            });
-
-            console.log(`🔍 Found ${allCrushNames.size} unique crush names`);
-
-            // Update crushes to use consistent names
-            let updatedUsers = 0;
-
-            for (const user of allUsers) {
-                const userCrushes = user.crushes || [];
-                let needsUpdate = false;
-                const updatedCrushes: string[] = [];
-                const userClass = user.userClass || 'gsb';
-
-                for (const crushName of userCrushes) {
-                    const targetUser = findUserByName(crushName, allUsers, userClass);
-
-                    if (targetUser) {
-                        const correctName = getUserIdentityName(targetUser);
-                        if (correctName && correctName !== crushName) {
-                            console.log(`🔧 Updating crush "${crushName}" -> "${correctName}" for user ${user.email}`);
-                            needsUpdate = true;
-                        }
-                        updatedCrushes.push(correctName || crushName);
-                    } else {
-                        // Keep orphaned crushes as-is (they might sign up later)
-                        updatedCrushes.push(crushName);
-                    }
-                }
-
-                if (needsUpdate) {
-                    const userRef = db.collection('users').doc(user.id);
-                    transaction.update(userRef, {
-                        crushes: updatedCrushes,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                    updatedUsers++;
-                }
-            }
-
-            console.log(`✅ Updated ${updatedUsers} users with cleaned crush references`);
-
-            // Trigger recalculation
-            setTimeout(async () => {
-                await processUpdatedCrushes();
-            }, 2000);
-        });
-
-        res.json({
-            success: true,
-            message: 'Successfully cleaned up orphaned crushes'
-        });
-    } catch (error) {
-        console.error('❌ Error in cleanup:', error);
-        res.status(500).json({ error: 'Failed to cleanup orphaned crushes' });
-    }
-});
-
-// Clean up takenNames collection since we're not using it anymore
-export const removeTakenNamesCollection = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🗑️ Removing takenNames collection...');
-
-        const takenNamesSnapshot = await db.collection('takenNames').get();
-
-        if (takenNamesSnapshot.empty) {
-            res.json({
-                success: true,
-                message: 'takenNames collection is already empty'
-            });
-            return;
-        }
-
-        const batch = db.batch();
-        takenNamesSnapshot.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-
-        await batch.commit();
-
-        res.json({
-            success: true,
-            message: `Deleted ${takenNamesSnapshot.size} documents from takenNames collection`
-        });
-    } catch (error) {
-        console.error('❌ Error removing takenNames collection:', error);
-        res.status(500).json({ error: 'Failed to remove takenNames collection' });
-    }
-});
-
-================
 File: src/components/admin/AdminAnalytics.tsx
 ================
 import React from 'react';
@@ -9220,154 +9368,6 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplay
 export default AdminAnalytics;
 
 ================
-File: src/components/NameSelection.tsx
-================
-import React, { useState, useMemo } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { fuzzyNameMatch } from '../utils/emailUtils';
-
-const NameSelection: React.FC = () => {
-    const { user, nameOptions, selectName, logout } = useAuth();
-    const [selecting, setSelecting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    // Calculate match scores and check for high-confidence matches
-    const { scoredOptions, hasHighConfidenceMatch } = useMemo(() => {
-        if (!nameOptions || !user?.displayName) {
-            return { scoredOptions: nameOptions || [], hasHighConfidenceMatch: false };
-        }
-
-        const googleName = user.displayName;
-        const MIN_SCORE = 60;
-        const HIGH_CONFIDENCE_SCORE = 75;
-
-        const scored = nameOptions
-            .map(name => ({
-                name,
-                score: fuzzyNameMatch(googleName, name)
-            }))
-            .filter(item => item.score >= MIN_SCORE)
-            .sort((a, b) => b.score - a.score);
-
-        const hasHighConfidence = scored.some(item => item.score >= HIGH_CONFIDENCE_SCORE);
-
-        return {
-            scoredOptions: scored.map(item => item.name),
-            hasHighConfidenceMatch: hasHighConfidence
-        };
-    }, [nameOptions, user?.displayName]);
-
-    const handleNameSelect = async (selectedName: string) => {
-        if (selecting) return;
-
-        setSelecting(true);
-        setError(null);
-
-        try {
-            await selectName(selectedName);
-        } catch (error) {
-            console.error('Error selecting name:', error);
-            setError('Failed to save your selection. Please try again.');
-        } finally {
-            setSelecting(false);
-        }
-    };
-
-    if (!nameOptions) {
-        return <div className="loading">Loading...</div>;
-    }
-
-    const displayOptions = scoredOptions.length > 0 ? scoredOptions : nameOptions;
-
-    return (
-        <div className="verification-container">
-            <div className="verification-card">
-                <div className="verification-header">
-                    <h1>Second Chances</h1>
-                    <div className="user-info">
-                        <span>{user?.email}</span>
-                        <button className="logout-btn" onClick={logout}>Logout</button>
-                    </div>
-                </div>
-
-                <div className="verification-content">
-                    <h2>Select Your Name</h2>
-                    {user?.displayName && (
-                        <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
-                            Google account name: <strong>{user.displayName}</strong>
-                        </p>
-                    )}
-                    <p>Please select which of these options matches your identity:</p>
-
-                    {displayOptions.length > 0 ? (
-                        <>
-                            <div className="names-list">
-                                <h3>Potential Matches</h3>
-                                <div className="names-verification-list">
-                                    {displayOptions.map((name) => (
-                                        <div
-                                            key={name}
-                                            onClick={() => !selecting && handleNameSelect(name)}
-                                            className={`name-verification-item ${selecting ? 'disabled' : ''}`}
-                                        >
-                                            <span className="name-text">{name}</span>
-                                            <span className="select-btn">
-                                                Select
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="help-notice" style={{
-                                marginTop: '20px',
-                                padding: '12px',
-                                background: '#f8f9fa',
-                                borderRadius: '4px',
-                                fontSize: '0.9em',
-                                color: '#666'
-                            }}>
-                                {hasHighConfidenceMatch
-                                    ? <>We found strong matches to your Google name. If none of these are correct, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
-                                    : <>Don't see your name? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance</>
-                                }
-                            </div>
-                        </>
-                    ) : (
-                        <div style={{
-                            marginTop: '20px',
-                            padding: '20px',
-                            background: '#f8f9fa',
-                            borderRadius: '4px',
-                            textAlign: 'center'
-                        }}>
-                            <p>We couldn't find any matching names.</p>
-                            <p style={{ fontSize: '0.9em', color: '#666' }}>
-                                Please email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a> for assistance.
-                            </p>
-                        </div>
-                    )}
-
-                    {selecting && (
-                        <div className="saving-indicator">
-                            Saving your selection...
-                        </div>
-                    )}
-
-                    {error && (
-                        <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
-                            {error}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default NameSelection;
-
-================
 File: src/components/Terms.tsx
 ================
 import React from 'react';
@@ -9475,252 +9475,6 @@ const Terms: React.FC = () => {
 export default Terms;
 
 ================
-File: src/styles/dashboard/dashboard-responsive.css
-================
-/* Dashboard Mobile Responsiveness */
-
-@media (max-width: 768px) {
-    .dashboard-container {
-      padding: 5px;
-    }
-    
-    .dashboard-header {
-      padding: 12px 15px;
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .header-left {
-      flex: 1;
-      gap: 8px;
-    }
-
-    .header-logo {
-      width: 24px;
-      height: 24px;
-    }
-
-    .header-title h1 {
-      font-size: 16px;
-    }
-
-    .header-subtitle {
-      font-size: 11px;
-      padding: 6px 12px;
-    }
-
-    .user-info {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 6px;
-      margin-left: auto;
-    }
-
-    .user-profile-link {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .header-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .logout-btn,
-    .admin-toggle-btn {
-      font-size: 10px;
-      padding: 5px 10px;
-      white-space: nowrap;
-    }
-    
-    .dashboard-content {
-      padding: 15px;
-      gap: 15px;
-    }
-    
-    /* Increase height for mobile to show more names */
-    .names-simple-list {
-      max-height: 60vh;
-    }
-    
-    .name-list-item {
-      padding: 14px 12px;
-      font-size: 13px;
-      min-height: 48px;
-    }
-    
-    .name-text {
-      font-weight: 500;
-    }
-    
-    .add-btn {
-      width: 28px;
-      height: 28px;
-      font-size: 20px;
-    }
-  
-    .name-chips {
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 6px;
-    }
-  
-    .name-chip {
-      font-size: 11px;
-      padding: 6px 10px;
-      min-height: 28px;
-    }
-  
-    .dashboard-content h2 {
-      font-size: 16px;
-    }
-  
-    .action-buttons {
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-  
-    .save-draft-btn, .submit-btn, .update-btn {
-      width: 100%;
-      max-width: 250px;
-      padding: 12px 16px;
-    }
-  
-    .submitted-message {
-      padding: 15px 10px;
-    }
-  
-    .matches-section {
-      padding: 12px;
-    }
-  
-    .matches-section h2 {
-      font-size: 16px;
-    }
-  
-    .matches-list {
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-  
-    .match-item {
-      padding: 12px;
-    }
-  
-    .match-name {
-      font-size: 14px;
-    }
-  
-    .selected-names {
-      padding: 12px;
-    }
-  
-    .crush-count-section {
-      padding: 12px;
-      margin-bottom: 15px;
-    }
-    
-    .crush-count-section h2 {
-      font-size: 16px;
-    }
-  
-    .instructions ol {
-      padding-left: 16px;
-    }
-    
-    .instructions li {
-      font-size: 13px;
-      margin-bottom: 6px;
-    }
-  
-    .locked-badge {
-      font-size: 9px;
-      padding: 1px 4px;
-    }
-    
-    .lock-icon {
-      font-size: 10px;
-    }
-  
-    .search-input-container {
-      margin-bottom: 10px;
-    }
-    
-    .search-clear-btn {
-      right: 12px;
-      width: 28px;
-      height: 28px;
-      font-size: 20px;
-    }
-    
-    .search-hint {
-      font-size: 10px;
-      padding: 5px 8px;
-    }
-    
-    .clear-all-btn, .submit-all-btn {
-      font-size: 11px;
-      padding: 6px 12px;
-    }
-    
-    .search-input {
-      font-size: 13px;
-      padding: 10px 40px 10px 12px;
-    }
-    
-    .matches-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-    }
-    
-    .unlock-btn {
-      font-size: 10px;
-      padding: 4px 8px;
-    }
-
-    .dashboard-footer {
-      padding: 15px;
-    }
-
-    .dashboard-footer a {
-      font-size: 12px;
-    }
-
-    .footer-separator {
-      margin: 0 8px;
-    }
-
-    /* Mobile dropdown styles */
-    .profile-dropdown-menu {
-        min-width: 180px;
-    }
-
-    .dropdown-item {
-        font-size: 13px;
-        padding: 10px 14px;
-    }
-
-    .dropdown-item.profile-item {
-        padding: 14px;
-    }
-
-    .dropdown-profile-pic {
-        width: 36px;
-        height: 36px;
-    }
-
-    .profile-pic {
-        width: 28px;
-        height: 28px;
-    }
-  }
-
-================
 File: src/types/index.ts
 ================
 export type UserClass = 'gsb' | 'undergrad';
@@ -9767,6 +9521,106 @@ export interface CrusherInfo {
     name: string;
     email: string;
 }
+
+================
+File: src/App.tsx
+================
+import React from 'react';
+import type { ReactNode } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import Login from './components/Login';
+import Home from './components/Home';
+import Profile from './components/Profile';
+import HowTo from './components/HowTo';
+import NameSelection from './components/NameSelection';
+import AccountLinking from './components/AccountLinking';
+import Privacy from './components/Privacy';
+import Terms from './components/Terms';
+import './App.css';
+
+interface ProtectedRouteProps {
+  children: ReactNode;
+}
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+  const { user, userData, loading, nameOptions, needsAccountLinking, completeAccountLinking, startNewAccount, logout } = useAuth();
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  // Check account linking first, before checking userData
+  if (needsAccountLinking) {
+    return (
+      <AccountLinking
+        user={user}
+        userClass="gsb"
+        onLinkingComplete={completeAccountLinking}
+        onStartNewAccount={startNewAccount}
+        logout={logout}
+      />
+    );
+  }
+
+  if (!userData) {
+    return <div className="loading">Setting up your account...</div>;
+  }
+
+  if (nameOptions && nameOptions.length > 0) {
+    return <NameSelection />;
+  }
+
+  if (!userData.name) {
+    return <div className="loading">Completing setup...</div>;
+  }
+
+  return <>{children}</>;
+};
+
+const App: React.FC = () => {
+  return (
+    <Router>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/howto"
+            element={
+              <ProtectedRoute>
+                <HowTo />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
+    </Router>
+  );
+};
+
+export default App;
 
 ================
 File: firestore.rules
@@ -10056,6 +9910,370 @@ const Privacy: React.FC = () => {
 export default Privacy;
 
 ================
+File: src/components/UserDashboard.tsx
+================
+import React from 'react';
+import { GSB_CLASS_NAMES } from '../data/names';
+import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
+import type { UserData } from '../types/userTypes';
+
+interface UserDashboardProps {
+    userData: UserData;
+    searchTerm: string;
+    setSearchTerm: (term: string) => void;
+    selectedNames: string[];
+    savedNames: string[];
+    updating: boolean;
+    error: string | null;
+    handleNameToggle: (name: string) => void;
+    handleRemoveSelected: (name: string) => void;
+    handleUpdatePreferences: () => void;
+}
+
+// Fast name matching function optimized for first/last name searches
+const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
+    if (!searchTerm.trim()) return { matches: true, score: 0 };
+
+    const normalizeText = (text: string) => text.toLowerCase().trim();
+    const normalizedName = normalizeText(fullName);
+    const normalizedSearch = normalizeText(searchTerm);
+
+    // Exact substring match (highest priority)
+    if (normalizedName.includes(normalizedSearch)) {
+        return { matches: true, score: 100 };
+    }
+
+    const nameParts = normalizedName.split(' ').filter(Boolean);
+    const searchParts = normalizedSearch.split(' ').filter(Boolean);
+
+    // First + Last name matching (most common use case)
+    if (searchParts.length >= 2) {
+        const searchFirst = searchParts[0];
+        const searchLast = searchParts[searchParts.length - 1];
+
+        if (nameParts.length >= 2) {
+            const nameFirst = nameParts[0];
+            const nameLast = nameParts[nameParts.length - 1];
+
+            // Exact first + last match
+            if (nameFirst === searchFirst && nameLast === searchLast) {
+                return { matches: true, score: 95 };
+            }
+
+            // Partial first + exact last
+            if (nameFirst.startsWith(searchFirst) && nameLast === searchLast) {
+                return { matches: true, score: 90 };
+            }
+
+            // Exact first + partial last
+            if (nameFirst === searchFirst && nameLast.startsWith(searchLast)) {
+                return { matches: true, score: 85 };
+            }
+        }
+    }
+
+    // Single term matching
+    if (searchParts.length === 1) {
+        const searchTerm = searchParts[0];
+
+        // Check if any name part starts with search term
+        if (nameParts.some(part => part.startsWith(searchTerm))) {
+            return { matches: true, score: 80 };
+        }
+    }
+
+    // Multi-word progressive matching
+    let nameIndex = 0;
+    let matchedParts = 0;
+
+    for (const searchPart of searchParts) {
+        for (let i = nameIndex; i < nameParts.length; i++) {
+            if (nameParts[i].startsWith(searchPart)) {
+                matchedParts++;
+                nameIndex = i + 1;
+                break;
+            }
+        }
+    }
+
+    if (matchedParts === searchParts.length) {
+        return { matches: true, score: 75 };
+    }
+
+    return { matches: false, score: 0 };
+};
+
+const UserDashboard: React.FC<UserDashboardProps> = ({
+    userData,
+    searchTerm,
+    setSearchTerm,
+    selectedNames,
+    savedNames,
+    updating,
+    error,
+    handleNameToggle,
+    handleRemoveSelected,
+    handleUpdatePreferences
+}) => {
+    const [virtualStart, setVirtualStart] = React.useState(0);
+    const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+    const hasMatches = userData?.matches && userData.matches.length > 0;
+    const crushCount = userData?.crushCount || 0;
+    const lockedCrushes = userData?.lockedCrushes || [];
+
+    // Ensure arrays are defined before using sort
+    const safeSelectedNames = selectedNames || [];
+    const safeSavedNames = savedNames || [];
+    const hasUnsavedChanges = JSON.stringify([...safeSelectedNames].sort()) !== JSON.stringify([...safeSavedNames].sort());
+
+    // Get the appropriate class names based on user's class
+    const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+    const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
+
+    // Handle search input change
+    const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+        setVirtualStart(0); // Reset scroll when search changes
+    }, [setSearchTerm]);
+
+    // Fast filtering with optimized name matching
+    const filteredAvailableNames = React.useMemo(() => {
+        const excludedNames = [...safeSelectedNames];
+
+        if (userData?.name) {
+            excludedNames.push(userData.name);
+        }
+
+        const availableNames = classNames.filter(name => !excludedNames.includes(name));
+
+        if (!searchTerm.trim()) return availableNames;
+
+        // Apply fast matching and sort by relevance score
+        const matchedNames = availableNames
+            .map(name => {
+                const result = matchesSearchTerm(name, searchTerm);
+                return { name, ...result };
+            })
+            .filter(item => item.matches)
+            .sort((a, b) => b.score - a.score)
+            .map(item => item.name);
+
+        return matchedNames;
+    }, [safeSelectedNames, searchTerm, userData?.name, classNames]);
+
+    // Virtual scrolling constants
+    const ITEM_HEIGHT = 48;
+    const VISIBLE_ITEMS = Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
+    const BUFFER_SIZE = 5;
+
+    // Calculate visible range for virtual scrolling
+    const startIndex = Math.max(0, virtualStart - BUFFER_SIZE);
+    const endIndex = Math.min(filteredAvailableNames.length, virtualStart + VISIBLE_ITEMS + BUFFER_SIZE);
+    const visibleNames = filteredAvailableNames.slice(startIndex, endIndex);
+
+    // Handle scroll for virtual scrolling
+    const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const scrollTop = e.currentTarget.scrollTop;
+        const newStart = Math.floor(scrollTop / ITEM_HEIGHT);
+
+        if (Math.abs(newStart - virtualStart) > 2) {
+            setVirtualStart(newStart);
+        }
+    }, [virtualStart]);
+
+    // Clear search function
+    const clearSearch = React.useCallback(() => {
+        setSearchTerm('');
+        setVirtualStart(0);
+        if (searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [setSearchTerm]);
+
+    // Simple function that just returns the name without highlighting
+    const highlightMatch = React.useCallback((name: string, _searchTerm: string) => {
+        return name;
+    }, []);
+
+    return (
+        <>
+            {crushCount > 0 && (
+                <div className="crush-count-section">
+                    <h2>{crushCount} {crushCount === 1 ? 'person is' : 'people are'} crushing on you!</h2>
+                </div>
+            )}
+
+            {hasMatches && (
+                <div className="matches-section">
+                    <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
+                    <div className="matches-list">
+                        {userData.matches.map((match, index) => (
+                            <div key={index} className="match-item">
+                                <div className="match-name">{match.name}</div>
+                                <div className="match-email">{match.email}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* <div className="header-section">
+                <div className="instructions">
+                    <ol>
+                        <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
+                        <li>Click "Update Preferences" to save your changes. Matches appear automatically when someone you've selected also selects you. Matches are completely private.</li>
+                        <li>You can add or remove names anytime. There's no limit on how many people you can select, and you can change your preferences as often as you want.</li>
+                        <li>Once you match with someone, you cannot remove them from your list.</li>
+                    </ol>
+                </div>
+            </div> */}
+
+            <div className="selection-counter">
+                {safeSelectedNames.length} selected
+                {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
+            </div>
+
+            {safeSelectedNames.length > 0 && (
+                <div className="selected-names">
+                    <h3>Your Selections ({safeSelectedNames.length})</h3>
+                    <div className="name-chips">
+                        {safeSelectedNames.map(name => {
+                            const isLocked = lockedCrushes.includes(name);
+                            return (
+                                <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>
+                                    <span>{name}</span>
+                                    {isLocked ? (
+                                        <span className="lock-icon" title="Locked - you have matched with this person">🔒</span>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleRemoveSelected(name)}
+                                            className="remove-btn"
+                                            aria-label={`Remove ${name}`}
+                                            disabled={updating}
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            <div className="search-section">
+                <div className="search-input-container">
+                    <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder={`Search ${classDisplayName} classmates...`}
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        className="search-input"
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={clearSearch}
+                            className="search-clear-btn"
+                            type="button"
+                            aria-label="Clear search"
+                        >
+                            ×
+                        </button>
+                    )}
+                </div>
+                {searchTerm && filteredAvailableNames.length > 0 && (
+                    <div className="search-hint">
+                        💡 {filteredAvailableNames.length} results found. Try "first last" for best results.
+                    </div>
+                )}
+            </div>
+
+            <div className="available-names">
+                <h3>
+                    Classmates
+                    {searchTerm && ` (${filteredAvailableNames.length} found)`}
+                    {!searchTerm && ` (${filteredAvailableNames.length} available)`}
+                </h3>
+                <div
+                    className="names-simple-list"
+                    onScroll={handleScroll}
+                    style={{ height: `${VISIBLE_ITEMS * ITEM_HEIGHT}px` }}
+                >
+                    {/* Spacer for items before visible range */}
+                    {startIndex > 0 && (
+                        <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
+                    )}
+
+                    {visibleNames.map((name, index) => {
+                        const actualIndex = startIndex + index;
+                        return (
+                            <div
+                                key={`${name}-${actualIndex}`}
+                                onClick={() => !updating && handleNameToggle(name)}
+                                className={`name-list-item ${updating ? 'disabled' : ''}`}
+                                style={{
+                                    height: `${ITEM_HEIGHT}px`,
+                                    minHeight: `${ITEM_HEIGHT}px`
+                                }}
+                            >
+                                <span className="name-text">
+                                    {highlightMatch(name, searchTerm)}
+                                </span>
+                                <span className="add-btn">+</span>
+                            </div>
+                        );
+                    })}
+
+                    {/* Spacer for items after visible range */}
+                    {endIndex < filteredAvailableNames.length && (
+                        <div style={{ height: `${(filteredAvailableNames.length - endIndex) * ITEM_HEIGHT}px` }} />
+                    )}
+
+                    {filteredAvailableNames.length === 0 && (
+                        <div className="no-results">
+                            {searchTerm ? (
+                                <>
+                                    No names found matching "{searchTerm}".
+                                    <br />
+                                    <small>Try searching with just first and last name (e.g., "john smith")</small>
+                                    <button onClick={clearSearch} className="clear-search-link">
+                                        Clear search
+                                    </button>
+                                </>
+                            ) : (
+                                'All classmates have been selected!'
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="action-section">
+                <div className="action-buttons">
+                    <button
+                        onClick={handleUpdatePreferences}
+                        disabled={updating || !hasUnsavedChanges}
+                        className="update-btn"
+                    >
+                        {updating ? 'Updating...' : 'Update Preferences'}
+                    </button>
+                </div>
+            </div>
+
+            {error && (
+                <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
+                    {error}
+                </div>
+            )}
+        </>
+    );
+};
+
+export default UserDashboard;
+
+================
 File: src/config/firebase.ts
 ================
 import { initializeApp } from "firebase/app";
@@ -10093,6 +10311,260 @@ googleProvider.setCustomParameters({
 });
 
 auth.useDeviceLanguage();
+
+================
+File: src/styles/dashboard/dashboard-responsive.css
+================
+/* Dashboard Mobile Responsiveness */
+
+@media (max-width: 768px) {
+    .dashboard-container {
+      padding: 5px;
+    }
+    
+    .dashboard-header {
+      padding: 12px 15px;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-left {
+      flex: 1;
+      gap: 8px;
+    }
+
+    .header-logo {
+      width: 24px;
+      height: 24px;
+    }
+
+    .header-title h1 {
+      font-size: 16px;
+    }
+
+    .header-subtitle {
+      font-size: 11px;
+      padding: 6px 12px;
+    }
+
+    .user-info {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .user-profile-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .logout-btn,
+    .admin-toggle-btn {
+      font-size: 10px;
+      padding: 5px 10px;
+      white-space: nowrap;
+    }
+    
+    .dashboard-content {
+      padding: 15px;
+      gap: 15px;
+    }
+    
+    /* Increase height for mobile to show more names */
+    .names-simple-list {
+      max-height: 60vh;
+    }
+    
+    .name-list-item {
+      padding: 14px 12px;
+      font-size: 13px;
+      min-height: 48px;
+    }
+    
+    .name-text {
+      font-weight: 500;
+    }
+    
+    .add-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 20px;
+    }
+  
+    .name-chips {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 6px;
+    }
+  
+    .name-chip {
+      font-size: 11px;
+      padding: 6px 10px;
+      min-height: 28px;
+    }
+  
+    .dashboard-content h2 {
+      font-size: 16px;
+    }
+  
+    .action-buttons {
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+  
+    .save-draft-btn, .submit-btn, .update-btn {
+      width: 100%;
+      max-width: 250px;
+      padding: 12px 16px;
+    }
+  
+    .submitted-message {
+      padding: 15px 10px;
+    }
+  
+    .matches-section {
+      padding: 12px;
+    }
+  
+    .matches-section h2 {
+      font-size: 16px;
+    }
+  
+    .matches-list {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+  
+    .match-item {
+      padding: 12px;
+    }
+  
+    .match-name {
+      font-size: 14px;
+    }
+  
+    .selected-names {
+      padding: 12px;
+    }
+  
+    .crush-count-section {
+      padding: 12px;
+      margin-bottom: 15px;
+    }
+    
+    .crush-count-section h2 {
+      font-size: 16px;
+    }
+  
+    .instructions ol {
+      padding-left: 16px;
+    }
+    
+    .instructions li {
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+  
+    .locked-badge {
+      font-size: 9px;
+      padding: 1px 4px;
+    }
+    
+    .lock-icon {
+      font-size: 10px;
+    }
+  
+    .search-input-container {
+      margin-bottom: 10px;
+    }
+    
+    .search-clear-btn {
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      font-size: 20px;
+    }
+    
+    .search-hint {
+      font-size: 10px;
+      padding: 5px 8px;
+    }
+    
+    .clear-all-btn, .submit-all-btn {
+      font-size: 11px;
+      padding: 6px 12px;
+    }
+    
+    .search-input {
+      font-size: 13px;
+      padding: 10px 40px 10px 12px;
+    }
+    
+    .matches-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    
+    .unlock-btn {
+      font-size: 10px;
+      padding: 4px 8px;
+    }
+
+    .dashboard-footer {
+      padding: 15px;
+    }
+
+    .dashboard-footer a {
+      font-size: 12px;
+    }
+
+    .footer-separator {
+      margin: 0 8px;
+    }
+
+    /* Mobile dropdown styles */
+    .profile-dropdown-menu {
+        min-width: 180px;
+    }
+
+    .dropdown-item {
+        font-size: 13px;
+        padding: 10px 14px;
+    }
+
+    .dropdown-item.profile-item {
+        padding: 14px;
+    }
+
+    .dropdown-profile-pic {
+        width: 36px;
+        height: 36px;
+    }
+
+    .profile-pic {
+        width: 36px;
+        height: 36px;
+    }
+  }
+
+================
+File: src/styles/admin.css
+================
+/* Admin View Main Styles */
+@import './admin/admin-base.css';
+@import './admin/admin-layout.css';
+@import './admin/admin-responsive.css';
 
 ================
 File: src/styles/auth.css
@@ -10858,478 +11330,6 @@ export interface UserData {
 export interface UserWithId extends UserData {
     id: string;
 }
-
-================
-File: src/App.tsx
-================
-import React from 'react';
-import type { ReactNode } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Login from './components/Login';
-import Home from './components/Home';
-import Profile from './components/Profile';
-import HowTo from './components/HowTo';
-import NameSelection from './components/NameSelection';
-import AccountLinking from './components/AccountLinking';
-import Privacy from './components/Privacy';
-import Terms from './components/Terms';
-import './App.css';
-
-interface ProtectedRouteProps {
-  children: ReactNode;
-}
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, userData, loading, nameOptions, needsAccountLinking, completeAccountLinking, startNewAccount, logout } = useAuth();
-
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
-  // Check account linking first, before checking userData
-  if (needsAccountLinking) {
-    return (
-      <AccountLinking
-        user={user}
-        userClass="gsb"
-        onLinkingComplete={completeAccountLinking}
-        onStartNewAccount={startNewAccount}
-        logout={logout}
-      />
-    );
-  }
-
-  if (!userData) {
-    return <div className="loading">Setting up your account...</div>;
-  }
-
-  if (nameOptions && nameOptions.length > 0) {
-    return <NameSelection />;
-  }
-
-  if (!userData.name) {
-    return <div className="loading">Completing setup...</div>;
-  }
-
-  return <>{children}</>;
-};
-
-const App: React.FC = () => {
-  return (
-    <Router>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/howto"
-            element={
-              <ProtectedRoute>
-                <HowTo />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </AuthProvider>
-    </Router>
-  );
-};
-
-export default App;
-
-================
-File: src/components/UserDashboard.tsx
-================
-import React from 'react';
-import { GSB_CLASS_NAMES } from '../data/names';
-import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData } from '../types/userTypes';
-
-interface UserDashboardProps {
-    userData: UserData;
-    searchTerm: string;
-    setSearchTerm: (term: string) => void;
-    selectedNames: string[];
-    savedNames: string[];
-    updating: boolean;
-    error: string | null;
-    handleNameToggle: (name: string) => void;
-    handleRemoveSelected: (name: string) => void;
-    handleUpdatePreferences: () => void;
-}
-
-// Fast name matching function optimized for first/last name searches
-const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
-    if (!searchTerm.trim()) return { matches: true, score: 0 };
-
-    const normalizeText = (text: string) => text.toLowerCase().trim();
-    const normalizedName = normalizeText(fullName);
-    const normalizedSearch = normalizeText(searchTerm);
-
-    // Exact substring match (highest priority)
-    if (normalizedName.includes(normalizedSearch)) {
-        return { matches: true, score: 100 };
-    }
-
-    const nameParts = normalizedName.split(' ').filter(Boolean);
-    const searchParts = normalizedSearch.split(' ').filter(Boolean);
-
-    // First + Last name matching (most common use case)
-    if (searchParts.length >= 2) {
-        const searchFirst = searchParts[0];
-        const searchLast = searchParts[searchParts.length - 1];
-
-        if (nameParts.length >= 2) {
-            const nameFirst = nameParts[0];
-            const nameLast = nameParts[nameParts.length - 1];
-
-            // Exact first + last match
-            if (nameFirst === searchFirst && nameLast === searchLast) {
-                return { matches: true, score: 95 };
-            }
-
-            // Partial first + exact last
-            if (nameFirst.startsWith(searchFirst) && nameLast === searchLast) {
-                return { matches: true, score: 90 };
-            }
-
-            // Exact first + partial last
-            if (nameFirst === searchFirst && nameLast.startsWith(searchLast)) {
-                return { matches: true, score: 85 };
-            }
-        }
-    }
-
-    // Single term matching
-    if (searchParts.length === 1) {
-        const searchTerm = searchParts[0];
-
-        // Check if any name part starts with search term
-        if (nameParts.some(part => part.startsWith(searchTerm))) {
-            return { matches: true, score: 80 };
-        }
-    }
-
-    // Multi-word progressive matching
-    let nameIndex = 0;
-    let matchedParts = 0;
-
-    for (const searchPart of searchParts) {
-        for (let i = nameIndex; i < nameParts.length; i++) {
-            if (nameParts[i].startsWith(searchPart)) {
-                matchedParts++;
-                nameIndex = i + 1;
-                break;
-            }
-        }
-    }
-
-    if (matchedParts === searchParts.length) {
-        return { matches: true, score: 75 };
-    }
-
-    return { matches: false, score: 0 };
-};
-
-const UserDashboard: React.FC<UserDashboardProps> = ({
-    userData,
-    searchTerm,
-    setSearchTerm,
-    selectedNames,
-    savedNames,
-    updating,
-    error,
-    handleNameToggle,
-    handleRemoveSelected,
-    handleUpdatePreferences
-}) => {
-    const [virtualStart, setVirtualStart] = React.useState(0);
-    const searchInputRef = React.useRef<HTMLInputElement>(null);
-
-    const hasMatches = userData?.matches && userData.matches.length > 0;
-    const crushCount = userData?.crushCount || 0;
-    const lockedCrushes = userData?.lockedCrushes || [];
-
-    // Ensure arrays are defined before using sort
-    const safeSelectedNames = selectedNames || [];
-    const safeSavedNames = savedNames || [];
-    const hasUnsavedChanges = JSON.stringify([...safeSelectedNames].sort()) !== JSON.stringify([...safeSavedNames].sort());
-
-    // Get the appropriate class names based on user's class
-    const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
-    const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
-
-    // Handle search input change
-    const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value);
-        setVirtualStart(0); // Reset scroll when search changes
-    }, [setSearchTerm]);
-
-    // Fast filtering with optimized name matching
-    const filteredAvailableNames = React.useMemo(() => {
-        const excludedNames = [...safeSelectedNames];
-
-        if (userData?.name) {
-            excludedNames.push(userData.name);
-        }
-
-        const availableNames = classNames.filter(name => !excludedNames.includes(name));
-
-        if (!searchTerm.trim()) return availableNames;
-
-        // Apply fast matching and sort by relevance score
-        const matchedNames = availableNames
-            .map(name => {
-                const result = matchesSearchTerm(name, searchTerm);
-                return { name, ...result };
-            })
-            .filter(item => item.matches)
-            .sort((a, b) => b.score - a.score)
-            .map(item => item.name);
-
-        return matchedNames;
-    }, [safeSelectedNames, searchTerm, userData?.name, classNames]);
-
-    // Virtual scrolling constants
-    const ITEM_HEIGHT = 48;
-    const VISIBLE_ITEMS = Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
-    const BUFFER_SIZE = 5;
-
-    // Calculate visible range for virtual scrolling
-    const startIndex = Math.max(0, virtualStart - BUFFER_SIZE);
-    const endIndex = Math.min(filteredAvailableNames.length, virtualStart + VISIBLE_ITEMS + BUFFER_SIZE);
-    const visibleNames = filteredAvailableNames.slice(startIndex, endIndex);
-
-    // Handle scroll for virtual scrolling
-    const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
-        const scrollTop = e.currentTarget.scrollTop;
-        const newStart = Math.floor(scrollTop / ITEM_HEIGHT);
-
-        if (Math.abs(newStart - virtualStart) > 2) {
-            setVirtualStart(newStart);
-        }
-    }, [virtualStart]);
-
-    // Clear search function
-    const clearSearch = React.useCallback(() => {
-        setSearchTerm('');
-        setVirtualStart(0);
-        if (searchInputRef.current) {
-            searchInputRef.current.focus();
-        }
-    }, [setSearchTerm]);
-
-    // Simple function that just returns the name without highlighting
-    const highlightMatch = React.useCallback((name: string, _searchTerm: string) => {
-        return name;
-    }, []);
-
-    return (
-        <>
-            {crushCount > 0 && (
-                <div className="crush-count-section">
-                    <h2>{crushCount} {crushCount === 1 ? 'person is' : 'people are'} crushing on you!</h2>
-                </div>
-            )}
-
-            {hasMatches && (
-                <div className="matches-section">
-                    <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
-                    <div className="matches-list">
-                        {userData.matches.map((match, index) => (
-                            <div key={index} className="match-item">
-                                <div className="match-name">{match.name}</div>
-                                <div className="match-email">{match.email}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* <div className="header-section">
-                <div className="instructions">
-                    <ol>
-                        <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
-                        <li>Click "Update Preferences" to save your changes. Matches appear automatically when someone you've selected also selects you. Matches are completely private.</li>
-                        <li>You can add or remove names anytime. There's no limit on how many people you can select, and you can change your preferences as often as you want.</li>
-                        <li>Once you match with someone, you cannot remove them from your list.</li>
-                    </ol>
-                </div>
-            </div> */}
-
-            <div className="selection-counter">
-                {safeSelectedNames.length} selected
-                {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
-            </div>
-
-            {safeSelectedNames.length > 0 && (
-                <div className="selected-names">
-                    <h3>Your Selections ({safeSelectedNames.length})</h3>
-                    <div className="name-chips">
-                        {safeSelectedNames.map(name => {
-                            const isLocked = lockedCrushes.includes(name);
-                            return (
-                                <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>
-                                    <span>{name}</span>
-                                    {isLocked ? (
-                                        <span className="lock-icon" title="Locked - you have matched with this person">🔒</span>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleRemoveSelected(name)}
-                                            className="remove-btn"
-                                            aria-label={`Remove ${name}`}
-                                            disabled={updating}
-                                        >
-                                            ×
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            <div className="search-section">
-                <div className="search-input-container">
-                    <input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder={`Search ${classDisplayName} classmates...`}
-                        value={searchTerm}
-                        onChange={handleSearchChange}
-                        className="search-input"
-                    />
-                    {searchTerm && (
-                        <button
-                            onClick={clearSearch}
-                            className="search-clear-btn"
-                            type="button"
-                            aria-label="Clear search"
-                        >
-                            ×
-                        </button>
-                    )}
-                </div>
-                {searchTerm && filteredAvailableNames.length > 0 && (
-                    <div className="search-hint">
-                        💡 {filteredAvailableNames.length} results found. Try "first last" for best results.
-                    </div>
-                )}
-            </div>
-
-            <div className="available-names">
-                <h3>
-                    Classmates
-                    {searchTerm && ` (${filteredAvailableNames.length} found)`}
-                    {!searchTerm && ` (${filteredAvailableNames.length} available)`}
-                </h3>
-                <div
-                    className="names-simple-list"
-                    onScroll={handleScroll}
-                    style={{ height: `${VISIBLE_ITEMS * ITEM_HEIGHT}px` }}
-                >
-                    {/* Spacer for items before visible range */}
-                    {startIndex > 0 && (
-                        <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
-                    )}
-
-                    {visibleNames.map((name, index) => {
-                        const actualIndex = startIndex + index;
-                        return (
-                            <div
-                                key={`${name}-${actualIndex}`}
-                                onClick={() => !updating && handleNameToggle(name)}
-                                className={`name-list-item ${updating ? 'disabled' : ''}`}
-                                style={{
-                                    height: `${ITEM_HEIGHT}px`,
-                                    minHeight: `${ITEM_HEIGHT}px`
-                                }}
-                            >
-                                <span className="name-text">
-                                    {highlightMatch(name, searchTerm)}
-                                </span>
-                                <span className="add-btn">+</span>
-                            </div>
-                        );
-                    })}
-
-                    {/* Spacer for items after visible range */}
-                    {endIndex < filteredAvailableNames.length && (
-                        <div style={{ height: `${(filteredAvailableNames.length - endIndex) * ITEM_HEIGHT}px` }} />
-                    )}
-
-                    {filteredAvailableNames.length === 0 && (
-                        <div className="no-results">
-                            {searchTerm ? (
-                                <>
-                                    No names found matching "{searchTerm}".
-                                    <br />
-                                    <small>Try searching with just first and last name (e.g., "john smith")</small>
-                                    <button onClick={clearSearch} className="clear-search-link">
-                                        Clear search
-                                    </button>
-                                </>
-                            ) : (
-                                'All classmates have been selected!'
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <div className="action-section">
-                <div className="action-buttons">
-                    <button
-                        onClick={handleUpdatePreferences}
-                        disabled={updating || !hasUnsavedChanges}
-                        className="update-btn"
-                    >
-                        {updating ? 'Updating...' : 'Update Preferences'}
-                    </button>
-                </div>
-            </div>
-
-            {error && (
-                <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
-                    {error}
-                </div>
-            )}
-        </>
-    );
-};
-
-export default UserDashboard;
-
-================
-File: src/styles/admin.css
-================
-/* Admin View Main Styles */
-@import './admin/admin-base.css';
-@import './admin/admin-layout.css';
-@import './admin/admin-responsive.css';
 
 ================
 File: src/components/admin/AdminUsers.tsx
@@ -12124,259 +12124,579 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
 export default AdminUsers;
 
 ================
-File: src/styles/dashboard/dashboard-layout.css
+File: functions/src/matchingEngine.ts
 ================
-/* Dashboard Layout Styles */
-.dashboard-container {
-    min-height: 100vh;
-    padding: 10px;
-    background-color: #f8f9fa;
-  }
-  
-  .dashboard-card {
-    max-width: 900px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    min-height: calc(100vh - 20px);
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .dashboard-header {
-    background: #8C1515;
-    color: white;
-    padding: 15px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    flex-shrink: 0;
-  }
+import * as admin from 'firebase-admin';
+import { UserWithId, MatchInfo } from './types';
+import { findUserByName, getUserIdentityName } from './utils';
 
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .header-logo {
-    width: 28px;
-    height: 28px;
-    object-fit: contain;
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-  }
-
-  .header-logo:hover {
-    opacity: 0.8;
-  }
-  
-  .dashboard-header h1 {
-    font-size: 20px;
-    font-weight: 700;
-  }
-
-  .header-title {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .header-title h1 {
-    margin: 0;
-  }
-
-  .header-subtitle {
-    background: #f8f9fa;
-    padding: 10px 20px;
-    text-align: left;
-    font-size: 14px;
-    font-weight: 600;
-    color: #8C1515;
-    border-bottom: 1px solid #e9ecef;
-  }
-  
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .user-profile-link {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .user-info span {
-    font-size: 12px;
-    opacity: 0.9;
-  }
-
-  .admin-toggle-btn {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
-
-  .admin-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
-  
-  .logout-btn {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease;
-  }
-  
-  .logout-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
-  
-  .dashboard-content {
-    padding: 20px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .dashboard-footer {
-    padding: 20px;
-    text-align: center;
-    border-top: 1px solid #e9ecef;
-    background: #f8f9fa;
-  }
-
-  .dashboard-footer a {
-    color: #6c757d;
-    text-decoration: none;
-    font-size: 14px;
-    transition: color 0.2s;
-  }
-
-  .dashboard-footer a:hover {
-    color: #8C1515;
-  }
-
-  .footer-separator {
-    color: #dee2e6;
-    margin: 0 12px;
-    font-weight: 300;
-  }
-
-/* Profile Dropdown Styles */
-.profile-dropdown {
-    position: relative;
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+    admin.initializeApp();
 }
 
-.profile-dropdown-trigger {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    transition: opacity 0.2s;
+const db = admin.firestore();
+
+// Helper function to determine if a match should have a timestamp
+function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
+    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
+    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') ||
+        user1Name === 'James Park' ||
+        user1Id.includes('_gsb') && user1Id.includes('jpark22@stanford.edu') ||
+        user1Id.includes('_undergrad') && user1Id.includes('jpark22@stanford.edu');
+
+    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') ||
+        user2Name === 'James Park' ||
+        user2Id.includes('_gsb') && user2Id.includes('jpark22@stanford.edu') ||
+        user2Id.includes('_undergrad') && user2Id.includes('jpark22@stanford.edu');
+
+    // Skip timestamp for ANY James Park matches (GSB or undergrad)
+    if (isUser1JamesPark || isUser2JamesPark) {
+        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
+        return false;
+    }
+
+    // All other matches should have timestamps
+    return true;
 }
 
-.profile-dropdown-trigger:hover {
-    opacity: 0.9;
+// Enhanced function to recalculate all matches and crush counts with better name matching
+// Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
+export async function processUpdatedCrushes(): Promise<void> {
+    console.log('🔄 Starting enhanced recalculation of all matches and crush counts with class separation...');
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const allUsersSnapshot = await transaction.get(db.collection('users'));
+
+            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as any
+            }));
+
+            console.log(`📊 Processing ${allUsers.length} users`);
+
+            // Separate users by class
+            const gsbUsers = allUsers.filter(user => user.userClass === 'gsb' || !user.userClass); // Default to GSB for backwards compatibility
+            const undergradUsers = allUsers.filter(user => user.userClass === 'undergrad');
+
+            console.log(`📊 GSB users: ${gsbUsers.length}, Undergrad users: ${undergradUsers.length}`);
+
+            // Enhanced crush count calculation with better name matching and class separation
+            const crushCounts = new Map<string, number>();
+            const crushersMap = new Map<string, string[]>(); // Track who is crushing on whom
+
+            // Process GSB users
+            for (const user of gsbUsers) {
+                const userCrushes = user.crushes || [];
+                for (const crushName of userCrushes) {
+                    // Find the actual user that matches this crush name within GSB class
+                    const targetUser = findUserByName(crushName, gsbUsers, 'gsb');
+
+                    if (targetUser) {
+                        // Use the user's identity name
+                        const actualName = getUserIdentityName(targetUser);
+                        if (actualName) {
+                            const key = `gsb:${actualName}`;
+                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+
+                            // Track the crusher
+                            if (!crushersMap.has(key)) {
+                                crushersMap.set(key, []);
+                            }
+                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                        }
+                    } else {
+                        // If no user found, still count it but use the crush name directly
+                        console.log(`⚠️ No GSB user found for crush name: "${crushName}" - counting anyway`);
+                        const key = `gsb:${crushName}`;
+                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+
+                        // Track the crusher for orphaned crushes too
+                        if (!crushersMap.has(key)) {
+                            crushersMap.set(key, []);
+                        }
+                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                    }
+                }
+            }
+
+            // Process Undergrad users
+            for (const user of undergradUsers) {
+                const userCrushes = user.crushes || [];
+                for (const crushName of userCrushes) {
+                    // Find the actual user that matches this crush name within undergrad class
+                    const targetUser = findUserByName(crushName, undergradUsers, 'undergrad');
+
+                    if (targetUser) {
+                        // Use the user's identity name
+                        const actualName = getUserIdentityName(targetUser);
+                        if (actualName) {
+                            const key = `undergrad:${actualName}`;
+                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+
+                            // Track the crusher
+                            if (!crushersMap.has(key)) {
+                                crushersMap.set(key, []);
+                            }
+                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                        }
+                    } else {
+                        // If no user found, still count it but use the crush name directly
+                        console.log(`⚠️ No undergrad user found for crush name: "${crushName}" - counting anyway`);
+                        const key = `undergrad:${crushName}`;
+                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
+
+                        // Track the crusher for orphaned crushes too
+                        if (!crushersMap.has(key)) {
+                            crushersMap.set(key, []);
+                        }
+                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                    }
+                }
+            }
+
+            console.log('💕 Enhanced crush counts calculated:', Object.fromEntries(crushCounts));
+
+            // Calculate matches and locked crushes with enhanced matching and class separation
+            const allMatches = new Map<string, MatchInfo[]>();
+            const allLockedCrushes = new Map<string, string[]>();
+
+            // Process both classes together but only allow matches within same class
+            for (const user of allUsers) {
+                const userMatches: MatchInfo[] = [];
+                const userLockedCrushes: string[] = [];
+                const userCrushes = user.crushes || [];
+                const userIdentityName = getUserIdentityName(user);
+                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
+
+                if (!userIdentityName || !userIdentityName.trim()) {
+                    console.log(`⏭️ Skipping user ${user.id} - no identity name`);
+                    allMatches.set(user.id, userMatches);
+                    allLockedCrushes.set(user.id, userLockedCrushes);
+                    continue;
+                }
+
+                // Get users from the same class only
+                const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
+
+                // Get existing matches to preserve timestamps (CRITICAL: preserve exact timestamp objects)
+                const existingMatches = user.matches || [];
+                const existingMatchMap = new Map<string, any>();
+                existingMatches.forEach(match => {
+                    if (match.name) {
+                        existingMatchMap.set(match.name, match);
+                    }
+                });
+
+                // Find mutual matches with enhanced name matching within same class
+                for (const crushName of userCrushes) {
+                    const crushedUser = findUserByName(crushName, sameClassUsers, userClass);
+
+                    if (!crushedUser) {
+                        console.log(`⚠️ No ${userClass} user found for crush name: "${crushName}"`);
+                        continue;
+                    }
+
+                    const crushedUserCrushes = crushedUser.crushes || [];
+
+                    // Check if it's a mutual match using enhanced matching within same class
+                    const hasMutualCrush = crushedUserCrushes.some(crush => {
+                        const matchedUser = findUserByName(crush, sameClassUsers, userClass);
+                        return matchedUser && matchedUser.id === user.id;
+                    });
+
+                    if (hasMutualCrush) {
+                        const crushedUserIdentityName = getUserIdentityName(crushedUser);
+
+                        // Check if this is an existing match to preserve timestamp
+                        const existingMatch = existingMatchMap.get(crushedUserIdentityName);
+
+                        // Determine if this match should have a timestamp
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(user.id, crushedUser.id, userIdentityName, crushedUserIdentityName);
+
+                        let matchInfo: MatchInfo;
+
+                        if (shouldHaveTimestamp) {
+                            if (existingMatch && existingMatch.matchedAt) {
+                                // PRESERVE the exact existing timestamp object - don't convert it
+                                matchInfo = {
+                                    name: crushedUserIdentityName,
+                                    email: crushedUser.email,
+                                    matchedAt: existingMatch.matchedAt
+                                };
+                                console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                            } else {
+                                // NEW MATCH - Create timestamp at the exact moment this match is discovered
+                                matchInfo = {
+                                    name: crushedUserIdentityName,
+                                    email: crushedUser.email,
+                                    matchedAt: admin.firestore.Timestamp.now() // Real-time timestamp for new matches
+                                };
+                                console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                            }
+                        } else {
+                            // No timestamp for James Park matches
+                            matchInfo = {
+                                name: crushedUserIdentityName,
+                                email: crushedUser.email
+                                // No matchedAt field
+                            };
+                            console.log(`🚫 No timestamp for James Park match: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                        }
+
+                        userMatches.push(matchInfo);
+
+                        // Lock this crush ONLY if there's a mutual match
+                        if (!userLockedCrushes.includes(crushName)) {
+                            userLockedCrushes.push(crushName);
+                        }
+
+                        const isNewMatch = !existingMatchMap.has(crushedUserIdentityName);
+                        const timestampStatus = shouldHaveTimestamp ? (isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING') : 'NO_TIMESTAMP';
+                        console.log(`💕 ${userClass.toUpperCase()} Match ${isNewMatch ? 'NEW' : 'EXISTING'} (${timestampStatus}): ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                    }
+                }
+
+                allMatches.set(user.id, userMatches);
+                allLockedCrushes.set(user.id, userLockedCrushes);
+            }
+
+            // Update all users with their matches, crush counts, and locked crushes
+            for (const user of allUsers) {
+                const userRef = db.collection('users').doc(user.id);
+                const userIdentityName = getUserIdentityName(user);
+                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
+
+                // For crush count, we need to check the user's identity name with class prefix
+                let userCrushCount = 0;
+                if (userIdentityName) {
+                    const key = `${userClass}:${userIdentityName}`;
+                    userCrushCount = crushCounts.get(key) || 0;
+
+                    // Log discrepancies for debugging
+                    const currentCrushCount = user.crushCount || 0;
+                    if (currentCrushCount !== userCrushCount) {
+                        const crushers = crushersMap.get(key) || [];
+                        console.log(`🔧 Fixing crush count for ${userIdentityName}: ${currentCrushCount} -> ${userCrushCount} (crushers: ${crushers.join(', ')})`);
+                    }
+                }
+
+                const updateData = {
+                    matches: allMatches.get(user.id) || [],
+                    lockedCrushes: allLockedCrushes.get(user.id) || [],
+                    crushCount: userCrushCount,
+                    userClass: userClass, // Ensure userClass is set for legacy users
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+
+                transaction.update(userRef, updateData);
+            }
+
+            console.log(`✅ Updated all ${allUsers.length} users with enhanced matches and crush counts (class-separated)`);
+        });
+
+    } catch (error) {
+        console.error('❌ Error in enhanced processUpdatedCrushes:', error);
+        throw error;
+    }
 }
 
-.dropdown-arrow {
-    color: white;
-    font-size: 10px;
-    transition: transform 0.2s;
+// One-time function to set current timestamp for all existing matches (except James Park)
+export async function fixAllMatchTimestampsToNow(): Promise<void> {
+    console.log('🔧 Setting all existing match timestamps to now (except James Park matches)...');
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const allUsersSnapshot = await transaction.get(db.collection('users'));
+            const currentTimestamp = admin.firestore.Timestamp.now();
+
+            let updatedUsers = 0;
+            let fixedMatches = 0;
+
+            allUsersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                const matches = userData.matches || [];
+                const userId = doc.id;
+                const userName = userData.name || userData.verifiedName || userData.displayName || userData.email;
+
+                if (matches.length > 0) {
+                    let needsUpdate = false;
+                    const updatedMatches = matches.map((match: any) => {
+                        // Check both the document owner AND the match partner for James Park
+                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userId, '', userName, match.name || '');
+
+                        if (shouldHaveTimestamp) {
+                            // Set timestamp to now for all non-James Park matches
+                            needsUpdate = true;
+                            fixedMatches++;
+                            console.log(`🔧 Setting timestamp to now for match: ${match.name} ↔ ${userName}`);
+                            return {
+                                name: match.name || 'Unknown',
+                                email: match.email || 'unknown@stanford.edu',
+                                matchedAt: currentTimestamp
+                            };
+                        } else {
+                            // Remove timestamp for James Park matches
+                            if (match.matchedAt) {
+                                needsUpdate = true;
+                                console.log(`🔧 Removing timestamp for James Park match: ${match.name} ↔ ${userName}`);
+                            }
+                            return {
+                                name: match.name || 'Unknown',
+                                email: match.email || 'unknown@stanford.edu'
+                                // No matchedAt field
+                            };
+                        }
+                    });
+
+                    if (needsUpdate) {
+                        const userRef = db.collection('users').doc(userId);
+                        transaction.update(userRef, {
+                            matches: updatedMatches,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        updatedUsers++;
+                    }
+                }
+            });
+
+            console.log(`✅ Fixed timestamps for ${fixedMatches} matches across ${updatedUsers} users`);
+        });
+    } catch (error) {
+        console.error('❌ Error fixing all match timestamps:', error);
+        throw error;
+    }
 }
 
-.profile-dropdown-trigger:hover .dropdown-arrow {
-    transform: translateY(2px);
+// New function to manually fix all crush count discrepancies
+export async function fixAllCrushCounts(): Promise<void> {
+    console.log('🔧 Starting manual fix of all crush count discrepancies...');
+
+    try {
+        await processUpdatedCrushes();
+        console.log('✅ All crush counts have been synchronized');
+    } catch (error) {
+        console.error('❌ Error fixing crush counts:', error);
+        throw error;
+    }
 }
 
-.profile-dropdown-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    min-width: 200px;
-    z-index: 1000;
-    overflow: hidden;
+// Legacy function - keeping for backward compatibility
+export async function fixAllMatchTimestampsOnce(): Promise<void> {
+    await fixAllMatchTimestampsToNow();
 }
 
-.dropdown-item {
-    width: 100%;
-    padding: 12px 16px;
-    background: white;
-    border: none;
-    text-align: left;
-    cursor: pointer;
-    font-size: 14px;
-    color: #212529;
-    transition: background-color 0.2s;
-    display: block;
+// Legacy function - keeping for backward compatibility
+export async function fixMissingMatchTimestamps(): Promise<void> {
+    await fixAllMatchTimestampsToNow();
 }
 
-.dropdown-item:hover {
-    background-color: #f8f9fa;
+================
+File: src/components/AdminView.tsx
+================
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import AdminAnalytics from './admin/AdminAnalytics';
+import AdminUsers from './admin/AdminUsers';
+import { useAdminData } from '../hooks/useAdminData';
+import { useAdminUtils } from '../hooks/useAdminUtils';
+import type { UserData, UserClass } from '../types/userTypes';
+import { isAdminUser } from '../utils/adminUtils';
+
+type ViewMode = 'analytics' | 'users';
+type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
+
+interface AdminViewProps {
+    user: any;
+    userData: UserData | null;
 }
 
-.dropdown-item.profile-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px;
-    font-weight: 600;
-}
+const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
+    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
+    const [adminSearchTerm, setAdminSearchTerm] = useState('');
+    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+    const [userFilter, setUserFilter] = useState<UserFilter>('all');
+    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
+    const [refreshKey, setRefreshKey] = useState(0);
 
-.dropdown-profile-pic {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    object-fit: cover;
-}
+    const currentClassView: UserClass = userData?.userClass || 'gsb';
+    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
-.dropdown-divider {
-    height: 1px;
-    background-color: #e9ecef;
-    margin: 0;
-}
+    const {
+        allUsers,
+        loadingUsers,
+        currentAnalytics,
+        loadingAnalytics,
+        loadAllUsers
+    } = useAdminData(user, currentClassView, refreshKey);
 
-.dropdown-item.logout-item {
-    color: #dc3545;
-    font-weight: 600;
-}
+    const { findCrushersForUser } = useAdminUtils(allUsers || []);
 
-.dropdown-item.logout-item:hover {
-    background-color: #fff5f5;
-}
+    // Admin access control
+    useEffect(() => {
+        if (!isAdminUser(user, userData)) {
+            setAdminAccessDenied(true);
+            return;
+        }
+        setAdminAccessDenied(false);
+    }, [user, userData]);
 
-.profile-pic {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-}
+    // Early return for non-admin users
+    if (adminAccessDenied) {
+        return (
+            <div className="admin-access-denied">
+                <div className="access-denied-card">
+                    <h2>Access Denied</h2>
+                    <p>You do not have permission to view this page.</p>
+                    <p>Admin access is restricted to authorized personnel only.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Double-check admin status
+    if (!isAdminUser(user, userData)) {
+        return (
+            <div className="admin-loading">
+                Verifying admin access...
+            </div>
+        );
+    }
+
+    // Set up real-time listener for analytics with error handling
+    useEffect(() => {
+        if (!isAdminUser(user, userData)) return;
+
+        const analyticsQuery = query(
+            collection(db, 'analytics'),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+        );
+
+        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                console.log('Live analytics updated');
+                setRefreshKey(prev => prev + 1);
+            }
+        }, (error) => {
+            console.error('Error listening to analytics:', error);
+            if (error.code === 'permission-denied') {
+                setAdminAccessDenied(true);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user, userData]);
+
+    const currentClassStats = useMemo(() => {
+        if (!allUsers || !Array.isArray(allUsers)) {
+            return {
+                activeUsers: 0,
+                inactiveUsers: 0,
+                ghostUsers: 0,
+                total: 0
+            };
+        }
+
+        const realUsers = allUsers.filter(u => !(u as any).isInactive && !(u as any).isGhost);
+        const inactiveUsers = allUsers.filter(u => (u as any).isInactive);
+        const ghostUsers = allUsers.filter(u => (u as any).isGhost);
+
+        return {
+            activeUsers: realUsers.length,
+            inactiveUsers: inactiveUsers.length,
+            ghostUsers: ghostUsers.length,
+            total: allUsers.length
+        };
+    }, [allUsers]);
+
+    const handleViewUser = useCallback((userId: string) => {
+        setViewingUserId(viewingUserId === userId ? null : userId);
+    }, [viewingUserId]);
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshKey(prev => prev + 1);
+        await loadAllUsers();
+    }, [loadAllUsers]);
+
+    if (!allUsers && loadingUsers) {
+        return (
+            <div className="admin-loading">
+                Loading {classDisplayName} admin data...
+            </div>
+        );
+    }
+
+    return (
+        <div className="admin-section">
+            <div className="admin-header-section">
+                <div className="admin-title-row">
+                    <h3>{classDisplayName} Admin Dashboard</h3>
+                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
+                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
+                    </button>
+                </div>
+
+                <div className="admin-definitions">
+                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
+                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
+                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
+                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
+                </div>
+            </div>
+
+            <div className="admin-nav">
+                <button
+                    onClick={() => setViewMode('analytics')}
+                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
+                    disabled={loadingAnalytics}
+                >
+                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
+                </button>
+                <button
+                    onClick={() => setViewMode('users')}
+                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
+                    disabled={loadingUsers}
+                >
+                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
+                </button>
+            </div>
+
+            <div className="admin-content">
+                {viewMode === 'analytics' && (
+                    <AdminAnalytics
+                        analytics={currentAnalytics}
+                        classView={currentClassView}
+                        classDisplayName={classDisplayName}
+                        allUsers={allUsers || []}
+                    />
+                )}
+                {viewMode === 'users' && (
+                    <AdminUsers
+                        allUsers={allUsers || []}
+                        loadingUsers={loadingUsers}
+                        adminSearchTerm={adminSearchTerm}
+                        setAdminSearchTerm={setAdminSearchTerm}
+                        userFilter={userFilter}
+                        setUserFilter={setUserFilter}
+                        viewingUserId={viewingUserId}
+                        handleViewUser={handleViewUser}
+                        findCrushersForUser={findCrushersForUser}
+                        userStats={currentClassStats}
+                        classView={currentClassView}
+                        classDisplayName={classDisplayName}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default AdminView;
 
 ================
 File: src/components/Profile.tsx
@@ -13047,374 +13367,258 @@ const Profile = () => {
 export default Profile;
 
 ================
-File: functions/src/matchingEngine.ts
+File: src/styles/dashboard/dashboard-layout.css
 ================
-import * as admin from 'firebase-admin';
-import { UserWithId, MatchInfo } from './types';
-import { findUserByName, getUserIdentityName } from './utils';
+/* Dashboard Layout Styles */
+.dashboard-container {
+    min-height: 100vh;
+    padding: 10px;
+    background-color: #f8f9fa;
+  }
+  
+  .dashboard-card {
+    max-width: 900px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    min-height: calc(100vh - 20px);
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .dashboard-header {
+    background: #8C1515;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex-shrink: 0;
+  }
 
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-    admin.initializeApp();
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-logo {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .header-logo:hover {
+    opacity: 0.8;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .header-title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .header-title h1 {
+    margin: 0;
+  }
+
+  .header-subtitle {
+    background: #f8f9fa;
+    padding: 10px 20px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 600;
+    color: #8C1515;
+    border-bottom: 1px solid #e9ecef;
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .user-profile-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .user-info span {
+    font-size: 12px;
+    opacity: 0.9;
+  }
+
+  .admin-toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .admin-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .logout-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+  
+  .logout-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .dashboard-content {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .dashboard-footer {
+    padding: 20px;
+    text-align: center;
+    border-top: 1px solid #e9ecef;
+    background: #f8f9fa;
+  }
+
+  .dashboard-footer a {
+    color: #6c757d;
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s;
+  }
+
+  .dashboard-footer a:hover {
+    color: #8C1515;
+  }
+
+  .footer-separator {
+    color: #dee2e6;
+    margin: 0 12px;
+    font-weight: 300;
+  }
+
+/* Profile Dropdown Styles */
+.profile-dropdown {
+    position: relative;
 }
 
-const db = admin.firestore();
-
-// Helper function to determine if a match should have a timestamp
-function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
-    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
-    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') ||
-        user1Name === 'James Park' ||
-        user1Id.includes('_gsb') && user1Id.includes('jpark22@stanford.edu') ||
-        user1Id.includes('_undergrad') && user1Id.includes('jpark22@stanford.edu');
-
-    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') ||
-        user2Name === 'James Park' ||
-        user2Id.includes('_gsb') && user2Id.includes('jpark22@stanford.edu') ||
-        user2Id.includes('_undergrad') && user2Id.includes('jpark22@stanford.edu');
-
-    // Skip timestamp for ANY James Park matches (GSB or undergrad)
-    if (isUser1JamesPark || isUser2JamesPark) {
-        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
-        return false;
-    }
-
-    // All other matches should have timestamps
-    return true;
+.profile-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: opacity 0.2s;
 }
 
-// Enhanced function to recalculate all matches and crush counts with better name matching
-// Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
-export async function processUpdatedCrushes(): Promise<void> {
-    console.log('🔄 Starting enhanced recalculation of all matches and crush counts with class separation...');
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-
-            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data() as any
-            }));
-
-            console.log(`📊 Processing ${allUsers.length} users`);
-
-            // Separate users by class
-            const gsbUsers = allUsers.filter(user => user.userClass === 'gsb' || !user.userClass); // Default to GSB for backwards compatibility
-            const undergradUsers = allUsers.filter(user => user.userClass === 'undergrad');
-
-            console.log(`📊 GSB users: ${gsbUsers.length}, Undergrad users: ${undergradUsers.length}`);
-
-            // Enhanced crush count calculation with better name matching and class separation
-            const crushCounts = new Map<string, number>();
-            const crushersMap = new Map<string, string[]>(); // Track who is crushing on whom
-
-            // Process GSB users
-            for (const user of gsbUsers) {
-                const userCrushes = user.crushes || [];
-                for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name within GSB class
-                    const targetUser = findUserByName(crushName, gsbUsers, 'gsb');
-
-                    if (targetUser) {
-                        // Use the user's identity name
-                        const actualName = getUserIdentityName(targetUser);
-                        if (actualName) {
-                            const key = `gsb:${actualName}`;
-                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                            // Track the crusher
-                            if (!crushersMap.has(key)) {
-                                crushersMap.set(key, []);
-                            }
-                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                        }
-                    } else {
-                        // If no user found, still count it but use the crush name directly
-                        console.log(`⚠️ No GSB user found for crush name: "${crushName}" - counting anyway`);
-                        const key = `gsb:${crushName}`;
-                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                        // Track the crusher for orphaned crushes too
-                        if (!crushersMap.has(key)) {
-                            crushersMap.set(key, []);
-                        }
-                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                    }
-                }
-            }
-
-            // Process Undergrad users
-            for (const user of undergradUsers) {
-                const userCrushes = user.crushes || [];
-                for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name within undergrad class
-                    const targetUser = findUserByName(crushName, undergradUsers, 'undergrad');
-
-                    if (targetUser) {
-                        // Use the user's identity name
-                        const actualName = getUserIdentityName(targetUser);
-                        if (actualName) {
-                            const key = `undergrad:${actualName}`;
-                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                            // Track the crusher
-                            if (!crushersMap.has(key)) {
-                                crushersMap.set(key, []);
-                            }
-                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                        }
-                    } else {
-                        // If no user found, still count it but use the crush name directly
-                        console.log(`⚠️ No undergrad user found for crush name: "${crushName}" - counting anyway`);
-                        const key = `undergrad:${crushName}`;
-                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                        // Track the crusher for orphaned crushes too
-                        if (!crushersMap.has(key)) {
-                            crushersMap.set(key, []);
-                        }
-                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                    }
-                }
-            }
-
-            console.log('💕 Enhanced crush counts calculated:', Object.fromEntries(crushCounts));
-
-            // Calculate matches and locked crushes with enhanced matching and class separation
-            const allMatches = new Map<string, MatchInfo[]>();
-            const allLockedCrushes = new Map<string, string[]>();
-
-            // Process both classes together but only allow matches within same class
-            for (const user of allUsers) {
-                const userMatches: MatchInfo[] = [];
-                const userLockedCrushes: string[] = [];
-                const userCrushes = user.crushes || [];
-                const userIdentityName = getUserIdentityName(user);
-                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
-
-                if (!userIdentityName || !userIdentityName.trim()) {
-                    console.log(`⏭️ Skipping user ${user.id} - no identity name`);
-                    allMatches.set(user.id, userMatches);
-                    allLockedCrushes.set(user.id, userLockedCrushes);
-                    continue;
-                }
-
-                // Get users from the same class only
-                const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
-
-                // Get existing matches to preserve timestamps (CRITICAL: preserve exact timestamp objects)
-                const existingMatches = user.matches || [];
-                const existingMatchMap = new Map<string, any>();
-                existingMatches.forEach(match => {
-                    if (match.name) {
-                        existingMatchMap.set(match.name, match);
-                    }
-                });
-
-                // Find mutual matches with enhanced name matching within same class
-                for (const crushName of userCrushes) {
-                    const crushedUser = findUserByName(crushName, sameClassUsers, userClass);
-
-                    if (!crushedUser) {
-                        console.log(`⚠️ No ${userClass} user found for crush name: "${crushName}"`);
-                        continue;
-                    }
-
-                    const crushedUserCrushes = crushedUser.crushes || [];
-
-                    // Check if it's a mutual match using enhanced matching within same class
-                    const hasMutualCrush = crushedUserCrushes.some(crush => {
-                        const matchedUser = findUserByName(crush, sameClassUsers, userClass);
-                        return matchedUser && matchedUser.id === user.id;
-                    });
-
-                    if (hasMutualCrush) {
-                        const crushedUserIdentityName = getUserIdentityName(crushedUser);
-
-                        // Check if this is an existing match to preserve timestamp
-                        const existingMatch = existingMatchMap.get(crushedUserIdentityName);
-
-                        // Determine if this match should have a timestamp
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(user.id, crushedUser.id, userIdentityName, crushedUserIdentityName);
-
-                        let matchInfo: MatchInfo;
-
-                        if (shouldHaveTimestamp) {
-                            if (existingMatch && existingMatch.matchedAt) {
-                                // PRESERVE the exact existing timestamp object - don't convert it
-                                matchInfo = {
-                                    name: crushedUserIdentityName,
-                                    email: crushedUser.email,
-                                    matchedAt: existingMatch.matchedAt
-                                };
-                                console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                            } else {
-                                // NEW MATCH - Create timestamp at the exact moment this match is discovered
-                                matchInfo = {
-                                    name: crushedUserIdentityName,
-                                    email: crushedUser.email,
-                                    matchedAt: admin.firestore.Timestamp.now() // Real-time timestamp for new matches
-                                };
-                                console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                            }
-                        } else {
-                            // No timestamp for James Park matches
-                            matchInfo = {
-                                name: crushedUserIdentityName,
-                                email: crushedUser.email
-                                // No matchedAt field
-                            };
-                            console.log(`🚫 No timestamp for James Park match: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                        }
-
-                        userMatches.push(matchInfo);
-
-                        // Lock this crush ONLY if there's a mutual match
-                        if (!userLockedCrushes.includes(crushName)) {
-                            userLockedCrushes.push(crushName);
-                        }
-
-                        const isNewMatch = !existingMatchMap.has(crushedUserIdentityName);
-                        const timestampStatus = shouldHaveTimestamp ? (isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING') : 'NO_TIMESTAMP';
-                        console.log(`💕 ${userClass.toUpperCase()} Match ${isNewMatch ? 'NEW' : 'EXISTING'} (${timestampStatus}): ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                    }
-                }
-
-                allMatches.set(user.id, userMatches);
-                allLockedCrushes.set(user.id, userLockedCrushes);
-            }
-
-            // Update all users with their matches, crush counts, and locked crushes
-            for (const user of allUsers) {
-                const userRef = db.collection('users').doc(user.id);
-                const userIdentityName = getUserIdentityName(user);
-                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
-
-                // For crush count, we need to check the user's identity name with class prefix
-                let userCrushCount = 0;
-                if (userIdentityName) {
-                    const key = `${userClass}:${userIdentityName}`;
-                    userCrushCount = crushCounts.get(key) || 0;
-
-                    // Log discrepancies for debugging
-                    const currentCrushCount = user.crushCount || 0;
-                    if (currentCrushCount !== userCrushCount) {
-                        const crushers = crushersMap.get(key) || [];
-                        console.log(`🔧 Fixing crush count for ${userIdentityName}: ${currentCrushCount} -> ${userCrushCount} (crushers: ${crushers.join(', ')})`);
-                    }
-                }
-
-                const updateData = {
-                    matches: allMatches.get(user.id) || [],
-                    lockedCrushes: allLockedCrushes.get(user.id) || [],
-                    crushCount: userCrushCount,
-                    userClass: userClass, // Ensure userClass is set for legacy users
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                };
-
-                transaction.update(userRef, updateData);
-            }
-
-            console.log(`✅ Updated all ${allUsers.length} users with enhanced matches and crush counts (class-separated)`);
-        });
-
-    } catch (error) {
-        console.error('❌ Error in enhanced processUpdatedCrushes:', error);
-        throw error;
-    }
+.profile-dropdown-trigger:hover {
+    opacity: 0.9;
 }
 
-// One-time function to set current timestamp for all existing matches (except James Park)
-export async function fixAllMatchTimestampsToNow(): Promise<void> {
-    console.log('🔧 Setting all existing match timestamps to now (except James Park matches)...');
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-            const currentTimestamp = admin.firestore.Timestamp.now();
-
-            let updatedUsers = 0;
-            let fixedMatches = 0;
-
-            allUsersSnapshot.forEach(doc => {
-                const userData = doc.data();
-                const matches = userData.matches || [];
-                const userId = doc.id;
-                const userName = userData.name || userData.verifiedName || userData.displayName || userData.email;
-
-                if (matches.length > 0) {
-                    let needsUpdate = false;
-                    const updatedMatches = matches.map((match: any) => {
-                        // Check both the document owner AND the match partner for James Park
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userId, '', userName, match.name || '');
-
-                        if (shouldHaveTimestamp) {
-                            // Set timestamp to now for all non-James Park matches
-                            needsUpdate = true;
-                            fixedMatches++;
-                            console.log(`🔧 Setting timestamp to now for match: ${match.name} ↔ ${userName}`);
-                            return {
-                                name: match.name || 'Unknown',
-                                email: match.email || 'unknown@stanford.edu',
-                                matchedAt: currentTimestamp
-                            };
-                        } else {
-                            // Remove timestamp for James Park matches
-                            if (match.matchedAt) {
-                                needsUpdate = true;
-                                console.log(`🔧 Removing timestamp for James Park match: ${match.name} ↔ ${userName}`);
-                            }
-                            return {
-                                name: match.name || 'Unknown',
-                                email: match.email || 'unknown@stanford.edu'
-                                // No matchedAt field
-                            };
-                        }
-                    });
-
-                    if (needsUpdate) {
-                        const userRef = db.collection('users').doc(userId);
-                        transaction.update(userRef, {
-                            matches: updatedMatches,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                        });
-                        updatedUsers++;
-                    }
-                }
-            });
-
-            console.log(`✅ Fixed timestamps for ${fixedMatches} matches across ${updatedUsers} users`);
-        });
-    } catch (error) {
-        console.error('❌ Error fixing all match timestamps:', error);
-        throw error;
-    }
+.dropdown-arrow {
+    color: white;
+    font-size: 10px;
+    transition: transform 0.2s;
 }
 
-// New function to manually fix all crush count discrepancies
-export async function fixAllCrushCounts(): Promise<void> {
-    console.log('🔧 Starting manual fix of all crush count discrepancies...');
-
-    try {
-        await processUpdatedCrushes();
-        console.log('✅ All crush counts have been synchronized');
-    } catch (error) {
-        console.error('❌ Error fixing crush counts:', error);
-        throw error;
-    }
+.profile-dropdown-trigger:hover .dropdown-arrow {
+    transform: translateY(2px);
 }
 
-// Legacy function - keeping for backward compatibility
-export async function fixAllMatchTimestampsOnce(): Promise<void> {
-    await fixAllMatchTimestampsToNow();
+.profile-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    z-index: 1000;
+    overflow: hidden;
 }
 
-// Legacy function - keeping for backward compatibility
-export async function fixMissingMatchTimestamps(): Promise<void> {
-    await fixAllMatchTimestampsToNow();
+.dropdown-item {
+    width: 100%;
+    padding: 12px 16px;
+    background: white;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+    color: #212529;
+    transition: background-color 0.2s;
+    display: block;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+.dropdown-item.profile-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    font-weight: 600;
+}
+
+.dropdown-profile-pic {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: #e9ecef;
+    margin: 0;
+}
+
+.dropdown-item.logout-item {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.dropdown-item.logout-item:hover {
+    background-color: #fff5f5;
+}
+
+.profile-pic {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
 ================
@@ -13554,210 +13758,6 @@ echo "2. Run: cd scripts/tools && node test-images.js"
 echo "3. Clear browser cache and test favicon"
 echo "4. Test social media previews"
 echo "5. Verify at: https://$DOMAIN"
-
-================
-File: src/components/AdminView.tsx
-================
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import AdminAnalytics from './admin/AdminAnalytics';
-import AdminUsers from './admin/AdminUsers';
-import { useAdminData } from '../hooks/useAdminData';
-import { useAdminUtils } from '../hooks/useAdminUtils';
-import type { UserData, UserClass } from '../types/userTypes';
-import { isAdminUser } from '../utils/adminUtils';
-
-type ViewMode = 'analytics' | 'users';
-type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
-
-interface AdminViewProps {
-    user: any;
-    userData: UserData | null;
-}
-
-const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
-    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
-    const [adminSearchTerm, setAdminSearchTerm] = useState('');
-    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
-    const [userFilter, setUserFilter] = useState<UserFilter>('all');
-    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
-    const [refreshKey, setRefreshKey] = useState(0);
-
-    const currentClassView: UserClass = userData?.userClass || 'gsb';
-    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
-
-    const {
-        allUsers,
-        loadingUsers,
-        currentAnalytics,
-        loadingAnalytics,
-        loadAllUsers
-    } = useAdminData(user, currentClassView, refreshKey);
-
-    const { findCrushersForUser } = useAdminUtils(allUsers || []);
-
-    // Admin access control
-    useEffect(() => {
-        if (!isAdminUser(user, userData)) {
-            setAdminAccessDenied(true);
-            return;
-        }
-        setAdminAccessDenied(false);
-    }, [user, userData]);
-
-    // Early return for non-admin users
-    if (adminAccessDenied) {
-        return (
-            <div className="admin-access-denied">
-                <div className="access-denied-card">
-                    <h2>Access Denied</h2>
-                    <p>You do not have permission to view this page.</p>
-                    <p>Admin access is restricted to authorized personnel only.</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Double-check admin status
-    if (!isAdminUser(user, userData)) {
-        return (
-            <div className="admin-loading">
-                Verifying admin access...
-            </div>
-        );
-    }
-
-    // Set up real-time listener for analytics with error handling
-    useEffect(() => {
-        if (!isAdminUser(user, userData)) return;
-
-        const analyticsQuery = query(
-            collection(db, 'analytics'),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-        );
-
-        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                console.log('Live analytics updated');
-                setRefreshKey(prev => prev + 1);
-            }
-        }, (error) => {
-            console.error('Error listening to analytics:', error);
-            if (error.code === 'permission-denied') {
-                setAdminAccessDenied(true);
-            }
-        });
-
-        return () => unsubscribe();
-    }, [user, userData]);
-
-    const currentClassStats = useMemo(() => {
-        if (!allUsers || !Array.isArray(allUsers)) {
-            return {
-                activeUsers: 0,
-                inactiveUsers: 0,
-                ghostUsers: 0,
-                total: 0
-            };
-        }
-
-        const realUsers = allUsers.filter(u => !(u as any).isInactive && !(u as any).isGhost);
-        const inactiveUsers = allUsers.filter(u => (u as any).isInactive);
-        const ghostUsers = allUsers.filter(u => (u as any).isGhost);
-
-        return {
-            activeUsers: realUsers.length,
-            inactiveUsers: inactiveUsers.length,
-            ghostUsers: ghostUsers.length,
-            total: allUsers.length
-        };
-    }, [allUsers]);
-
-    const handleViewUser = useCallback((userId: string) => {
-        setViewingUserId(viewingUserId === userId ? null : userId);
-    }, [viewingUserId]);
-
-    const handleRefresh = useCallback(async () => {
-        setRefreshKey(prev => prev + 1);
-        await loadAllUsers();
-    }, [loadAllUsers]);
-
-    if (!allUsers && loadingUsers) {
-        return (
-            <div className="admin-loading">
-                Loading {classDisplayName} admin data...
-            </div>
-        );
-    }
-
-    return (
-        <div className="admin-section">
-            <div className="admin-header-section">
-                <div className="admin-title-row">
-                    <h3>{classDisplayName} Admin Dashboard</h3>
-                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
-                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
-                    </button>
-                </div>
-
-                <div className="admin-definitions">
-                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
-                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
-                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
-                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
-                </div>
-            </div>
-
-            <div className="admin-nav">
-                <button
-                    onClick={() => setViewMode('analytics')}
-                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
-                    disabled={loadingAnalytics}
-                >
-                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
-                </button>
-                <button
-                    onClick={() => setViewMode('users')}
-                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
-                    disabled={loadingUsers}
-                >
-                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
-                </button>
-            </div>
-
-            <div className="admin-content">
-                {viewMode === 'analytics' && (
-                    <AdminAnalytics
-                        analytics={currentAnalytics}
-                        classView={currentClassView}
-                        classDisplayName={classDisplayName}
-                        allUsers={allUsers || []}
-                    />
-                )}
-                {viewMode === 'users' && (
-                    <AdminUsers
-                        allUsers={allUsers || []}
-                        loadingUsers={loadingUsers}
-                        adminSearchTerm={adminSearchTerm}
-                        setAdminSearchTerm={setAdminSearchTerm}
-                        userFilter={userFilter}
-                        setUserFilter={setUserFilter}
-                        viewingUserId={viewingUserId}
-                        handleViewUser={handleViewUser}
-                        findCrushersForUser={findCrushersForUser}
-                        userStats={currentClassStats}
-                        classView={currentClassView}
-                        classDisplayName={classDisplayName}
-                    />
-                )}
-            </div>
-        </div>
-    );
-};
-
-export default AdminView;
 
 ================
 File: src/styles/profile.css
