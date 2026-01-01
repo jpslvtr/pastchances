@@ -1,0 +1,86 @@
+/* User Photo Styles */
+.user-photo {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid #e0e0e0;
+}
+
+.user-photo-small {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+}
+
+.user-photo-medium {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+}
+
+.user-photo-large {
+    width: 64px;
+    height: 64px;
+    font-size: 24px;
+}
+
+.user-photo-initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    user-select: none;
+}
+
+.user-photo-loading {
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-photo-spinner {
+    width: 50%;
+    height: 50%;
+    border: 2px solid #e0e0e0;
+    border-top-color: #666;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Update match-item to work with photos */
+.match-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.match-details {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Update name-chip to work with photos */
+.name-chip {
+    gap: 8px;
+}
+
+/* Update name-list-item to work with photos */
+.name-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.name-list-item .name-text {
+    flex: 1;
+}
+
+.name-list-item .add-btn {
+    margin-left: auto;
+}

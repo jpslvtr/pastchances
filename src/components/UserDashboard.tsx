@@ -1,7 +1,10 @@
 import React from 'react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
 import type { UserData } from '../types/userTypes';
+import UserPhoto from './shared/UserPhoto';
 
 interface UserDashboardProps {
     userData: UserData;
@@ -103,6 +106,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 }) => {
     const [virtualStart, setVirtualStart] = React.useState(0);
     const searchInputRef = React.useRef<HTMLInputElement>(null);
+    const [photoCache, setPhotoCache] = React.useState<Map<string, string | null>>(new Map());
 
     const hasMatches = userData?.matches && userData.matches.length > 0;
     const crushCount = userData?.crushCount || 0;
@@ -116,6 +120,44 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     // Get the appropriate class names based on user's class
     const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
     const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
+
+    // Batch load all photos on mount
+    React.useEffect(() => {
+        let mounted = true;
+
+        const loadAllPhotos = async () => {
+            try {
+                // Fetch all users with customPhotoURL
+                const usersRef = collection(db, 'users');
+                const q = query(
+                    usersRef,
+                    where('userClass', '==', userData.userClass)
+                );
+
+                const snapshot = await getDocs(q);
+                const cache = new Map<string, string | null>();
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.name && data.customPhotoURL) {
+                        cache.set(data.name, data.customPhotoURL);
+                    }
+                });
+
+                if (mounted) {
+                    setPhotoCache(cache);
+                }
+            } catch (error) {
+                console.error('Error loading photos:', error);
+            }
+        };
+
+        loadAllPhotos();
+
+        return () => {
+            mounted = false;
+        };
+    }, [userData.userClass]);
 
     // Handle search input change
     const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,24 +238,21 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                     <div className="matches-list">
                         {userData.matches.map((match, index) => (
                             <div key={index} className="match-item">
-                                <div className="match-name">{match.name}</div>
-                                <div className="match-email">{match.email}</div>
+                                <UserPhoto
+                                    name={match.name}
+                                    userClass={userData.userClass}
+                                    size="medium"
+                                    photoUrl={photoCache.get(match.name)}
+                                />
+                                <div className="match-details">
+                                    <div className="match-name">{match.name}</div>
+                                    <div className="match-email">{match.email}</div>
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
-
-            {/* <div className="header-section">
-                <div className="instructions">
-                    <ol>
-                        <li>Select any classmates you'd like to connect with. Your selections are completely private - only you can see who you've chosen.</li>
-                        <li>Click "Update Preferences" to save your changes. Matches appear automatically when someone you've selected also selects you. Matches are completely private.</li>
-                        <li>You can add or remove names anytime. There's no limit on how many people you can select, and you can change your preferences as often as you want.</li>
-                        <li>Once you match with someone, you cannot remove them from your list.</li>
-                    </ol>
-                </div>
-            </div> */}
 
             <div className="selection-counter">
                 {safeSelectedNames.length} selected
@@ -228,6 +267,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                             const isLocked = lockedCrushes.includes(name);
                             return (
                                 <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>
+                                    <UserPhoto
+                                        name={name}
+                                        userClass={userData.userClass}
+                                        size="small"
+                                        photoUrl={photoCache.get(name)}
+                                    />
                                     <span>{name}</span>
                                     {isLocked ? (
                                         <span className="lock-icon" title="Locked - you have matched with this person">🔒</span>
@@ -277,11 +322,20 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             </div>
 
             <div className="available-names">
-                <h3>
-                    Classmates
-                    {searchTerm && ` (${filteredAvailableNames.length} found)`}
-                    {!searchTerm && ` (${filteredAvailableNames.length} available)`}
-                </h3>
+                <div className="available-names-header">
+                    <h3>
+                        Classmates
+                        {searchTerm && ` (${filteredAvailableNames.length} found)`}
+                        {!searchTerm && ` (${filteredAvailableNames.length} available)`}
+                    </h3>
+                    <button
+                        onClick={handleUpdatePreferences}
+                        disabled={!hasUnsavedChanges || updating}
+                        className="update-btn"
+                    >
+                        {updating ? '...' : 'Update'}
+                    </button>
+                </div>
                 <div
                     className="names-simple-list"
                     onScroll={handleScroll}
@@ -304,6 +358,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                     minHeight: `${ITEM_HEIGHT}px`
                                 }}
                             >
+                                <UserPhoto
+                                    name={name}
+                                    userClass={userData.userClass}
+                                    size="small"
+                                    photoUrl={photoCache.get(name)}
+                                />
                                 <span className="name-text">
                                     {highlightMatch(name, searchTerm)}
                                 </span>
@@ -336,23 +396,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 </div>
             </div>
 
-            <div className="action-section">
-                <div className="action-buttons">
-                    <button
-                        onClick={handleUpdatePreferences}
-                        disabled={updating || !hasUnsavedChanges}
-                        className="update-btn"
-                    >
-                        {updating ? 'Updating...' : 'Update Preferences'}
-                    </button>
-                </div>
-            </div>
-
-            {error && (
-                <div className="error-message" style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>
-                    {error}
-                </div>
-            )}
+            {error && <div className="error-message">{error}</div>}
         </>
     );
 };

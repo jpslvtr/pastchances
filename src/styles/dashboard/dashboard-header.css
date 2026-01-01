@@ -1,0 +1,45 @@
+/* Available names header with button */
+.available-names-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    flex-shrink: 0;
+}
+
+.available-names-header h3 {
+    color: #8C1515;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.available-names-header .update-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    background: #8C1515;
+    color: white;
+    white-space: nowrap;
+    min-width: auto;
+    flex-shrink: 0;
+    flex-grow: 0;
+    width: fit-content;
+}
+
+.available-names-header .update-btn:disabled {
+    background: #ccc;
+    color: #888;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.available-names-header .update-btn:not(:disabled):hover {
+    background: #a01a1a;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

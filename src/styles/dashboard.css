@@ -2,3 +2,5 @@
 @import './dashboard/dashboard-layout.css';
 @import './dashboard/dashboard-components.css';
 @import './dashboard/dashboard-responsive.css';
+@import './dashboard/dashboard-photos.css';
+@import './dashboard/dashboard-header.css';
