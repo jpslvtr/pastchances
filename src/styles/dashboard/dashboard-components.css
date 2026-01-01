@@ -408,11 +408,19 @@
     background: rgba(140, 21, 21, 0.1);
     transition: all 0.2s ease;
     flex-shrink: 0;
+    border: none;
+    cursor: pointer;
+    padding: 0;
   }
-  
-  .add-btn:hover {
-    background: rgba(140, 21, 21, 0.2);
-    transform: scale(1.1);
+
+  .add-btn:hover:not(:disabled) {
+      background: rgba(140, 21, 21, 0.2);
+      transform: scale(1.1);
+  }
+
+  .add-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
   }
 
   .lock-btn {

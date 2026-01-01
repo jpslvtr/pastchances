@@ -1,17 +1,37 @@
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Navbar from './shared/Navbar';
+import UserPhoto from './shared/UserPhoto';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { getUserDocumentId } from '../utils';
+import { GSB_CLASS_NAMES } from '../data/names';
+import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
+import type { UserData } from '../types/userTypes';
 import '../styles/profile.css';
 
+// Same hash function as UserDashboard
+const hashName = (name: string): string => {
+    let hash = 0;
+    const normalized = name.toLowerCase().trim();
+    for (let i = 0; i < normalized.length; i++) {
+        const char = normalized.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return Math.abs(hash).toString(36);
+};
+
 const Profile = () => {
-    const { user, userData, refreshUserData } = useAuth();
+    const { userId: nameHash } = useParams<{ userId?: string }>();
+    const { user, userData: currentUserData, refreshUserData } = useAuth();
     const navigate = useNavigate();
-    const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
+    const [profileData, setProfileData] = useState<UserData | null>(null);
+    const [profileName, setProfileName] = useState<string>('');
+    const [profileUserClass, setProfileUserClass] = useState<string>('gsb');
+    const [loadingProfile, setLoadingProfile] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [location, setLocation] = useState('');
     const [about, setAbout] = useState('');
@@ -32,40 +52,78 @@ const Profile = () => {
     const imageRef = useRef<HTMLImageElement>(null);
     const previewRef = useRef<HTMLDivElement>(null);
 
+    // Determine if viewing own profile
+    const isOwnProfile = !nameHash || (currentUserData && hashName(currentUserData.name) === nameHash);
+
+    // Load profile data
     useEffect(() => {
-        if (userData) {
-            setLocation(userData.location || '');
-            setAbout(userData.about || '');
+        const loadProfile = async () => {
+            setLoadingProfile(true);
+            try {
+                if (isOwnProfile) {
+                    // Viewing own profile - use currentUserData
+                    setProfileData(currentUserData);
+                    setProfileName(currentUserData?.name || '');
+                    setProfileUserClass(currentUserData?.userClass || 'gsb');
+                    setLocation(currentUserData?.location || '');
+                    setAbout(currentUserData?.about || '');
+                } else if (nameHash) {
+                    // Viewing someone else's profile - find them by name hash
+                    // Try all names in the class lists
+                    const userClass = currentUserData?.userClass || 'gsb';
+                    const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+
+                    // Find the name that matches this hash
+                    const matchingName = classNames.find(name => hashName(name) === nameHash);
+
+                    if (!matchingName) {
+                        // Invalid hash - redirect to home
+                        navigate('/');
+                        return;
+                    }
+
+                    setProfileName(matchingName);
+                    setProfileUserClass(userClass);
+
+                    // Try to find their user document
+                    const usersRef = collection(db, 'users');
+                    const q = query(
+                        usersRef,
+                        where('name', '==', matchingName),
+                        where('userClass', '==', userClass)
+                    );
+
+                    const snapshot = await getDocs(q);
+
+                    if (!snapshot.empty) {
+                        // User has a document
+                        setProfileData(snapshot.docs[0].data() as UserData);
+                    } else {
+                        // User doesn't have a document yet - that's fine, we'll show a minimal profile
+                        setProfileData(null);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                // Don't redirect on error - still show the profile
+            } finally {
+                setLoadingProfile(false);
+            }
+        };
+
+        if (user && currentUserData) {
+            loadProfile();
         }
-    }, [userData]);
-
-    const handleImageError = useCallback((imageUrl: string) => {
-        setFailedImageUrls(prev => new Set(prev).add(imageUrl));
-    }, []);
-
-    const getProfileImageUrl = useCallback(() => {
-        const customPhotoUrl = userData?.customPhotoURL;
-        const googlePhotoUrl = userData?.photoURL;
-        const fallbackUrl = '/files/default-profile.png';
-
-        if (customPhotoUrl && !failedImageUrls.has(customPhotoUrl)) {
-            return customPhotoUrl;
-        }
-
-        if (!googlePhotoUrl || failedImageUrls.has(googlePhotoUrl)) {
-            return fallbackUrl;
-        }
-
-        return googlePhotoUrl;
-    }, [userData?.photoURL, userData?.customPhotoURL, failedImageUrls]);
+    }, [nameHash, user, currentUserData, isOwnProfile, navigate]);
 
     const handlePhotoClick = () => {
-        fileInputRef.current?.click();
+        if (isOwnProfile) {
+            fileInputRef.current?.click();
+        }
     };
 
     const resizeImageIfNeeded = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
-            // If file is already under 5MB, just use it directly
             if (file.size < 5 * 1024 * 1024) {
                 const reader = new FileReader();
                 reader.onload = (e) => resolve(e.target?.result as string);
@@ -74,7 +132,6 @@ const Profile = () => {
                 return;
             }
 
-            // File is too large, resize it
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = new Image();
@@ -86,8 +143,6 @@ const Profile = () => {
                         return;
                     }
 
-                    // Calculate new dimensions to reduce file size
-                    // Target max dimension of 2048px which usually results in <5MB
                     const maxDimension = 2048;
                     let width = img.width;
                     let height = img.height;
@@ -120,14 +175,12 @@ const Profile = () => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        // Validate file type
         if (!file.type.startsWith('image/')) {
             alert('Please select an image file');
             return;
         }
 
         try {
-            // Resize image if needed and load for cropping
             const resizedDataUrl = await resizeImageIfNeeded(file);
             setSelectedImage(resizedDataUrl);
             setImageFile(file);
@@ -203,40 +256,30 @@ const Profile = () => {
                 return;
             }
 
-            // Set canvas size to desired output (400x400 for profile photos)
             const outputSize = 400;
             canvas.width = outputSize;
             canvas.height = outputSize;
 
-            // Get the natural dimensions of the image
             const imgWidth = image.naturalWidth;
             const imgHeight = image.naturalHeight;
 
-            // Calculate the size the image should be to fill the preview circle
-            // The preview circle is 300px, so we need to scale accordingly
             const previewSize = 300;
             const scale = Math.max(previewSize / imgWidth, previewSize / imgHeight);
 
-            // Apply zoom on top of the base scale
             const totalScale = scale * zoom;
 
-            // Calculate scaled dimensions
             const scaledWidth = imgWidth * totalScale;
             const scaledHeight = imgHeight * totalScale;
 
-            // Apply position offset (scaled to output size)
             const scaleRatio = outputSize / previewSize;
             const x = (outputSize - scaledWidth) / 2 + (position.x * scaleRatio);
             const y = (outputSize - scaledHeight) / 2 + (position.y * scaleRatio);
 
-            // Fill with white background
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, outputSize, outputSize);
 
-            // Draw the image with the same transformation as the preview
             ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
 
-            // Convert to blob
             canvas.toBlob((blob) => {
                 if (blob) {
                     resolve(blob);
@@ -248,17 +291,15 @@ const Profile = () => {
     };
 
     const handleCropConfirm = async () => {
-        if (!user || !userData || !imageFile) return;
+        if (!user || !currentUserData || !imageFile) return;
 
         setUploadingPhoto(true);
         try {
-            // Get cropped image
             const croppedBlob = await getCroppedImage();
 
-            const actualUid = getUserDocumentId(user, userData);
+            const actualUid = getUserDocumentId(user, currentUserData);
 
-            // Delete old custom photo if exists
-            if (userData.customPhotoURL) {
+            if (currentUserData.customPhotoURL) {
                 try {
                     const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
                     await deleteObject(oldPhotoRef);
@@ -267,12 +308,10 @@ const Profile = () => {
                 }
             }
 
-            // Upload new photo
             const storageRef = ref(storage, `profile-photos/${actualUid}`);
             await uploadBytes(storageRef, croppedBlob);
             const downloadURL = await getDownloadURL(storageRef);
 
-            // Update user document
             const userRef = doc(db, 'users', actualUid);
             await updateDoc(userRef, {
                 customPhotoURL: downloadURL,
@@ -331,7 +370,6 @@ const Profile = () => {
             const uniqueSuggestions = new Map<string, boolean>();
 
             data.forEach((item: any) => {
-                // Try to build a meaningful location string
                 const city = item.address?.city ||
                     item.address?.town ||
                     item.address?.village ||
@@ -342,16 +380,12 @@ const Profile = () => {
                 let formatted = '';
 
                 if (city && state) {
-                    // US-style: City, State
                     formatted = `${city}, ${state}`;
                 } else if (city && country) {
-                    // International: City, Country
                     formatted = `${city}, ${country}`;
                 } else if (state && country) {
-                    // State/Region, Country
                     formatted = `${state}, ${country}`;
                 } else if (country) {
-                    // Just country
                     formatted = country;
                 }
 
@@ -387,11 +421,11 @@ const Profile = () => {
     }, []);
 
     const handleSave = useCallback(async () => {
-        if (!user || !userData || saving) return;
+        if (!user || !currentUserData || saving) return;
 
         setSaving(true);
         try {
-            const actualUid = getUserDocumentId(user, userData);
+            const actualUid = getUserDocumentId(user, currentUserData);
             const userRef = doc(db, 'users', actualUid);
 
             await updateDoc(userRef, {
@@ -418,15 +452,15 @@ const Profile = () => {
         } finally {
             setSaving(false);
         }
-    }, [user, userData, location, about, saving, refreshUserData]);
+    }, [user, currentUserData, location, about, saving, refreshUserData]);
 
     const handleCancel = useCallback(() => {
-        setLocation(userData?.location || '');
-        setAbout(userData?.about || '');
+        setLocation(currentUserData?.location || '');
+        setAbout(currentUserData?.about || '');
         setIsEditing(false);
         setSuggestions([]);
         setShowSuggestions(false);
-    }, [userData]);
+    }, [currentUserData]);
 
     const handleAdminToggle = useCallback(() => {
         navigate('/');
@@ -442,7 +476,26 @@ const Profile = () => {
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     };
 
-    const currentImageUrl = getProfileImageUrl();
+    if (loadingProfile) {
+        return (
+            <div className="dashboard-container">
+                <div className="dashboard-card">
+                    <div className="loading">Loading profile...</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!profileName) {
+        return (
+            <div className="dashboard-container">
+                <div className="dashboard-card">
+                    <div className="loading">Profile not found</div>
+                </div>
+            </div>
+        );
+    }
+
     const currentEmail = user?.email || '';
 
     return (
@@ -450,7 +503,7 @@ const Profile = () => {
             <div className="dashboard-card">
                 <Navbar
                     user={user}
-                    userData={userData}
+                    userData={currentUserData}
                     isAdminMode={false}
                     onAdminToggle={handleAdminToggle}
                 />
@@ -458,44 +511,44 @@ const Profile = () => {
                 <div className="profile-content">
                     <div className="profile-image-section">
                         <div className="profile-image-container">
-                            <img
-                                src={currentImageUrl}
-                                alt="Profile"
-                                className="profile-image-large"
-                                onError={() => handleImageError(currentImageUrl)}
-                                loading="lazy"
+                            <UserPhoto
+                                name={profileName}
+                                userClass={profileUserClass}
+                                size="large"
+                                photoUrl={profileData?.customPhotoURL || null}
                             />
-                            <button
-                                className="photo-edit-button"
-                                onClick={handlePhotoClick}
-                                disabled={uploadingPhoto}
-                                title="Change photo"
-                            >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                </svg>
-                            </button>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={handlePhotoSelect}
-                                style={{ display: 'none' }}
-                            />
+                            {isOwnProfile && (
+                                <>
+                                    <button
+                                        className="photo-edit-button"
+                                        onClick={handlePhotoClick}
+                                        disabled={uploadingPhoto}
+                                        title="Change photo"
+                                    >
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                        </svg>
+                                    </button>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handlePhotoSelect}
+                                        style={{ display: 'none' }}
+                                    />
+                                </>
+                            )}
                         </div>
-                        <h2 className="profile-name">{userData?.name || user?.displayName}</h2>
+                        <h2 className="profile-name">{profileName}</h2>
                     </div>
 
                     <div className="info-divider"></div>
 
-
                     <div className="profile-info-section">
-                        <h3>Public Profile</h3>
-                        <br></br>
                         <div className="info-row location-row">
                             <label>Location:</label>
-                            {isEditing ? (
+                            {isOwnProfile && isEditing ? (
                                 <div style={{ position: 'relative', flex: 1 }}>
                                     <input
                                         type="text"
@@ -521,69 +574,73 @@ const Profile = () => {
                                     )}
                                 </div>
                             ) : (
-                                <div className="info-value-inline">{userData?.location || '(not set)'}</div>
+                                <div className="info-value-plain">{profileData?.location || ''}</div>
                             )}
                         </div>
 
                         <div className="info-field-full">
                             <label>About:</label>
-                            {isEditing ? (
+                            {isOwnProfile && isEditing ? (
                                 <textarea value={about} onChange={(e) => setAbout(e.target.value)}
                                     placeholder="Tell us about yourself..." className="info-textarea"
                                     rows={4} maxLength={500} />
                             ) : (
-                                <div className="info-value">{userData?.about || '(not set)'}</div>
+                                <div className="info-value-plain">{profileData?.about || ''}</div>
                             )}
                         </div>
 
-                        <div className="profile-actions">
-                            {isEditing ? (
-                                <>
-                                    <button className="save-btn" onClick={handleSave} disabled={saving}>
-                                        {saving ? 'Saving...' : 'Save Changes'}
-                                    </button>
-                                    <button className="cancel-btn" onClick={handleCancel} disabled={saving}>Cancel</button>
-                                </>
-                            ) : (
-                                <button className="edit-btn" onClick={() => setIsEditing(true)}>Edit Profile</button>
-                            )}
-                        </div>
+                        {isOwnProfile && (
+                            <>
+                                <div className="profile-actions">
+                                    {isEditing ? (
+                                        <>
+                                            <button className="save-btn" onClick={handleSave} disabled={saving}>
+                                                {saving ? 'Saving...' : 'Save Changes'}
+                                            </button>
+                                            <button className="cancel-btn" onClick={handleCancel} disabled={saving}>Cancel</button>
+                                        </>
+                                    ) : (
+                                        <button className="edit-btn" onClick={() => setIsEditing(true)}>Edit Public Profile</button>
+                                    )}
+                                </div>
 
-                        <div className="info-divider"></div>
+                                <div className="info-divider"></div>
 
-                        <h3>Account Information</h3>
-                        <p className="visibility-note">Only visible to you</p>
+                                <h3>Account Information</h3>
+                                <p className="visibility-note">Only visible to you</p>
 
-                        <div className="info-row">
-                            <label>Email:</label>
-                            <div className={`info-value-inline readonly ${userData?.email === currentEmail ? 'current' : ''}`}>
-                                {userData?.email || 'Not linked'}
-                            </div>
-                        </div>
+                                <div className="info-row">
+                                    <label>Email:</label>
+                                    <div className={`info-value-inline readonly ${profileData?.email === currentEmail ? 'current' : ''}`}>
+                                        {profileData?.email || 'Not linked'}
+                                    </div>
+                                </div>
 
-                        <div className="info-row">
-                            <label>Stanford Alumni:</label>
-                            <div className={`info-value-inline readonly ${userData?.emailAlumni === currentEmail ? 'current' : ''}`}>
-                                {userData?.emailAlumni || 'Not linked'}
-                            </div>
-                        </div>
+                                <div className="info-row">
+                                    <label>Stanford Alumni:</label>
+                                    <div className={`info-value-inline readonly ${profileData?.emailAlumni === currentEmail ? 'current' : ''}`}>
+                                        {profileData?.emailAlumni || 'Not linked'}
+                                    </div>
+                                </div>
 
-                        <div className="info-row">
-                            <label>GSB Alumni:</label>
-                            <div className={`info-value-inline readonly ${userData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
-                                {userData?.emailAlumniGSB || 'Not linked'}
-                            </div>
-                        </div>
+                                <div className="info-row">
+                                    <label>GSB Alumni:</label>
+                                    <div className={`info-value-inline readonly ${profileData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
+                                        {profileData?.emailAlumniGSB || 'Not linked'}
+                                    </div>
+                                </div>
 
-                        <div className="info-row">
-                            <label>Account Created:</label>
-                            <div className="info-value-inline readonly">{formatDate(userData?.createdAt)}</div>
-                        </div>
+                                <div className="info-row">
+                                    <label>Account Created:</label>
+                                    <div className="info-value-inline readonly">{formatDate(profileData?.createdAt)}</div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {showCropModal && selectedImage && (
+            {showCropModal && selectedImage && isOwnProfile && (
                 <div className="crop-modal-overlay" onClick={handleCropCancel}>
                     <div className="crop-modal" onClick={(e) => e.stopPropagation()}>
                         <h3>Adjust Your Photo</h3>

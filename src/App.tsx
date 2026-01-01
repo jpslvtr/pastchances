@@ -80,6 +80,14 @@ const App: React.FC = () => {
             }
           />
           <Route
+            path="/profile/:userId"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/howto"
             element={
               <ProtectedRoute>
