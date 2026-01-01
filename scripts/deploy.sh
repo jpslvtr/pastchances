@@ -93,7 +93,7 @@ fi
 
 # Deploy to Firebase
 echo "Firebase deploy..."
-firebase deploy --only functions,firestore
+firebase deploy --only functions,firestore,storage
 
 # Deploy to Vercel
 echo "Vercel deploy..."
