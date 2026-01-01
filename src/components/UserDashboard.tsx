@@ -36,19 +36,17 @@ interface UserDashboardProps {
     handleUpdatePreferences: () => void;
 }
 
-// Simple hash function for generating consistent IDs from names
 const hashName = (name: string): string => {
     let hash = 0;
     const normalized = name.toLowerCase().trim();
     for (let i = 0; i < normalized.length; i++) {
         const char = normalized.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
+        hash = hash & hash;
     }
     return Math.abs(hash).toString(36);
 };
 
-// Fast name matching function optimized for first/last name searches
 const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
     if (!searchTerm.trim()) return { matches: true, score: 0 };
 
@@ -56,7 +54,6 @@ const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boo
     const normalizedName = normalizeText(fullName);
     const normalizedSearch = normalizeText(searchTerm);
 
-    // Exact substring match (highest priority)
     if (normalizedName.includes(normalizedSearch)) {
         return { matches: true, score: 100 };
     }
@@ -64,7 +61,6 @@ const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boo
     const nameParts = normalizedName.split(' ').filter(Boolean);
     const searchParts = normalizedSearch.split(' ').filter(Boolean);
 
-    // First + Last name matching (most common use case)
     if (searchParts.length >= 2) {
         const searchFirst = searchParts[0];
         const searchLast = searchParts[searchParts.length - 1];
@@ -73,34 +69,28 @@ const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boo
             const nameFirst = nameParts[0];
             const nameLast = nameParts[nameParts.length - 1];
 
-            // Exact first + last match
             if (nameFirst === searchFirst && nameLast === searchLast) {
                 return { matches: true, score: 95 };
             }
 
-            // Partial first + exact last
             if (nameFirst.startsWith(searchFirst) && nameLast === searchLast) {
                 return { matches: true, score: 90 };
             }
 
-            // Exact first + partial last
             if (nameFirst === searchFirst && nameLast.startsWith(searchLast)) {
                 return { matches: true, score: 85 };
             }
         }
     }
 
-    // Single term matching
     if (searchParts.length === 1) {
         const searchTerm = searchParts[0];
 
-        // Check if any name part starts with search term
         if (nameParts.some(part => part.startsWith(searchTerm))) {
             return { matches: true, score: 80 };
         }
     }
 
-    // Multi-word progressive matching
     let nameIndex = 0;
     let matchedParts = 0;
 
@@ -143,22 +133,18 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const lockedCrushes = userData?.lockedCrushes || [];
     const matches = userData?.matches || [];
 
-    // Ensure arrays are defined before using sort
     const safeSelectedNames = selectedNames || [];
     const safeSavedNames = savedNames || [];
     const hasUnsavedChanges = JSON.stringify([...safeSelectedNames].sort()) !== JSON.stringify([...safeSavedNames].sort());
 
-    // Get the appropriate class names based on user's class
     const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
     const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
-    // Batch load all photos on mount
     React.useEffect(() => {
         let mounted = true;
 
         const loadAllPhotos = async () => {
             try {
-                // Fetch all users with customPhotoURL
                 const usersRef = collection(db, 'users');
                 const q = query(
                     usersRef,
@@ -190,13 +176,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         };
     }, [userData.userClass]);
 
-    // Handle search input change
     const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
-        setVirtualStart(0); // Reset scroll when search changes
+        setVirtualStart(0);
     }, [setSearchTerm]);
 
-    // Fast filtering with optimized name matching
     const filteredAvailableNames = React.useMemo(() => {
         const excludedNames = [...safeSelectedNames];
 
@@ -208,7 +192,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 
         if (!searchTerm.trim()) return availableNames;
 
-        // Apply fast matching and sort by relevance score
         const matchedNames = availableNames
             .map(name => {
                 const result = matchesSearchTerm(name, searchTerm);
@@ -221,17 +204,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         return matchedNames;
     }, [safeSelectedNames, searchTerm, userData?.name, classNames]);
 
-    // Virtual scrolling constants
     const ITEM_HEIGHT = 48;
     const VISIBLE_ITEMS = Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
     const BUFFER_SIZE = 5;
 
-    // Calculate visible range for virtual scrolling
     const startIndex = Math.max(0, virtualStart - BUFFER_SIZE);
     const endIndex = Math.min(filteredAvailableNames.length, virtualStart + VISIBLE_ITEMS + BUFFER_SIZE);
     const visibleNames = filteredAvailableNames.slice(startIndex, endIndex);
 
-    // Handle scroll for virtual scrolling
     const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
         const scrollTop = e.currentTarget.scrollTop;
         const newStart = Math.floor(scrollTop / ITEM_HEIGHT);
@@ -241,7 +221,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         }
     }, [virtualStart]);
 
-    // Clear search function
     const clearSearch = React.useCallback(() => {
         setSearchTerm('');
         setVirtualStart(0);
@@ -250,21 +229,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         }
     }, [setSearchTerm]);
 
-    // Simple function that just returns the name without highlighting
     const highlightMatch = React.useCallback((name: string, _searchTerm: string) => {
         return name;
     }, []);
 
-    // Create set of matched names for quick lookup
     const matchedNames = new Set(matches.map((m: { name: string; email: string }) => m.name));
 
-    // Navigate to profile using name hash
     const handleNavigateToProfile = React.useCallback((name: string) => {
         const nameHash = hashName(name);
         navigate(`/profile/${nameHash}`);
     }, [navigate]);
 
-    // Handle match click
     const handleMatchClick = React.useCallback((match: { name: string; email: string }) => {
         const nameHash = hashName(match.name);
         navigate(`/profile/${nameHash}`);
@@ -310,7 +285,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
             </div>
 
-            {/* Memoize sorted selections outside of conditional */}
             {React.useMemo(() => {
                 if (safeSelectedNames.length === 0) return null;
 
@@ -443,7 +417,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                     onScroll={handleScroll}
                     style={{ height: `${VISIBLE_ITEMS * ITEM_HEIGHT}px` }}
                 >
-                    {/* Spacer for items before visible range */}
                     {startIndex > 0 && (
                         <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
                     )}
@@ -495,7 +468,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         );
                     })}
 
-                    {/* Spacer for items after visible range */}
                     {endIndex < filteredAvailableNames.length && (
                         <div style={{ height: `${(filteredAvailableNames.length - endIndex) * ITEM_HEIGHT}px` }} />
                     )}

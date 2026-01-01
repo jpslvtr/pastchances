@@ -6,22 +6,21 @@ interface UserPhotoProps {
     userClass?: string;
     size?: 'small' | 'medium' | 'large';
     className?: string;
-    photoUrl?: string | null | undefined; // Pre-loaded photo URL to skip database query
+    photoUrl?: string | null | undefined;
+    onClick?: (e: React.MouseEvent) => void;
 }
 
-const UserPhoto = ({ name, userClass = 'gsb', size = 'small', className = '', photoUrl: propsPhotoUrl }: UserPhotoProps) => {
+const UserPhoto = ({ name, userClass = 'gsb', size = 'small', className = '', photoUrl: propsPhotoUrl, onClick }: UserPhotoProps) => {
     const [photoUrl, setPhotoUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // If photo URL is provided as prop, use it immediately
         if (propsPhotoUrl !== undefined) {
             setPhotoUrl(propsPhotoUrl);
             setLoading(false);
             return;
         }
 
-        // Otherwise, fetch from database
         let mounted = true;
 
         const loadPhoto = async () => {
@@ -45,6 +44,7 @@ const UserPhoto = ({ name, userClass = 'gsb', size = 'small', className = '', ph
     const initials = getInitials(name);
     const bgColor = generateInitialsColor(name);
     const sizeClass = `user-photo-${size}`;
+    const clickableClass = onClick ? 'user-photo-clickable' : '';
 
     if (loading) {
         return (
@@ -54,22 +54,23 @@ const UserPhoto = ({ name, userClass = 'gsb', size = 'small', className = '', ph
         );
     }
 
-    // Show actual photo if it exists (only real uploaded photos)
     if (photoUrl) {
         return (
             <img
                 src={photoUrl}
                 alt={name}
-                className={`user-photo ${sizeClass} ${className}`}
+                className={`user-photo ${sizeClass} ${clickableClass} ${className}`}
+                onClick={onClick}
+                style={{ cursor: onClick ? 'pointer' : 'default' }}
             />
         );
     }
 
-    // Show initials for: no photo, default silhouettes, Google-generated initials
     return (
         <div
-            className={`user-photo ${sizeClass} user-photo-initials ${className}`}
-            style={{ backgroundColor: bgColor }}
+            className={`user-photo ${sizeClass} user-photo-initials ${clickableClass} ${className}`}
+            style={{ backgroundColor: bgColor, cursor: onClick ? 'pointer' : 'default' }}
+            onClick={onClick}
         >
             {initials}
         </div>
