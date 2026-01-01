@@ -108,13 +108,7 @@ const Home = () => {
                 updatedAt: now
             });
 
-            // Update Firestore
-            await updateDoc(userRef, {
-                crushes: finalCrushes,
-                updatedAt: now
-            });
-
-            // Show success message
+            // Show success message immediately
             const successDiv = document.createElement('div');
             successDiv.textContent = 'Preferences updated successfully!';
             successDiv.style.cssText = `
@@ -136,6 +130,17 @@ const Home = () => {
                     document.body.removeChild(successDiv);
                 }
             }, 3000);
+
+            // Fire and forget - update Firestore in background
+            updateDoc(userRef, {
+                crushes: finalCrushes,
+                updatedAt: now
+            }).catch(error => {
+                console.error('Error updating preferences:', error);
+                // Revert optimistic updates on error
+                setSelectedNames(savedNames);
+                setError('Failed to update preferences. Please try again.');
+            });
 
         } catch (error) {
             console.error('Error updating preferences:', error);

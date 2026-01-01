@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
@@ -34,6 +35,18 @@ interface UserDashboardProps {
     handleRemoveSelected: (name: string) => void;
     handleUpdatePreferences: () => void;
 }
+
+// Simple hash function for generating consistent IDs from names
+const hashName = (name: string): string => {
+    let hash = 0;
+    const normalized = name.toLowerCase().trim();
+    for (let i = 0; i < normalized.length; i++) {
+        const char = normalized.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36);
+};
 
 // Fast name matching function optimized for first/last name searches
 const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
@@ -120,6 +133,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     handleRemoveSelected,
     handleUpdatePreferences
 }) => {
+    const navigate = useNavigate();
     const [virtualStart, setVirtualStart] = React.useState(0);
     const searchInputRef = React.useRef<HTMLInputElement>(null);
     const [photoCache, setPhotoCache] = React.useState<Map<string, string | null>>(new Map());
@@ -152,17 +166,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 );
 
                 const snapshot = await getDocs(q);
-                const cache = new Map<string, string | null>();
+                const photoMap = new Map<string, string | null>();
 
                 snapshot.forEach(doc => {
                     const data = doc.data();
                     if (data.name && data.customPhotoURL) {
-                        cache.set(data.name, data.customPhotoURL);
+                        photoMap.set(data.name, data.customPhotoURL);
                     }
                 });
 
                 if (mounted) {
-                    setPhotoCache(cache);
+                    setPhotoCache(photoMap);
                 }
             } catch (error) {
                 console.error('Error loading photos:', error);
@@ -244,6 +258,18 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     // Create set of matched names for quick lookup
     const matchedNames = new Set(matches.map((m: { name: string; email: string }) => m.name));
 
+    // Navigate to profile using name hash
+    const handleNavigateToProfile = React.useCallback((name: string) => {
+        const nameHash = hashName(name);
+        navigate(`/profile/${nameHash}`);
+    }, [navigate]);
+
+    // Handle match click
+    const handleMatchClick = React.useCallback((match: { name: string; email: string }) => {
+        const nameHash = hashName(match.name);
+        navigate(`/profile/${nameHash}`);
+    }, [navigate]);
+
     return (
         <>
             {crushCount > 0 && (
@@ -257,7 +283,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                     <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
                     <div className="matches-list">
                         {userData.matches.map((match: { name: string; email: string }, index: number) => (
-                            <div key={index} className="match-item">
+                            <div
+                                key={index}
+                                className="match-item clickable"
+                                onClick={() => handleMatchClick(match)}
+                                style={{ cursor: 'pointer' }}
+                            >
                                 <UserPhoto
                                     name={match.name}
                                     userClass={userData.userClass}
@@ -321,15 +352,27 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                             minHeight: `${ITEM_HEIGHT}px`
                                         }}
                                     >
-                                        <UserPhoto
-                                            name={name}
-                                            userClass={userData.userClass}
-                                            size="small"
-                                            photoUrl={photoURL}
-                                        />
-                                        <span className="name-text">
-                                            {name}
-                                        </span>
+                                        <div
+                                            className="name-clickable-area"
+                                            onClick={() => handleNavigateToProfile(name)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '12px',
+                                                flex: 1,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <UserPhoto
+                                                name={name}
+                                                userClass={userData.userClass}
+                                                size="small"
+                                                photoUrl={photoURL}
+                                            />
+                                            <span className="name-text">
+                                                {name}
+                                            </span>
+                                        </div>
 
                                         {isLocked ? (
                                             <span
@@ -341,7 +384,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                         ) : (
                                             <button
                                                 className="remove-btn-icon"
-                                                onClick={() => handleRemoveSelected(name)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemoveSelected(name);
+                                                }}
                                                 title="Remove"
                                                 disabled={updating}
                                             >
@@ -354,7 +400,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         </div>
                     </div>
                 );
-            }, [safeSelectedNames, lockedCrushes, hasUnsavedChanges, updating, handleUpdatePreferences, handleRemoveSelected, photoCache, userData.userClass, matchedNames, ITEM_HEIGHT])}
+            }, [safeSelectedNames, lockedCrushes, hasUnsavedChanges, updating, handleUpdatePreferences, handleRemoveSelected, photoCache, userData.userClass, matchedNames, ITEM_HEIGHT, handleNavigateToProfile])}
 
             <div className="search-section">
                 <div className="search-input-container">
@@ -407,23 +453,44 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         return (
                             <div
                                 key={`${name}-${actualIndex}`}
-                                onClick={() => !updating && handleNameToggle(name)}
                                 className={`name-list-item ${updating ? 'disabled' : ''}`}
                                 style={{
                                     height: `${ITEM_HEIGHT}px`,
                                     minHeight: `${ITEM_HEIGHT}px`
                                 }}
                             >
-                                <UserPhoto
-                                    name={name}
-                                    userClass={userData.userClass}
-                                    size="small"
-                                    photoUrl={photoCache.get(name)}
-                                />
-                                <span className="name-text">
-                                    {highlightMatch(name, searchTerm)}
-                                </span>
-                                <span className="add-btn">+</span>
+                                <div
+                                    className="name-clickable-area"
+                                    onClick={() => !updating && handleNavigateToProfile(name)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        flex: 1,
+                                        cursor: updating ? 'default' : 'pointer'
+                                    }}
+                                >
+                                    <UserPhoto
+                                        name={name}
+                                        userClass={userData.userClass}
+                                        size="small"
+                                        photoUrl={photoCache.get(name)}
+                                    />
+                                    <span className="name-text">
+                                        {highlightMatch(name, searchTerm)}
+                                    </span>
+                                </div>
+                                <button
+                                    className="add-btn"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        !updating && handleNameToggle(name);
+                                    }}
+                                    disabled={updating}
+                                    style={{ cursor: updating ? 'default' : 'pointer' }}
+                                >
+                                    +
+                                </button>
                             </div>
                         );
                     })}
