@@ -555,28 +555,28 @@ const Profile = () => {
 
                                 <div className="info-row">
                                     <label>Email:</label>
-                                    <div className={`info-value-inline readonly ${profileData?.email === currentEmail ? 'current' : ''}`}>
+                                    <div className={`info-value-plain ${profileData?.email === currentEmail ? 'current' : ''}`}>
                                         {profileData?.email || 'Not linked'}
                                     </div>
                                 </div>
 
                                 <div className="info-row">
                                     <label>Stanford Alumni:</label>
-                                    <div className={`info-value-inline readonly ${profileData?.emailAlumni === currentEmail ? 'current' : ''}`}>
+                                    <div className={`info-value-plain ${profileData?.emailAlumni === currentEmail ? 'current' : ''}`}>
                                         {profileData?.emailAlumni || 'Not linked'}
                                     </div>
                                 </div>
 
                                 <div className="info-row">
                                     <label>GSB Alumni:</label>
-                                    <div className={`info-value-inline readonly ${profileData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
+                                    <div className={`info-value-plain ${profileData?.emailAlumniGSB === currentEmail ? 'current' : ''}`}>
                                         {profileData?.emailAlumniGSB || 'Not linked'}
                                     </div>
                                 </div>
 
                                 <div className="info-row">
                                     <label>Account Created:</label>
-                                    <div className="info-value-inline readonly">{formatDate(profileData?.createdAt)}</div>
+                                    <div className="info-value-plain">{formatDate(profileData?.createdAt)}</div>
                                 </div>
                             </>
                         )}
