@@ -5716,633 +5716,6 @@ export const useAuthHelpers = () => {
 };
 
 ================
-File: src/styles/dashboard/dashboard-components.css
-================
-/* Dashboard Component Styles */
-
-/* Crush count section */
-.crush-count-section {
-    padding: 15px;
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-    border-radius: 8px;
-    border-left: 4px solid #f39c12;
-    text-align: left;
-    flex-shrink: 0;
-    margin-bottom: 20px;
-  }
-  
-  .crush-count-section h2 {
-    color: #d68910;
-    margin: 0;
-    font-size: 18px;
-    font-weight: normal;
-    font-style: italic;
-  }
-  
-  /* Matches section */
-  .matches-section {
-    padding: 15px;
-    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-    border-radius: 8px;
-    border-left: 4px solid #28a745;
-    text-align: left;
-    flex-shrink: 0;
-  }
-  
-  .matches-section h2 {
-    color: #155724;
-    margin-bottom: 15px;
-    font-size: 18px;
-    font-weight: normal;
-    font-style: italic;
-  }
-  
-  .matches-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
-    margin-top: 15px;
-  }
-  
-  .match-item {
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    border-left: 4px solid #28a745;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .match-details {
-    flex: 1;
-  }
-  
-  .match-name {
-    font-size: 16px;
-    font-weight: 600;
-    color: #155724;
-    margin-bottom: 6px;
-  }
-  
-  .match-email {
-    font-size: 12px;
-    color: #6c757d;
-    font-family: 'Courier New', monospace;
-    word-break: break-all;
-  }
-  
-  .no-matches {
-    margin-top: 8px;
-    padding: 8px;
-    background: #fff3cd;
-    color: #856404;
-    border-radius: 6px;
-    font-weight: 500;
-    font-size: 13px;
-  }
-  
-  /* Selection counter */
-  .selection-counter {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: #8C1515;
-    color: white;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 13px;
-    flex-shrink: 0;
-  }
-  
-  .submitted-badge {
-    background: rgba(255, 255, 255, 0.3);
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-  }
-  
-  .updating-badge {
-    background: rgba(255, 255, 255, 0.3);
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-    animation: pulse 1.5s ease-in-out infinite alternate;
-  }
-  
-  .unsaved-badge {
-    background: #dc3545;
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-    color: white;
-    animation: pulse 1.5s ease-in-out infinite alternate;
-  }
-  
-  /* Locked crush styles */
-  .locked-badge {
-    background: #dc3545;
-    padding: 2px 6px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-    color: white;
-  }
-  
-  @keyframes pulse {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0.7;
-    }
-  }
-  
-  /* Selected names section - OLD CHIP STYLES (keeping for reference, can be removed if not needed) */
-  .selected-names {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    flex-shrink: 0;
-  }
-  
-  .selected-names h3 {
-    color: #8C1515;
-    margin-bottom: 12px;
-    font-size: 16px;
-    font-weight: 600;
-  }
-  
-  .name-chips {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 8px;
-  }
-  
-  .name-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: white;
-    padding: 8px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 500;
-    border: 2px solid #dee2e6;
-    transition: all 0.2s ease;
-    position: relative;
-    min-height: 36px;
-  }
-  
-  .name-chip.selected {
-    border-color: #8C1515;
-    background: #fff;
-  }
-  
-  .name-chip.locked {
-    border-color: #28a745;
-    background: #d4edda;
-  }
-  
-  .name-chip span {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  
-  .remove-btn {
-    background: none;
-    border: none;
-    color: #dc3545;
-    font-size: 20px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: transform 0.2s;
-  }
-  
-  .remove-btn:hover {
-    transform: scale(1.2);
-  }
-  
-  .remove-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-  
-  .lock-icon {
-    color: #28a745;
-    font-size: 14px;
-    flex-shrink: 0;
-  }
-
-  /* NEW Selected names section - LIST STYLE */
-  .selected-section {
-    margin-bottom: 20px;
-    flex-shrink: 0;
-  }
-
-  .selected-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  .selected-section-header h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #8C1515;
-  }
-  
-  /* Selections list - variable height, no max-height */
-  .selections-list {
-    max-height: none !important;
-    height: auto !important;
-    min-height: auto !important;
-  }
-  
-  /* Search section */
-  .search-section {
-    flex-shrink: 0;
-    margin-bottom: 15px;
-  }
-  
-  .search-input-container {
-    position: relative;
-  }
-  
-  .search-input {
-    width: 100%;
-    padding: 12px 40px 12px 15px;
-    border: 2px solid #e1e5e9;
-    border-radius: 8px;
-    font-size: 14px;
-    transition: all 0.3s ease;
-    background: white;
-    box-sizing: border-box;
-  }
-  
-  .search-input:focus {
-    outline: none;
-    border-color: #8C1515;
-    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
-  }
-  
-  .search-clear-btn {
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: #999;
-    font-size: 24px;
-    cursor: pointer;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s;
-  }
-  
-  .search-clear-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: #666;
-  }
-  
-  .search-hint {
-    font-size: 11px;
-    color: #666;
-    padding: 6px 10px;
-    background: #f8f9fa;
-    border-radius: 4px;
-    margin-top: 8px;
-    border-left: 3px solid #8C1515;
-  }
-  
-  /* Available names section - Enhanced for large lists */
-  .available-names {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .available-names-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-    flex-shrink: 0;
-  }
-  
-  .available-names h3, .available-names-header h3 {
-    color: #8C1515;
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-  }
-  
-  /* Names list - Optimized for large datasets */
-  .names-simple-list {
-    flex: 1;
-    overflow-y: auto;
-    border: 1px solid #e1e5e9;
-    border-radius: 8px;
-    background: white;
-    min-height: 400px;
-    max-height: 60vh;
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
-    transform: translateZ(0);
-    will-change: scroll-position;
-    contain: layout style paint;
-  }
-  
-  .name-list-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 15px;
-    border-bottom: 1px solid #f0f0f0;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 14px;
-    height: 48px;
-    min-height: 48px;
-    box-sizing: border-box;
-    contain: layout style paint;
-    gap: 12px;
-  }
-  
-  .name-list-item:last-child {
-    border-bottom: none;
-  }
-  
-  .name-list-item:hover:not(.disabled) {
-    background: #f8f9fa;
-  }
-  
-  .name-list-item.disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    background: #f9f9f9;
-  }
-  
-  .name-text {
-    flex: 1;
-    text-align: left;
-    font-weight: 500;
-  }
-  
-  .add-btn {
-    font-weight: bold;
-    font-size: 18px;
-    color: #8C1515;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(140, 21, 21, 0.1);
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .add-btn:hover:not(:disabled) {
-      background: rgba(140, 21, 21, 0.2);
-      transform: scale(1.1);
-  }
-
-  .add-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-  }
-
-  .lock-btn {
-    font-weight: bold;
-    font-size: 16px;
-    color: #28a745;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(40, 167, 69, 0.1);
-    flex-shrink: 0;
-  }
-
-  .remove-btn-icon {
-    font-weight: bold;
-    font-size: 24px;
-    color: #dc3545;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(220, 53, 69, 0.1);
-    transition: all 0.2s ease;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-
-  .remove-btn-icon:hover {
-    background: rgba(220, 53, 69, 0.2);
-    transform: scale(1.1);
-  }
-
-  .remove-btn-icon:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-  
-  .no-results {
-    padding: 20px;
-    text-align: center;
-    color: #666;
-    font-style: italic;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-  
-  .no-results small {
-    display: block;
-    margin: 8px 0;
-    color: #888;
-    font-size: 12px;
-  }
-  
-  .clear-search-link {
-    background: none;
-    border: none;
-    color: #8C1515;
-    text-decoration: underline;
-    cursor: pointer;
-    font-size: 13px;
-    margin-left: 8px;
-    padding: 0;
-    margin-top: 8px;
-    display: inline-block;
-  }
-  
-  .clear-search-link:hover {
-    color: #a01a1a;
-  }
-  
-  /* Action section */
-  .action-section {
-    text-align: center;
-    padding-top: 15px;
-    border-top: 1px solid #e1e5e9;
-    flex-shrink: 0;
-  }
-  
-  .action-buttons {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  
-  .save-draft-btn, .submit-btn, .update-btn {
-    padding: 12px 20px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: none;
-  }
-  
-  .save-draft-btn {
-    background: #6c757d;
-    color: white;
-  }
-  
-  .save-draft-btn:hover:not(:disabled) {
-    background: #5a6268;
-  }
-  
-  .submit-btn, .update-btn {
-    background: #8C1515;
-    color: white;
-  }
-  
-  .submit-btn:hover:not(:disabled), .update-btn:hover:not(:disabled) {
-    background: #6b1010;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.3);
-  }
-  
-  .save-draft-btn:disabled,
-  .submit-btn:disabled,
-  .update-btn:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-  
-  .submitted-message {
-    background: #d4edda;
-    color: #155724;
-    padding: 20px;
-    border-radius: 8px;
-    text-align: center;
-    border-left: 4px solid #28a745;
-  }
-  
-  .submitted-message h2 {
-    margin-bottom: 10px;
-    color: #155724;
-  }
-  
-  /* Error message */
-  .error-message {
-    background: #f8d7da;
-    color: #721c24;
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid #f5c6cb;
-    margin-bottom: 16px;
-    flex-shrink: 0;
-  }
-
-  /* Icon-based update button */
-.update-btn-icon {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    padding: 0;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: none;
-    background: #8C1515;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.update-btn-icon:hover:not(:disabled) {
-    background: #6b1010;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.3);
-}
-
-.update-btn-icon:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-    transform: none;
-}
-
-.update-btn-icon .spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-================
 File: src/styles/dashboard/dashboard-photos.css
 ================
 /* User Photo Styles */
@@ -6962,6 +6335,634 @@ const Terms: React.FC = () => {
 };
 
 export default Terms;
+
+================
+File: src/styles/dashboard/dashboard-components.css
+================
+/* Dashboard Component Styles */
+
+/* Crush count section */
+.crush-count-section {
+    padding: 15px;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border-radius: 8px;
+    border-left: 4px solid #f39c12;
+    text-align: left;
+    flex-shrink: 0;
+    margin-bottom: 20px;
+  }
+  
+  .crush-count-section h2 {
+    color: #d68910;
+    margin: 0;
+    font-size: 18px;
+    font-weight: normal;
+    font-style: italic;
+  }
+  
+  /* Matches section */
+  .matches-section {
+    padding: 15px;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+    text-align: left;
+    flex-shrink: 0;
+  }
+  
+  .matches-section h2 {
+    color: #155724;
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-weight: normal;
+    font-style: italic;
+  }
+  
+  .matches-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+  }
+  
+  .match-item {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #28a745;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .match-details {
+    flex: 1;
+  }
+  
+  .match-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #155724;
+    margin-bottom: 6px;
+  }
+  
+  .match-email {
+    font-size: 12px;
+    color: #6c757d;
+    font-family: 'Courier New', monospace;
+    word-break: break-all;
+  }
+  
+  .no-matches {
+    margin-top: 8px;
+    padding: 8px;
+    background: #fff3cd;
+    color: #856404;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 13px;
+  }
+  
+  /* Selection counter */
+  .selection-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #8C1515;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  
+  .submitted-badge {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  
+  .updating-badge {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    animation: pulse 1.5s ease-in-out infinite alternate;
+  }
+  
+  .unsaved-badge {
+    background: #dc3545;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    animation: pulse 1.5s ease-in-out infinite alternate;
+  }
+  
+  /* Locked crush styles */
+  .locked-badge {
+    background: #dc3545;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+  }
+  
+  @keyframes pulse {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.7;
+    }
+  }
+  
+  /* Selected names section - OLD CHIP STYLES (keeping for reference, can be removed if not needed) */
+  .selected-names {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+  }
+  
+  .selected-names h3 {
+    color: #8C1515;
+    margin-bottom: 12px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  .name-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+  }
+  
+  .name-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 2px solid #dee2e6;
+    transition: all 0.2s ease;
+    position: relative;
+    min-height: 36px;
+  }
+  
+  .name-chip.selected {
+    border-color: #8C1515;
+    background: #fff;
+  }
+  
+  .name-chip.locked {
+    border-color: #28a745;
+    background: #d4edda;
+  }
+  
+  .name-chip span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .remove-btn {
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  
+  .remove-btn:hover {
+    transform: scale(1.2);
+  }
+  
+  .remove-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  
+  .lock-icon {
+    color: #28a745;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  /* NEW Selected names section - LIST STYLE */
+  .selected-section {
+    margin-bottom: 20px;
+    flex-shrink: 0;
+  }
+
+  .selected-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .selected-section-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #8C1515;
+  }
+  
+  /* Selections list - variable height with max-height constraint */
+  .selections-list {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: 30vh !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Search section */
+  .search-section {
+    flex-shrink: 0;
+    margin-bottom: 15px;
+  }
+  
+  .search-input-container {
+    position: relative;
+  }
+  
+  .search-input {
+    width: 100%;
+    padding: 12px 40px 12px 15px;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: white;
+    box-sizing: border-box;
+  }
+  
+  .search-input:focus {
+    outline: none;
+    border-color: #8C1515;
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+  }
+  
+  .search-clear-btn {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  
+  .search-clear-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #666;
+  }
+  
+  .search-hint {
+    font-size: 11px;
+    color: #666;
+    padding: 6px 10px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin-top: 8px;
+    border-left: 3px solid #8C1515;
+  }
+  
+  /* Available names section - Enhanced for large lists */
+  .available-names {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .available-names-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
+  
+  .available-names h3, .available-names-header h3 {
+    color: #8C1515;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  /* Names list - Optimized for large datasets */
+  .names-simple-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    background: white;
+    min-height: 400px;
+    max-height: 60vh;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    transform: translateZ(0);
+    will-change: scroll-position;
+    contain: layout style paint;
+  }
+  
+  .name-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    height: 48px;
+    min-height: 48px;
+    box-sizing: border-box;
+    contain: layout style paint;
+    gap: 12px;
+  }
+  
+  .name-list-item:last-child {
+    border-bottom: none;
+  }
+  
+  .name-list-item:hover:not(.disabled) {
+    background: #f8f9fa;
+  }
+  
+  .name-list-item.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #f9f9f9;
+  }
+  
+  .name-text {
+    flex: 1;
+    text-align: left;
+    font-weight: 500;
+  }
+  
+  .add-btn {
+    font-weight: bold;
+    font-size: 18px;
+    color: #8C1515;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(140, 21, 21, 0.1);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .add-btn:hover:not(:disabled) {
+      background: rgba(140, 21, 21, 0.2);
+      transform: scale(1.1);
+  }
+
+  .add-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+  }
+
+  .lock-btn {
+    font-weight: bold;
+    font-size: 16px;
+    color: #28a745;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(40, 167, 69, 0.1);
+    flex-shrink: 0;
+  }
+
+  .remove-btn-icon {
+    font-weight: bold;
+    font-size: 24px;
+    color: #dc3545;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(220, 53, 69, 0.1);
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .remove-btn-icon:hover {
+    background: rgba(220, 53, 69, 0.2);
+    transform: scale(1.1);
+  }
+
+  .remove-btn-icon:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  
+  .no-results {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  
+  .no-results small {
+    display: block;
+    margin: 8px 0;
+    color: #888;
+    font-size: 12px;
+  }
+  
+  .clear-search-link {
+    background: none;
+    border: none;
+    color: #8C1515;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 13px;
+    margin-left: 8px;
+    padding: 0;
+    margin-top: 8px;
+    display: inline-block;
+  }
+  
+  .clear-search-link:hover {
+    color: #a01a1a;
+  }
+  
+  /* Action section */
+  .action-section {
+    text-align: center;
+    padding-top: 15px;
+    border-top: 1px solid #e1e5e9;
+    flex-shrink: 0;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .save-draft-btn, .submit-btn, .update-btn {
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+  }
+  
+  .save-draft-btn {
+    background: #6c757d;
+    color: white;
+  }
+  
+  .save-draft-btn:hover:not(:disabled) {
+    background: #5a6268;
+  }
+  
+  .submit-btn, .update-btn {
+    background: #8C1515;
+    color: white;
+  }
+  
+  .submit-btn:hover:not(:disabled), .update-btn:hover:not(:disabled) {
+    background: #6b1010;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.3);
+  }
+  
+  .save-draft-btn:disabled,
+  .submit-btn:disabled,
+  .update-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  
+  .submitted-message {
+    background: #d4edda;
+    color: #155724;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    border-left: 4px solid #28a745;
+  }
+  
+  .submitted-message h2 {
+    margin-bottom: 10px;
+    color: #155724;
+  }
+  
+  /* Error message */
+  .error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid #f5c6cb;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+  }
+
+  /* Icon-based update button */
+.update-btn-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    background: #8C1515;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.update-btn-icon:hover:not(:disabled) {
+    background: #6b1010;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.3);
+}
+
+.update-btn-icon:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+}
+
+.update-btn-icon .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 
 ================
 File: src/styles/auth.css
@@ -10763,6 +10764,448 @@ const Profile = () => {
 export default Profile;
 
 ================
+File: src/contexts/AuthContext.tsx
+================
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import type { ReactNode } from 'react';
+import type { User as FirebaseUser } from 'firebase/auth';
+import {
+    signInWithPopup,
+    GoogleAuthProvider,
+    signOut as firebaseSignOut,
+    onAuthStateChanged
+} from 'firebase/auth';
+import { doc, getDoc, collection, getDocs, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
+import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
+import type { UserData, UserClass } from '../types';
+import { getClassNames, getUserDocumentId } from '../utils';
+
+interface AuthContextType {
+    user: FirebaseUser | null;
+    userData: UserData | null;
+    loading: boolean;
+    needsOnboarding: boolean;
+    needsAccountLinking: boolean;
+    nameOptions: string[] | null;
+    signInWithGoogle: () => Promise<void>;
+    signOut: () => Promise<void>;
+    logout: () => Promise<void>;
+    refreshUserData: () => Promise<void>;
+    selectName: (name: string) => Promise<void>;
+    completeAccountLinking: () => void;
+    startNewAccount: () => void;
+    updateUserDataOptimistically: (updates: Partial<UserData>) => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};
+
+interface AuthProviderProps {
+    children: ReactNode;
+}
+
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+    const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [userData, setUserData] = useState<UserData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [needsOnboarding, setNeedsOnboarding] = useState(false);
+    const [needsAccountLinking, setNeedsAccountLinking] = useState(false);
+    const [nameOptions, setNameOptions] = useState<string[] | null>(null);
+    const [pendingUserClass, setPendingUserClass] = useState<UserClass | null>(null);
+
+    // Prevent concurrent fetches
+    const fetchingUserData = useRef(false);
+    // Track the current document listener
+    const userDocUnsubscribe = useRef<(() => void) | null>(null);
+
+    const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
+        if (fetchingUserData.current) {
+            console.log('Already fetching user data, skipping...');
+            return null;
+        }
+
+        fetchingUserData.current = true;
+
+        try {
+            const email = firebaseUser.email;
+            if (!email) return null;
+
+            const normalizedEmail = normalizeEmail(email);
+
+            // First check by Firebase UID
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+                console.log('Found user by Firebase UID');
+                return userDocSnap.data() as UserData;
+            }
+
+            // If alumni email, check if it exists in emailAlumni or emailAlumniGSB fields
+            if (isAlumniEmail(normalizedEmail)) {
+                const existingUserId = await checkExistingUserByAlumniEmail(normalizedEmail);
+                if (existingUserId) {
+                    const existingUserRef = doc(db, 'users', existingUserId);
+                    const existingUserSnap = await getDoc(existingUserRef);
+                    if (existingUserSnap.exists()) {
+                        console.log('Found user by alumni email lookup');
+                        return existingUserSnap.data() as UserData;
+                    }
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Error fetching user data:', error);
+            return null;
+        } finally {
+            fetchingUserData.current = false;
+        }
+    };
+
+    const checkExistingUserByAlumniEmail = async (email: string): Promise<string | null> => {
+        try {
+            const normalizedEmail = normalizeEmail(email);
+            const usersRef = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersRef);
+
+            for (const docSnap of usersSnapshot.docs) {
+                const data = docSnap.data();
+
+                const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
+                const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
+
+                if (alumniMatch || alumniGSBMatch) {
+                    console.log('Found existing user by alumni email:', docSnap.id);
+                    return docSnap.id;
+                }
+            }
+
+            console.log('No existing user found with alumni email');
+            return null;
+        } catch (error) {
+            console.error('Error checking alumni email:', error);
+            return null;
+        }
+    };
+
+    // Set up real-time listener for user document
+    const setupUserDocumentListener = (docId: string) => {
+        // Clean up existing listener
+        if (userDocUnsubscribe.current) {
+            userDocUnsubscribe.current();
+            userDocUnsubscribe.current = null;
+        }
+
+        const userDocRef = doc(db, 'users', docId);
+
+        // Set up real-time listener
+        const unsubscribe = onSnapshot(
+            userDocRef,
+            (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.data() as UserData;
+                    console.log('Real-time update received for user document');
+                    setUserData(data);
+                } else {
+                    console.log('User document no longer exists');
+                    setUserData(null);
+                }
+            },
+            (error) => {
+                console.error('Error in user document listener:', error);
+            }
+        );
+
+        userDocUnsubscribe.current = unsubscribe;
+    };
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            console.log('Auth state changed:', firebaseUser?.email);
+            setUser(firebaseUser);
+
+            if (firebaseUser) {
+                const data = await fetchUserData(firebaseUser);
+                setUserData(data);
+
+                // Set up real-time listener if user document exists
+                if (data) {
+                    const docId = getUserDocumentId(firebaseUser, data);
+                    setupUserDocumentListener(docId);
+
+                    // Update lastLogin for existing users (non-blocking, fire-and-forget)
+                    const userRef = doc(db, 'users', docId);
+                    updateDoc(userRef, {
+                        lastLogin: serverTimestamp()
+                    }).catch(error => {
+                        // Silently ignore errors - lastLogin is not critical
+                        console.log('lastLogin update skipped (non-critical):', error.code);
+                    });
+                }
+
+                const email = firebaseUser.email;
+                if (!email) {
+                    setLoading(false);
+                    return;
+                }
+
+                // Check if email is valid Stanford-related
+                if (!isValidStanfordRelatedEmail(email)) {
+                    console.error('Invalid email domain');
+                    await firebaseSignOut(auth);
+                    setLoading(false);
+                    return;
+                }
+
+                // Handle onboarding and account linking flows
+                if (!data) {
+                    if (isAlumniEmail(email)) {
+                        setNeedsAccountLinking(true);
+                        setNeedsOnboarding(false);
+                        setNameOptions(null);
+                        setPendingUserClass('gsb');
+                    } else {
+                        setNeedsAccountLinking(false);
+                        setNeedsOnboarding(true);
+                        await handleNewStanfordUser(firebaseUser, 'gsb');
+                    }
+                } else {
+                    setNeedsAccountLinking(false);
+                    setNeedsOnboarding(false);
+                    setNameOptions(null);
+                }
+            } else {
+                // Clean up listener when user signs out
+                if (userDocUnsubscribe.current) {
+                    userDocUnsubscribe.current();
+                    userDocUnsubscribe.current = null;
+                }
+                setUserData(null);
+                setNeedsOnboarding(false);
+                setNeedsAccountLinking(false);
+                setNameOptions(null);
+            }
+
+            setLoading(false);
+        });
+
+        return () => {
+            unsubscribe();
+            // Clean up listener on unmount
+            if (userDocUnsubscribe.current) {
+                userDocUnsubscribe.current();
+            }
+        };
+    }, []);
+
+    const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
+        try {
+            const allNames = await getClassNames(userClass);
+            const displayName = firebaseUser.displayName || '';
+            const nameParts = displayName.trim().split(' ');
+
+            let matchingNames: string[] = [];
+
+            if (nameParts.length >= 2) {
+                const firstName = nameParts[0].toLowerCase();
+                const lastName = nameParts[nameParts.length - 1].toLowerCase();
+
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return lowerName.includes(firstName) && lowerName.includes(lastName);
+                });
+            }
+
+            if (matchingNames.length === 0) {
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return nameParts.some(part =>
+                        part.length > 2 && lowerName.includes(part.toLowerCase())
+                    );
+                });
+            }
+
+            if (matchingNames.length === 1) {
+                await createUserDocument(firebaseUser, matchingNames[0], userClass);
+                const data = await fetchUserData(firebaseUser);
+                setUserData(data);
+
+                // Set up real-time listener for new user
+                if (data) {
+                    const docId = getUserDocumentId(firebaseUser, data);
+                    setupUserDocumentListener(docId);
+                }
+
+                setNeedsOnboarding(false);
+                setNameOptions(null);
+            } else {
+                setNameOptions(matchingNames.length > 0 ? matchingNames : allNames);
+                setPendingUserClass(userClass);
+            }
+        } catch (error) {
+            console.error('Error handling new Stanford user:', error);
+        }
+    };
+
+    const createUserDocument = async (firebaseUser: FirebaseUser, name: string, userClass: UserClass) => {
+        const normalizedEmail = normalizeEmail(firebaseUser.email || '');
+
+        let docId = firebaseUser.uid;
+        if (firebaseUser.email === 'jpark22@stanford.edu') {
+            docId = `${firebaseUser.uid}_${userClass}`;
+        }
+
+        const userRef = doc(db, 'users', docId);
+
+        await setDoc(userRef, {
+            uid: docId,
+            email: normalizedEmail,
+            emailAlumni: '',
+            emailAlumniGSB: '',
+            name: name,
+            photoURL: firebaseUser.photoURL || '',
+            customPhotoURL: '',
+            location: '',
+            about: '',
+            crushes: [],
+            lockedCrushes: [],
+            matches: [],
+            crushCount: 0,
+            userClass: userClass,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastLogin: serverTimestamp()
+        });
+    };
+
+    const selectName = async (name: string) => {
+        if (!user || !pendingUserClass) {
+            throw new Error('No user or pending class');
+        }
+
+        await createUserDocument(user, name, pendingUserClass);
+        const data = await fetchUserData(user);
+        setUserData(data);
+
+        // Set up real-time listener for newly created user
+        if (data) {
+            const docId = getUserDocumentId(user, data);
+            setupUserDocumentListener(docId);
+        }
+
+        setNeedsOnboarding(false);
+        setNameOptions(null);
+    };
+
+    const completeAccountLinking = () => {
+        setNeedsAccountLinking(false);
+        setNeedsOnboarding(false);
+        setNameOptions(null);
+        if (user) {
+            refreshUserData();
+        }
+    };
+
+    const startNewAccount = () => {
+        setNeedsAccountLinking(false);
+        setNeedsOnboarding(true);
+        if (user && pendingUserClass) {
+            handleNewStanfordUser(user, pendingUserClass);
+        }
+    };
+
+    const signInWithGoogle = async () => {
+        try {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({
+                prompt: 'select_account'
+            });
+
+            // Use popup for all platforms - more reliable than redirect
+            console.log('Using popup for authentication');
+            await signInWithPopup(auth, provider);
+        } catch (error) {
+            console.error('Error signing in with Google:', error);
+            throw error;
+        }
+    };
+
+    const signOut = async () => {
+        try {
+            await firebaseSignOut(auth);
+
+            // Clean up listener
+            if (userDocUnsubscribe.current) {
+                userDocUnsubscribe.current();
+                userDocUnsubscribe.current = null;
+            }
+
+            setUser(null);
+            setUserData(null);
+            setNeedsOnboarding(false);
+            setNeedsAccountLinking(false);
+            setNameOptions(null);
+        } catch (error) {
+            console.error('Error signing out:', error);
+            throw error;
+        }
+    };
+
+    const logout = signOut;
+
+    const refreshUserData = async () => {
+        if (user) {
+            const data = await fetchUserData(user);
+            setUserData(data);
+
+            // Set up real-time listener if not already set up
+            if (data && !userDocUnsubscribe.current) {
+                const docId = getUserDocumentId(user, data);
+                setupUserDocumentListener(docId);
+            }
+
+            if (data) {
+                setNeedsAccountLinking(false);
+                setNeedsOnboarding(false);
+                setNameOptions(null);
+            }
+        }
+    };
+
+    const updateUserDataOptimistically = (updates: Partial<UserData>) => {
+        setUserData(prev => prev ? { ...prev, ...updates } : null);
+    };
+
+    const value = {
+        user,
+        userData,
+        loading,
+        needsOnboarding,
+        needsAccountLinking,
+        nameOptions,
+        signInWithGoogle,
+        signOut,
+        logout,
+        refreshUserData,
+        selectName,
+        completeAccountLinking,
+        startNewAccount,
+        updateUserDataOptimistically
+    };
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+================
 File: src/styles/profile.css
 ================
 .profile-content {
@@ -11492,448 +11935,6 @@ File: vercel.json
 }
 
 ================
-File: src/contexts/AuthContext.tsx
-================
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
-import type { ReactNode } from 'react';
-import type { User as FirebaseUser } from 'firebase/auth';
-import {
-    signInWithPopup,
-    GoogleAuthProvider,
-    signOut as firebaseSignOut,
-    onAuthStateChanged
-} from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
-import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
-import type { UserData, UserClass } from '../types';
-import { getClassNames, getUserDocumentId } from '../utils';
-
-interface AuthContextType {
-    user: FirebaseUser | null;
-    userData: UserData | null;
-    loading: boolean;
-    needsOnboarding: boolean;
-    needsAccountLinking: boolean;
-    nameOptions: string[] | null;
-    signInWithGoogle: () => Promise<void>;
-    signOut: () => Promise<void>;
-    logout: () => Promise<void>;
-    refreshUserData: () => Promise<void>;
-    selectName: (name: string) => Promise<void>;
-    completeAccountLinking: () => void;
-    startNewAccount: () => void;
-    updateUserDataOptimistically: (updates: Partial<UserData>) => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
-};
-
-interface AuthProviderProps {
-    children: ReactNode;
-}
-
-export const AuthProvider = ({ children }: AuthProviderProps) => {
-    const [user, setUser] = useState<FirebaseUser | null>(null);
-    const [userData, setUserData] = useState<UserData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [needsOnboarding, setNeedsOnboarding] = useState(false);
-    const [needsAccountLinking, setNeedsAccountLinking] = useState(false);
-    const [nameOptions, setNameOptions] = useState<string[] | null>(null);
-    const [pendingUserClass, setPendingUserClass] = useState<UserClass | null>(null);
-
-    // Prevent concurrent fetches
-    const fetchingUserData = useRef(false);
-    // Track the current document listener
-    const userDocUnsubscribe = useRef<(() => void) | null>(null);
-
-    const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
-        if (fetchingUserData.current) {
-            console.log('Already fetching user data, skipping...');
-            return null;
-        }
-
-        fetchingUserData.current = true;
-
-        try {
-            const email = firebaseUser.email;
-            if (!email) return null;
-
-            const normalizedEmail = normalizeEmail(email);
-
-            // First check by Firebase UID
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-
-            if (userDocSnap.exists()) {
-                console.log('Found user by Firebase UID');
-                return userDocSnap.data() as UserData;
-            }
-
-            // If alumni email, check if it exists in emailAlumni or emailAlumniGSB fields
-            if (isAlumniEmail(normalizedEmail)) {
-                const existingUserId = await checkExistingUserByAlumniEmail(normalizedEmail);
-                if (existingUserId) {
-                    const existingUserRef = doc(db, 'users', existingUserId);
-                    const existingUserSnap = await getDoc(existingUserRef);
-                    if (existingUserSnap.exists()) {
-                        console.log('Found user by alumni email lookup');
-                        return existingUserSnap.data() as UserData;
-                    }
-                }
-            }
-
-            return null;
-        } catch (error) {
-            console.error('Error fetching user data:', error);
-            return null;
-        } finally {
-            fetchingUserData.current = false;
-        }
-    };
-
-    const checkExistingUserByAlumniEmail = async (email: string): Promise<string | null> => {
-        try {
-            const normalizedEmail = normalizeEmail(email);
-            const usersRef = collection(db, 'users');
-            const usersSnapshot = await getDocs(usersRef);
-
-            for (const docSnap of usersSnapshot.docs) {
-                const data = docSnap.data();
-
-                const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
-                const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
-
-                if (alumniMatch || alumniGSBMatch) {
-                    console.log('Found existing user by alumni email:', docSnap.id);
-                    return docSnap.id;
-                }
-            }
-
-            console.log('No existing user found with alumni email');
-            return null;
-        } catch (error) {
-            console.error('Error checking alumni email:', error);
-            return null;
-        }
-    };
-
-    // Set up real-time listener for user document
-    const setupUserDocumentListener = (docId: string) => {
-        // Clean up existing listener
-        if (userDocUnsubscribe.current) {
-            userDocUnsubscribe.current();
-            userDocUnsubscribe.current = null;
-        }
-
-        const userDocRef = doc(db, 'users', docId);
-
-        // Set up real-time listener
-        const unsubscribe = onSnapshot(
-            userDocRef,
-            (snapshot) => {
-                if (snapshot.exists()) {
-                    const data = snapshot.data() as UserData;
-                    console.log('Real-time update received for user document');
-                    setUserData(data);
-                } else {
-                    console.log('User document no longer exists');
-                    setUserData(null);
-                }
-            },
-            (error) => {
-                console.error('Error in user document listener:', error);
-            }
-        );
-
-        userDocUnsubscribe.current = unsubscribe;
-    };
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            console.log('Auth state changed:', firebaseUser?.email);
-            setUser(firebaseUser);
-
-            if (firebaseUser) {
-                const data = await fetchUserData(firebaseUser);
-                setUserData(data);
-
-                // Set up real-time listener if user document exists
-                if (data) {
-                    const docId = getUserDocumentId(firebaseUser, data);
-                    setupUserDocumentListener(docId);
-
-                    // Update lastLogin for existing users (non-blocking, fire-and-forget)
-                    const userRef = doc(db, 'users', docId);
-                    updateDoc(userRef, {
-                        lastLogin: serverTimestamp()
-                    }).catch(error => {
-                        // Silently ignore errors - lastLogin is not critical
-                        console.log('lastLogin update skipped (non-critical):', error.code);
-                    });
-                }
-
-                const email = firebaseUser.email;
-                if (!email) {
-                    setLoading(false);
-                    return;
-                }
-
-                // Check if email is valid Stanford-related
-                if (!isValidStanfordRelatedEmail(email)) {
-                    console.error('Invalid email domain');
-                    await firebaseSignOut(auth);
-                    setLoading(false);
-                    return;
-                }
-
-                // Handle onboarding and account linking flows
-                if (!data) {
-                    if (isAlumniEmail(email)) {
-                        setNeedsAccountLinking(true);
-                        setNeedsOnboarding(false);
-                        setNameOptions(null);
-                        setPendingUserClass('gsb');
-                    } else {
-                        setNeedsAccountLinking(false);
-                        setNeedsOnboarding(true);
-                        await handleNewStanfordUser(firebaseUser, 'gsb');
-                    }
-                } else {
-                    setNeedsAccountLinking(false);
-                    setNeedsOnboarding(false);
-                    setNameOptions(null);
-                }
-            } else {
-                // Clean up listener when user signs out
-                if (userDocUnsubscribe.current) {
-                    userDocUnsubscribe.current();
-                    userDocUnsubscribe.current = null;
-                }
-                setUserData(null);
-                setNeedsOnboarding(false);
-                setNeedsAccountLinking(false);
-                setNameOptions(null);
-            }
-
-            setLoading(false);
-        });
-
-        return () => {
-            unsubscribe();
-            // Clean up listener on unmount
-            if (userDocUnsubscribe.current) {
-                userDocUnsubscribe.current();
-            }
-        };
-    }, []);
-
-    const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
-        try {
-            const allNames = await getClassNames(userClass);
-            const displayName = firebaseUser.displayName || '';
-            const nameParts = displayName.trim().split(' ');
-
-            let matchingNames: string[] = [];
-
-            if (nameParts.length >= 2) {
-                const firstName = nameParts[0].toLowerCase();
-                const lastName = nameParts[nameParts.length - 1].toLowerCase();
-
-                matchingNames = allNames.filter(name => {
-                    const lowerName = name.toLowerCase();
-                    return lowerName.includes(firstName) && lowerName.includes(lastName);
-                });
-            }
-
-            if (matchingNames.length === 0) {
-                matchingNames = allNames.filter(name => {
-                    const lowerName = name.toLowerCase();
-                    return nameParts.some(part =>
-                        part.length > 2 && lowerName.includes(part.toLowerCase())
-                    );
-                });
-            }
-
-            if (matchingNames.length === 1) {
-                await createUserDocument(firebaseUser, matchingNames[0], userClass);
-                const data = await fetchUserData(firebaseUser);
-                setUserData(data);
-
-                // Set up real-time listener for new user
-                if (data) {
-                    const docId = getUserDocumentId(firebaseUser, data);
-                    setupUserDocumentListener(docId);
-                }
-
-                setNeedsOnboarding(false);
-                setNameOptions(null);
-            } else {
-                setNameOptions(matchingNames.length > 0 ? matchingNames : allNames);
-                setPendingUserClass(userClass);
-            }
-        } catch (error) {
-            console.error('Error handling new Stanford user:', error);
-        }
-    };
-
-    const createUserDocument = async (firebaseUser: FirebaseUser, name: string, userClass: UserClass) => {
-        const normalizedEmail = normalizeEmail(firebaseUser.email || '');
-
-        let docId = firebaseUser.uid;
-        if (firebaseUser.email === 'jpark22@stanford.edu') {
-            docId = `${firebaseUser.uid}_${userClass}`;
-        }
-
-        const userRef = doc(db, 'users', docId);
-
-        await setDoc(userRef, {
-            uid: docId,
-            email: normalizedEmail,
-            emailAlumni: '',
-            emailAlumniGSB: '',
-            name: name,
-            photoURL: firebaseUser.photoURL || '',
-            customPhotoURL: '',
-            location: '',
-            about: '',
-            crushes: [],
-            lockedCrushes: [],
-            matches: [],
-            crushCount: 0,
-            userClass: userClass,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            lastLogin: serverTimestamp()
-        });
-    };
-
-    const selectName = async (name: string) => {
-        if (!user || !pendingUserClass) {
-            throw new Error('No user or pending class');
-        }
-
-        await createUserDocument(user, name, pendingUserClass);
-        const data = await fetchUserData(user);
-        setUserData(data);
-
-        // Set up real-time listener for newly created user
-        if (data) {
-            const docId = getUserDocumentId(user, data);
-            setupUserDocumentListener(docId);
-        }
-
-        setNeedsOnboarding(false);
-        setNameOptions(null);
-    };
-
-    const completeAccountLinking = () => {
-        setNeedsAccountLinking(false);
-        setNeedsOnboarding(false);
-        setNameOptions(null);
-        if (user) {
-            refreshUserData();
-        }
-    };
-
-    const startNewAccount = () => {
-        setNeedsAccountLinking(false);
-        setNeedsOnboarding(true);
-        if (user && pendingUserClass) {
-            handleNewStanfordUser(user, pendingUserClass);
-        }
-    };
-
-    const signInWithGoogle = async () => {
-        try {
-            const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({
-                prompt: 'select_account'
-            });
-
-            // Use popup for all platforms - more reliable than redirect
-            console.log('Using popup for authentication');
-            await signInWithPopup(auth, provider);
-        } catch (error) {
-            console.error('Error signing in with Google:', error);
-            throw error;
-        }
-    };
-
-    const signOut = async () => {
-        try {
-            await firebaseSignOut(auth);
-
-            // Clean up listener
-            if (userDocUnsubscribe.current) {
-                userDocUnsubscribe.current();
-                userDocUnsubscribe.current = null;
-            }
-
-            setUser(null);
-            setUserData(null);
-            setNeedsOnboarding(false);
-            setNeedsAccountLinking(false);
-            setNameOptions(null);
-        } catch (error) {
-            console.error('Error signing out:', error);
-            throw error;
-        }
-    };
-
-    const logout = signOut;
-
-    const refreshUserData = async () => {
-        if (user) {
-            const data = await fetchUserData(user);
-            setUserData(data);
-
-            // Set up real-time listener if not already set up
-            if (data && !userDocUnsubscribe.current) {
-                const docId = getUserDocumentId(user, data);
-                setupUserDocumentListener(docId);
-            }
-
-            if (data) {
-                setNeedsAccountLinking(false);
-                setNeedsOnboarding(false);
-                setNameOptions(null);
-            }
-        }
-    };
-
-    const updateUserDataOptimistically = (updates: Partial<UserData>) => {
-        setUserData(prev => prev ? { ...prev, ...updates } : null);
-    };
-
-    const value = {
-        user,
-        userData,
-        loading,
-        needsOnboarding,
-        needsAccountLinking,
-        nameOptions,
-        signInWithGoogle,
-        signOut,
-        logout,
-        refreshUserData,
-        selectName,
-        completeAccountLinking,
-        startNewAccount,
-        updateUserDataOptimistically
-    };
-
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-================
 File: src/components/Home.tsx
 ================
 import { useState, useEffect, useCallback } from 'react';
@@ -12000,11 +12001,18 @@ const Home = () => {
 
         setSelectedNames(prev => {
             const currentNames = prev || [];
-            return currentNames.includes(name)
-                ? currentNames.filter(n => n !== name)
-                : [...currentNames, name];
+            if (currentNames.includes(name)) {
+                return currentNames.filter(n => n !== name);
+            }
+
+            // Add new name at the top, but after locked crushes
+            const lockedCrushes = userData?.lockedCrushes || [];
+            const locked = currentNames.filter(n => lockedCrushes.includes(n));
+            const unlocked = currentNames.filter(n => !lockedCrushes.includes(n));
+
+            return [...locked, name, ...unlocked];
         });
-    }, [updating]);
+    }, [updating, userData?.lockedCrushes]);
 
     const handleRemoveSelected = useCallback((nameToRemove: string) => {
         if (updating) return;
