@@ -7,7 +7,7 @@ import {
     signOut as firebaseSignOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
 import type { UserData, UserClass } from '../types';
@@ -55,6 +55,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     // Prevent concurrent fetches
     const fetchingUserData = useRef(false);
+    // Track the current document listener
+    const userDocUnsubscribe = useRef<(() => void) | null>(null);
 
     const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
         if (fetchingUserData.current) {
@@ -127,6 +129,37 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
     };
 
+    // Set up real-time listener for user document
+    const setupUserDocumentListener = (docId: string) => {
+        // Clean up existing listener
+        if (userDocUnsubscribe.current) {
+            userDocUnsubscribe.current();
+            userDocUnsubscribe.current = null;
+        }
+
+        const userDocRef = doc(db, 'users', docId);
+
+        // Set up real-time listener
+        const unsubscribe = onSnapshot(
+            userDocRef,
+            (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.data() as UserData;
+                    console.log('Real-time update received for user document');
+                    setUserData(data);
+                } else {
+                    console.log('User document no longer exists');
+                    setUserData(null);
+                }
+            },
+            (error) => {
+                console.error('Error in user document listener:', error);
+            }
+        );
+
+        userDocUnsubscribe.current = unsubscribe;
+    };
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             console.log('Auth state changed:', firebaseUser?.email);
@@ -136,13 +169,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 const data = await fetchUserData(firebaseUser);
                 setUserData(data);
 
-                // Update lastLogin for existing users (non-blocking, fire-and-forget)
+                // Set up real-time listener if user document exists
                 if (data) {
                     const docId = getUserDocumentId(firebaseUser, data);
-                    const userRef = doc(db, 'users', docId);
+                    setupUserDocumentListener(docId);
 
-                    // Use updateDoc without transaction to avoid conflicts
-                    // This is non-critical data so we don't need strong consistency
+                    // Update lastLogin for existing users (non-blocking, fire-and-forget)
+                    const userRef = doc(db, 'users', docId);
                     updateDoc(userRef, {
                         lastLogin: serverTimestamp()
                     }).catch(error => {
@@ -183,6 +216,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                     setNameOptions(null);
                 }
             } else {
+                // Clean up listener when user signs out
+                if (userDocUnsubscribe.current) {
+                    userDocUnsubscribe.current();
+                    userDocUnsubscribe.current = null;
+                }
                 setUserData(null);
                 setNeedsOnboarding(false);
                 setNeedsAccountLinking(false);
@@ -192,7 +230,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+            // Clean up listener on unmount
+            if (userDocUnsubscribe.current) {
+                userDocUnsubscribe.current();
+            }
+        };
     }, []);
 
     const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
@@ -226,6 +270,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 await createUserDocument(firebaseUser, matchingNames[0], userClass);
                 const data = await fetchUserData(firebaseUser);
                 setUserData(data);
+
+                // Set up real-time listener for new user
+                if (data) {
+                    const docId = getUserDocumentId(firebaseUser, data);
+                    setupUserDocumentListener(docId);
+                }
+
                 setNeedsOnboarding(false);
                 setNameOptions(null);
             } else {
@@ -276,6 +327,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await createUserDocument(user, name, pendingUserClass);
         const data = await fetchUserData(user);
         setUserData(data);
+
+        // Set up real-time listener for newly created user
+        if (data) {
+            const docId = getUserDocumentId(user, data);
+            setupUserDocumentListener(docId);
+        }
+
         setNeedsOnboarding(false);
         setNameOptions(null);
     };
@@ -316,6 +374,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const signOut = async () => {
         try {
             await firebaseSignOut(auth);
+
+            // Clean up listener
+            if (userDocUnsubscribe.current) {
+                userDocUnsubscribe.current();
+                userDocUnsubscribe.current = null;
+            }
+
             setUser(null);
             setUserData(null);
             setNeedsOnboarding(false);
@@ -333,6 +398,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (user) {
             const data = await fetchUserData(user);
             setUserData(data);
+
+            // Set up real-time listener if not already set up
+            if (data && !userDocUnsubscribe.current) {
+                const docId = getUserDocumentId(user, data);
+                setupUserDocumentListener(docId);
+            }
 
             if (data) {
                 setNeedsAccountLinking(false);

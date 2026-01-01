@@ -9,29 +9,6 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// Helper function to determine if a match should have a timestamp
-function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
-    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
-    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') ||
-        user1Name === 'James Park' ||
-        user1Id.includes('_gsb') && user1Id.includes('jpark22@stanford.edu') ||
-        user1Id.includes('_undergrad') && user1Id.includes('jpark22@stanford.edu');
-
-    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') ||
-        user2Name === 'James Park' ||
-        user2Id.includes('_gsb') && user2Id.includes('jpark22@stanford.edu') ||
-        user2Id.includes('_undergrad') && user2Id.includes('jpark22@stanford.edu');
-
-    // Skip timestamp for ANY James Park matches (GSB or undergrad)
-    if (isUser1JamesPark || isUser2JamesPark) {
-        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
-        return false;
-    }
-
-    // All other matches should have timestamps
-    return true;
-}
-
 // Incremental update - only processes users affected by the change
 export async function processIncrementalUpdate(
     userId: string,
@@ -83,6 +60,9 @@ export async function processIncrementalUpdate(
 
             console.log(`👥 Affected users: ${affectedUserIds.size}`);
 
+            // Create single timestamp for this batch of updates (ensures consistency)
+            const batchTimestamp = admin.firestore.Timestamp.now();
+
             // For each affected user, recalculate their matches and crushCount
             for (const affectedId of affectedUserIds) {
                 const affectedUser = allUsers.find(u => u.id === affectedId);
@@ -133,12 +113,6 @@ export async function processIncrementalUpdate(
 
                     if (isMutual) {
                         const existingMatch = existingMatchMap.get(crushedUserName);
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(
-                            affectedId,
-                            crushedUser.id,
-                            affectedUserName,
-                            crushedUserName
-                        );
 
                         if (existingMatch && existingMatch.matchedAt) {
                             // Preserve existing timestamp
@@ -147,146 +121,91 @@ export async function processIncrementalUpdate(
                                 email: crushedUser.email || 'unknown@stanford.edu',
                                 matchedAt: existingMatch.matchedAt
                             });
-                        } else if (shouldHaveTimestamp) {
-                            // New match - add timestamp
+                            console.log(`🔒 Preserving existing timestamp for ${affectedUserName} ↔ ${crushedUserName}`);
+                        } else {
+                            // New match - add timestamp using batch timestamp for consistency
                             userMatches.push({
                                 name: crushedUserName,
                                 email: crushedUser.email || 'unknown@stanford.edu',
-                                matchedAt: admin.firestore.Timestamp.now()
+                                matchedAt: batchTimestamp
                             });
-                        } else {
-                            // No timestamp for James Park matches
-                            userMatches.push({
-                                name: crushedUserName,
-                                email: crushedUser.email || 'unknown@stanford.edu'
-                            });
+                            console.log(`🆕 New match with timestamp: ${affectedUserName} ↔ ${crushedUserName}`);
                         }
 
                         userLockedCrushes.push(crushedUserName);
                     }
                 }
 
-                // Update this user's document
+                // Update this affected user
                 const userRef = db.collection('users').doc(affectedId);
-                const updateData = {
+                transaction.update(userRef, {
                     matches: userMatches,
                     lockedCrushes: userLockedCrushes,
                     crushCount: crushCount,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                };
-
-                transaction.update(userRef, updateData);
-                console.log(`✅ Updated ${affectedUserName}: ${userMatches.length} matches, ${crushCount} crush count`);
+                });
             }
 
-            console.log(`✅ Incremental update complete - updated ${affectedUserIds.size} users`);
+            console.log(`✅ Updated ${affectedUserIds.size} affected users`);
         });
+
     } catch (error) {
         console.error('❌ Error in processIncrementalUpdate:', error);
         throw error;
     }
 }
 
-// Enhanced function to recalculate all matches and crush counts with better name matching
-// Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
+// Full recalculation of all matches and crush counts
 export async function processUpdatedCrushes(): Promise<void> {
-    console.log('🔄 Starting enhanced recalculation of all matches and crush counts with class separation...');
+    console.log('🔄 Starting full match and crush count recalculation...');
 
     try {
         await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
+            // Get all users from both classes
+            const gsbSnapshot = await transaction.get(db.collection('users').where('userClass', '==', 'gsb'));
+            const undergradSnapshot = await transaction.get(db.collection('users').where('userClass', '==', 'undergrad'));
 
-            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data() as any
-            }));
+            const allUsers: UserWithId[] = [
+                ...gsbSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })),
+                ...undergradSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }))
+            ];
 
-            console.log(`📊 Processing ${allUsers.length} users`);
+            console.log(`📊 Total users: ${allUsers.length} (GSB: ${gsbSnapshot.size}, Undergrad: ${undergradSnapshot.size})`);
 
-            // Separate users by class
-            const gsbUsers = allUsers.filter(user => user.userClass === 'gsb' || !user.userClass); // Default to GSB for backwards compatibility
-            const undergradUsers = allUsers.filter(user => user.userClass === 'undergrad');
-
-            console.log(`📊 GSB users: ${gsbUsers.length}, Undergrad users: ${undergradUsers.length}`);
-
-            // Enhanced crush count calculation with better name matching and class separation
+            // Calculate crush counts for each user (by class)
             const crushCounts = new Map<string, number>();
-            const crushersMap = new Map<string, string[]>(); // Track who is crushing on whom
+            const crushersMap = new Map<string, string[]>();
 
-            // Process GSB users
-            for (const user of gsbUsers) {
+            for (const user of allUsers) {
                 const userCrushes = user.crushes || [];
+                const userIdentityName = getUserIdentityName(user);
+                const userClass = user.userClass || 'gsb';
+
+                if (!userIdentityName || !userIdentityName.trim()) {
+                    console.log(`⏭️ Skipping user ${user.id} - no identity name`);
+                    continue;
+                }
+
+                const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
+
                 for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name within GSB class
-                    const targetUser = findUserByName(crushName, gsbUsers, 'gsb');
+                    const targetUser = findUserByName(crushName, sameClassUsers, userClass);
 
                     if (targetUser) {
-                        // Use the user's identity name
-                        const actualName = getUserIdentityName(targetUser);
-                        if (actualName) {
-                            const key = `gsb:${actualName}`;
+                        const targetUserIdentityName = getUserIdentityName(targetUser);
+                        if (targetUserIdentityName) {
+                            const key = `${userClass}:${targetUserIdentityName}`;
                             crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
 
-                            // Track the crusher
-                            if (!crushersMap.has(key)) {
-                                crushersMap.set(key, []);
-                            }
-                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                            const crushers = crushersMap.get(key) || [];
+                            crushers.push(userIdentityName);
+                            crushersMap.set(key, crushers);
                         }
-                    } else {
-                        // If no user found, still count it but use the crush name directly
-                        console.log(`⚠️ No GSB user found for crush name: "${crushName}" - counting anyway`);
-                        const key = `gsb:${crushName}`;
-                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                        // Track the crusher for orphaned crushes too
-                        if (!crushersMap.has(key)) {
-                            crushersMap.set(key, []);
-                        }
-                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
                     }
                 }
             }
 
-            // Process Undergrad users
-            for (const user of undergradUsers) {
-                const userCrushes = user.crushes || [];
-                for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name within undergrad class
-                    const targetUser = findUserByName(crushName, undergradUsers, 'undergrad');
-
-                    if (targetUser) {
-                        // Use the user's identity name
-                        const actualName = getUserIdentityName(targetUser);
-                        if (actualName) {
-                            const key = `undergrad:${actualName}`;
-                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                            // Track the crusher
-                            if (!crushersMap.has(key)) {
-                                crushersMap.set(key, []);
-                            }
-                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                        }
-                    } else {
-                        // If no user found, still count it but use the crush name directly
-                        console.log(`⚠️ No undergrad user found for crush name: "${crushName}" - counting anyway`);
-                        const key = `undergrad:${crushName}`;
-                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                        // Track the crusher for orphaned crushes too
-                        if (!crushersMap.has(key)) {
-                            crushersMap.set(key, []);
-                        }
-                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                    }
-                }
-            }
-
-            console.log('💕 Enhanced crush counts calculated:', Object.fromEntries(crushCounts));
-
-            // Calculate matches and locked crushes with enhanced matching and class separation
+            // Calculate matches for all users
             const allMatches = new Map<string, MatchInfo[]>();
             const allLockedCrushes = new Map<string, string[]>();
 
@@ -296,7 +215,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                 const userLockedCrushes: string[] = [];
                 const userCrushes = user.crushes || [];
                 const userIdentityName = getUserIdentityName(user);
-                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
+                const userClass = user.userClass || 'gsb';
 
                 if (!userIdentityName || !userIdentityName.trim()) {
                     console.log(`⏭️ Skipping user ${user.id} - no identity name`);
@@ -308,7 +227,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                 // Get users from the same class only
                 const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
 
-                // Get existing matches to preserve timestamps (CRITICAL: preserve exact timestamp objects)
+                // Get existing matches to preserve timestamps
                 const existingMatches = user.matches || [];
                 const existingMatchMap = new Map<string, any>();
                 existingMatches.forEach(match => {
@@ -340,37 +259,24 @@ export async function processUpdatedCrushes(): Promise<void> {
                         // Check if this is an existing match to preserve timestamp
                         const existingMatch = existingMatchMap.get(crushedUserIdentityName);
 
-                        // Determine if this match should have a timestamp
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(user.id, crushedUser.id, userIdentityName, crushedUserIdentityName);
-
                         let matchInfo: MatchInfo;
 
-                        if (shouldHaveTimestamp) {
-                            if (existingMatch && existingMatch.matchedAt) {
-                                // PRESERVE the exact existing timestamp object - don't convert it
-                                matchInfo = {
-                                    name: crushedUserIdentityName,
-                                    email: crushedUser.email,
-                                    matchedAt: existingMatch.matchedAt
-                                };
-                                console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                            } else {
-                                // NEW MATCH - Create timestamp at the exact moment this match is discovered
-                                matchInfo = {
-                                    name: crushedUserIdentityName,
-                                    email: crushedUser.email,
-                                    matchedAt: admin.firestore.Timestamp.now() // Real-time timestamp for new matches
-                                };
-                                console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                            }
-                        } else {
-                            // No timestamp for James Park matches
+                        if (existingMatch && existingMatch.matchedAt) {
+                            // Preserve the exact existing timestamp object
                             matchInfo = {
                                 name: crushedUserIdentityName,
-                                email: crushedUser.email
-                                // No matchedAt field
+                                email: crushedUser.email,
+                                matchedAt: existingMatch.matchedAt
                             };
-                            console.log(`🚫 No timestamp for James Park match: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                            console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                        } else {
+                            // New match - create timestamp at the exact moment this match is discovered
+                            matchInfo = {
+                                name: crushedUserIdentityName,
+                                email: crushedUser.email,
+                                matchedAt: admin.firestore.Timestamp.now()
+                            };
+                            console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
                         }
 
                         userMatches.push(matchInfo);
@@ -381,7 +287,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                         }
 
                         const isNewMatch = !existingMatchMap.has(crushedUserIdentityName);
-                        const timestampStatus = shouldHaveTimestamp ? (isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING') : 'NO_TIMESTAMP';
+                        const timestampStatus = isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING';
                         console.log(`💕 ${userClass.toUpperCase()} Match ${isNewMatch ? 'NEW' : 'EXISTING'} (${timestampStatus}): ${userIdentityName} ↔ ${crushedUserIdentityName}`);
                     }
                 }
@@ -394,7 +300,7 @@ export async function processUpdatedCrushes(): Promise<void> {
             for (const user of allUsers) {
                 const userRef = db.collection('users').doc(user.id);
                 const userIdentityName = getUserIdentityName(user);
-                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
+                const userClass = user.userClass || 'gsb';
 
                 // For crush count, we need to check the user's identity name with class prefix
                 let userCrushCount = 0;
@@ -414,7 +320,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                     matches: allMatches.get(user.id) || [],
                     lockedCrushes: allLockedCrushes.get(user.id) || [],
                     crushCount: userCrushCount,
-                    userClass: userClass, // Ensure userClass is set for legacy users
+                    userClass: userClass,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 };
 
@@ -425,80 +331,12 @@ export async function processUpdatedCrushes(): Promise<void> {
         });
 
     } catch (error) {
-        console.error('❌ Error in enhanced processUpdatedCrushes:', error);
+        console.error('❌ Error in processUpdatedCrushes:', error);
         throw error;
     }
 }
 
-// One-time function to set current timestamp for all existing matches (except James Park)
-export async function fixAllMatchTimestampsToNow(): Promise<void> {
-    console.log('🔧 Setting all existing match timestamps to now (except James Park matches)...');
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-            const currentTimestamp = admin.firestore.Timestamp.now();
-
-            let updatedUsers = 0;
-            let fixedMatches = 0;
-
-            allUsersSnapshot.forEach(doc => {
-                const userData = doc.data();
-                const matches = userData.matches || [];
-                const userId = doc.id;
-                const userName = userData.name || userData.verifiedName || userData.displayName || userData.email;
-
-                if (matches.length > 0) {
-                    let needsUpdate = false;
-                    const updatedMatches = matches.map((match: any) => {
-                        // Check both the document owner AND the match partner for James Park
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userId, '', userName, match.name || '');
-
-                        if (shouldHaveTimestamp) {
-                            // Set timestamp to now for all non-James Park matches
-                            needsUpdate = true;
-                            fixedMatches++;
-                            console.log(`🔧 Setting timestamp to now for match: ${match.name} ↔ ${userName}`);
-                            return {
-                                name: match.name || 'Unknown',
-                                email: match.email || 'unknown@stanford.edu',
-                                matchedAt: currentTimestamp
-                            };
-                        } else {
-                            // Remove timestamp for James Park matches
-                            if (match.matchedAt) {
-                                needsUpdate = true;
-                                console.log(`🔧 Removing timestamp for James Park match: ${match.name} ↔ ${userName}`);
-                            }
-                            return {
-                                name: match.name || 'Unknown',
-                                email: match.email || 'unknown@stanford.edu'
-                                // No matchedAt field
-                            };
-                        }
-                    });
-
-                    if (needsUpdate) {
-                        const userRef = db.collection('users').doc(userId);
-                        transaction.update(userRef, {
-                            matches: updatedMatches,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                        });
-                        updatedUsers++;
-                    }
-                }
-            });
-
-            console.log(`✅ Fixed timestamps for ${fixedMatches} matches across ${updatedUsers} users`);
-        });
-    } catch (error) {
-        console.error('❌ Error fixing all match timestamps:', error);
-        throw error;
-    }
-}
-
-// New function to manually fix all crush count discrepancies
+// Manual function to fix crush count discrepancies
 export async function fixAllCrushCounts(): Promise<void> {
     console.log('🔧 Starting manual fix of all crush count discrepancies...');
 
@@ -509,14 +347,4 @@ export async function fixAllCrushCounts(): Promise<void> {
         console.error('❌ Error fixing crush counts:', error);
         throw error;
     }
-}
-
-// Legacy function - keeping for backward compatibility
-export async function fixAllMatchTimestampsOnce(): Promise<void> {
-    await fixAllMatchTimestampsToNow();
-}
-
-// Legacy function - keeping for backward compatibility
-export async function fixMissingMatchTimestamps(): Promise<void> {
-    await fixAllMatchTimestampsToNow();
 }

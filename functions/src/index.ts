@@ -1,8 +1,8 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import { UserData, UserWithId } from './types';
-import { findUserByName, getUserIdentityName } from './utils';
-import { processUpdatedCrushes, fixAllCrushCounts, fixAllMatchTimestampsToNow, processIncrementalUpdate } from './matchingEngine';
+import { UserData } from './types';
+import { getUserIdentityName } from './utils';
+import { processUpdatedCrushes, fixAllCrushCounts, processIncrementalUpdate } from './matchingEngine';
 
 export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
 
@@ -91,7 +91,7 @@ export const recalculateAllMatches = functions.https.onRequest(async (req, res) 
     }
 });
 
-// NEW: Manual function to fix crush count discrepancies
+// Manual function to fix crush count discrepancies
 export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
     try {
         console.log('🔧 Starting manual fix of crush count discrepancies...');
@@ -106,37 +106,7 @@ export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, 
     }
 });
 
-// NEW: Function to fix all match timestamps to now (one-time)
-export const fixMatchTimestampsToNow = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Setting all existing match timestamps to now...');
-        await fixAllMatchTimestampsToNow();
-        res.json({
-            success: true,
-            message: 'Successfully set all existing match timestamps to now (except James Park matches)'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing match timestamps:', error);
-        res.status(500).json({ error: 'Failed to fix match timestamps' });
-    }
-});
-
-// Legacy timestamp function
-export const fixMatchTimestamps = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting one-time fix for missing match timestamps...');
-        await fixAllMatchTimestampsToNow();
-        res.json({
-            success: true,
-            message: 'Successfully fixed missing match timestamps'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing match timestamps:', error);
-        res.status(500).json({ error: 'Failed to fix match timestamps' });
-    }
-});
-
-// New function to add timestamps to existing matches
+// One-time function to add timestamps to existing matches that don't have them
 export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
     try {
         console.log('🔄 Adding timestamps to existing matches...');
