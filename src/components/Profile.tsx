@@ -10,7 +10,7 @@ import { db, storage } from '../config/firebase';
 import { getUserDocumentId } from '../utils';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData } from '../types/userTypes';
+import type { UserData, PublicContact } from '../types/userTypes';
 import '../styles/profile.css';
 
 const hashName = (name: string): string => {
@@ -35,6 +35,18 @@ const Profile = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [location, setLocation] = useState('');
     const [about, setAbout] = useState('');
+    const [publicContact, setPublicContact] = useState<PublicContact>({
+        cell: '',
+        instagram: '',
+        linkedin: '',
+        preferred: ''
+    });
+    const [contactErrors, setContactErrors] = useState<{
+        cell?: string;
+        instagram?: string;
+        linkedin?: string;
+        preferred?: string;
+    }>({});
     const [saving, setSaving] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -65,6 +77,12 @@ const Profile = () => {
                     setProfileUserClass(currentUserData?.userClass || 'gsb');
                     setLocation(currentUserData?.location || '');
                     setAbout(currentUserData?.about || '');
+                    setPublicContact(currentUserData?.publicContact || {
+                        cell: '',
+                        instagram: '',
+                        linkedin: '',
+                        preferred: ''
+                    });
                 } else if (nameHash) {
                     const userClass = currentUserData?.userClass || 'gsb';
                     const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
@@ -105,6 +123,128 @@ const Profile = () => {
             loadProfile();
         }
     }, [nameHash, user, currentUserData, isOwnProfile, navigate]);
+
+    const formatCellPhone = (value: string): string => {
+        const digits = value.replace(/\D/g, '');
+
+        if (digits.length === 0) return '';
+        if (digits.length <= 1) return `+${digits}`;
+        if (digits.length <= 4) return `+${digits.slice(0, 1)} ${digits.slice(1)}`;
+        if (digits.length <= 7) return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4)}`;
+        if (digits.length <= 10) return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+        return `+${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 11)}`;
+    };
+
+    const validateCell = (cell: string): string | null => {
+        if (!cell) return null;
+
+        const phoneRegex = /^\+[\d\s\-()]+$/;
+
+        if (!phoneRegex.test(cell)) {
+            return 'Cell must start with country code (e.g., +1 234 567 8900)';
+        }
+
+        const digitCount = cell.replace(/\D/g, '').length;
+        if (digitCount < 10 || digitCount > 15) {
+            return 'Cell must have 10-15 digits';
+        }
+
+        return null;
+    };
+
+    const validateInstagram = (username: string): string | null => {
+        if (!username) return null;
+
+        const instagramRegex = /^[a-zA-Z0-9._]{1,30}$/;
+
+        if (!instagramRegex.test(username)) {
+            return 'Invalid Instagram username';
+        }
+
+        return null;
+    };
+
+    const validateLinkedIn = (username: string): string | null => {
+        if (!username) return null;
+
+        const linkedinRegex = /^[a-zA-Z0-9-]{3,100}$/;
+
+        if (!linkedinRegex.test(username)) {
+            return 'Invalid LinkedIn username';
+        }
+
+        return null;
+    };
+
+    const handleContactChange = (field: keyof PublicContact, value: string) => {
+        let processedValue = value;
+
+        if (field === 'cell') {
+            processedValue = formatCellPhone(value);
+        }
+
+        setPublicContact(prev => ({
+            ...prev,
+            [field]: processedValue
+        }));
+
+        setContactErrors(prev => ({
+            ...prev,
+            [field]: undefined
+        }));
+    };
+
+    const handlePreferredToggle = (field: 'cell' | 'instagram' | 'linkedin') => {
+        setPublicContact(prev => ({
+            ...prev,
+            preferred: prev.preferred === field ? '' : field
+        }));
+    };
+
+    const validateAllContactFields = (): boolean => {
+        const errors: {
+            cell?: string;
+            instagram?: string;
+            linkedin?: string;
+            preferred?: string;
+        } = {};
+        let isValid = true;
+
+        if (publicContact.cell) {
+            const cellError = validateCell(publicContact.cell);
+            if (cellError) {
+                errors.cell = cellError;
+                isValid = false;
+            }
+        }
+
+        if (publicContact.instagram) {
+            const instagramError = validateInstagram(publicContact.instagram);
+            if (instagramError) {
+                errors.instagram = instagramError;
+                isValid = false;
+            }
+        }
+
+        if (publicContact.linkedin) {
+            const linkedinError = validateLinkedIn(publicContact.linkedin);
+            if (linkedinError) {
+                errors.linkedin = linkedinError;
+                isValid = false;
+            }
+        }
+
+        if (publicContact.preferred) {
+            const preferredField = publicContact.preferred as 'cell' | 'instagram' | 'linkedin';
+            if (!publicContact[preferredField]) {
+                errors.preferred = `Cannot set ${publicContact.preferred} as preferred when it's empty`;
+                isValid = false;
+            }
+        }
+
+        setContactErrors(errors);
+        return isValid;
+    };
 
     const handlePhotoClick = () => {
         if (isOwnProfile) {
@@ -239,56 +379,39 @@ const Profile = () => {
             canvas.height = targetSize;
 
             const img = imageRef.current;
-            const previewContainer = previewRef.current;
-            if (!previewContainer) throw new Error('Preview container not found');
+            const previewCircle = previewRef.current;
+            if (!previewCircle) throw new Error('Preview element not found');
 
-            const containerRect = previewContainer.getBoundingClientRect();
-            const imageRect = img.getBoundingClientRect();
+            const circleWidth = previewCircle.offsetWidth;
 
-            const scaleX = img.naturalWidth / imageRect.width;
-            const scaleY = img.naturalHeight / imageRect.height;
+            const scale = targetSize / circleWidth;
 
-            const centerX = containerRect.width / 2;
-            const centerY = containerRect.height / 2;
+            const scaledZoom = zoom * scale;
+            const scaledX = position.x * scale;
+            const scaledY = position.y * scale;
 
-            const imageCenterX = (imageRect.left - containerRect.left + imageRect.width / 2);
-            const imageCenterY = (imageRect.top - containerRect.top + imageRect.height / 2);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(targetSize / 2, targetSize / 2, targetSize / 2, 0, Math.PI * 2);
+            ctx.clip();
 
-            const offsetX = (centerX - imageCenterX) * scaleX;
-            const offsetY = (centerY - imageCenterY) * scaleY;
+            const imgWidth = img.naturalWidth * scaledZoom;
+            const imgHeight = img.naturalHeight * scaledZoom;
 
-            const cropSize = Math.min(containerRect.width, containerRect.height);
-            const sourceCropSize = cropSize * scaleX / zoom;
+            const drawX = (targetSize - imgWidth) / 2 + scaledX;
+            const drawY = (targetSize - imgHeight) / 2 + scaledY;
 
-            const sourceX = (img.naturalWidth / 2 + offsetX) - (sourceCropSize / 2);
-            const sourceY = (img.naturalHeight / 2 + offsetY) - (sourceCropSize / 2);
-
-            ctx.drawImage(
-                img,
-                sourceX,
-                sourceY,
-                sourceCropSize,
-                sourceCropSize,
-                0,
-                0,
-                targetSize,
-                targetSize
-            );
+            ctx.drawImage(img, drawX, drawY, imgWidth, imgHeight);
+            ctx.restore();
 
             canvas.toBlob(async (blob) => {
-                if (!blob) throw new Error('Failed to create blob');
-
-                const actualUid = getUserDocumentId(user!, currentUserData);
-                const storageRef = ref(storage, `profile-photos/${actualUid}`);
-
-                try {
-                    if (currentUserData?.customPhotoURL) {
-                        const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
-                        await deleteObject(oldPhotoRef).catch(() => { });
-                    }
-                } catch (error) {
-                    console.error('Error deleting old photo:', error);
+                if (!blob) {
+                    throw new Error('Failed to create blob from canvas');
                 }
+
+                const actualUid = getUserDocumentId(user!, currentUserData!);
+                const timestamp = Date.now();
+                const storageRef = ref(storage, `profile-photos/${actualUid}_${timestamp}.jpg`);
 
                 await uploadBytes(storageRef, blob);
                 const downloadURL = await getDownloadURL(storageRef);
@@ -299,12 +422,20 @@ const Profile = () => {
                     updatedAt: new Date()
                 });
 
+                if (currentUserData?.customPhotoURL) {
+                    try {
+                        const oldPhotoRef = ref(storage, currentUserData.customPhotoURL);
+                        await deleteObject(oldPhotoRef);
+                    } catch (error) {
+                        console.log('Could not delete old photo:', error);
+                    }
+                }
+
                 await refreshUserData();
 
                 setShowCropModal(false);
                 setSelectedImage(null);
                 setImageFile(null);
-                setUploadingPhoto(false);
                 setZoom(1);
                 setPosition({ x: 0, y: 0 });
             }, 'image/jpeg', 0.9);
@@ -312,6 +443,7 @@ const Profile = () => {
         } catch (error) {
             console.error('Error uploading photo:', error);
             alert('Failed to upload photo. Please try again.');
+        } finally {
             setUploadingPhoto(false);
         }
     };
@@ -331,7 +463,7 @@ const Profile = () => {
             clearTimeout(debounceTimer.current);
         }
 
-        if (value.length < 2) {
+        if (!value.trim() || value.length < 2) {
             setSuggestions([]);
             return;
         }
@@ -339,24 +471,25 @@ const Profile = () => {
         debounceTimer.current = setTimeout(async () => {
             try {
                 const response = await fetch(
-                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&limit=5&addressdetails=1`
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&limit=5&addressdetails=1`
                 );
                 const data = await response.json();
 
-                const locationSuggestions = data.map((item: any) => {
+                const formattedSuggestions = data.map((item: any) => {
                     const parts = [];
                     if (item.address.city) parts.push(item.address.city);
                     else if (item.address.town) parts.push(item.address.town);
                     else if (item.address.village) parts.push(item.address.village);
 
+                    if (item.address.state) parts.push(item.address.state);
                     if (item.address.country) parts.push(item.address.country);
 
                     return parts.join(', ');
-                }).filter((location: string, index: number, self: string[]) =>
-                    location && self.indexOf(location) === index
+                }).filter((suggestion: string, index: number, self: string[]) =>
+                    suggestion && self.indexOf(suggestion) === index
                 );
 
-                setSuggestions(locationSuggestions);
+                setSuggestions(formattedSuggestions.slice(0, 5));
             } catch (error) {
                 console.error('Error fetching location suggestions:', error);
             }
@@ -372,6 +505,10 @@ const Profile = () => {
     const handleSave = async () => {
         if (!user || !currentUserData) return;
 
+        if (!validateAllContactFields()) {
+            return;
+        }
+
         setSaving(true);
 
         try {
@@ -381,6 +518,7 @@ const Profile = () => {
             await updateDoc(userDocRef, {
                 location,
                 about,
+                publicContact,
                 updatedAt: new Date()
             });
 
@@ -399,6 +537,13 @@ const Profile = () => {
         setIsEditing(false);
         setLocation(currentUserData?.location || '');
         setAbout(currentUserData?.about || '');
+        setPublicContact(currentUserData?.publicContact || {
+            cell: '',
+            instagram: '',
+            linkedin: '',
+            preferred: ''
+        });
+        setContactErrors({});
     };
 
     const handleAdminToggle = useCallback(() => {
@@ -440,6 +585,7 @@ const Profile = () => {
 
     const currentEmail = user?.email || '';
     const displayPhotoUrl = profileData?.customPhotoURL || null;
+    const viewingContact = profileData?.publicContact || { cell: '', instagram: '', linkedin: '', preferred: '' };
 
     return (
         <div className="dashboard-container">
@@ -530,6 +676,142 @@ const Profile = () => {
                                     rows={4} maxLength={500} />
                             ) : (
                                 <div className="info-value-plain">{profileData?.about || ''}</div>
+                            )}
+                        </div>
+
+                        <div className="info-field-full">
+                            <label>Contact:</label>
+                            {isOwnProfile && isEditing ? (
+                                <div className="contact-fields-plain">
+                                    <div className="contact-field-plain">
+                                        <label>Cell:</label>
+                                        <div className="contact-input-with-star">
+                                            <input
+                                                type="text"
+                                                value={publicContact.cell}
+                                                onChange={(e) => handleContactChange('cell', e.target.value)}
+                                                placeholder="+1 234 567 8900"
+                                                className={`info-input-inline ${contactErrors.cell ? 'error' : ''}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'cell' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('cell')}
+                                                disabled={!publicContact.cell}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'cell' ? '★' : '☆'}
+                                            </button>
+                                        </div>
+                                        {contactErrors.cell && <span className="contact-error">{contactErrors.cell}</span>}
+                                    </div>
+
+                                    <div className="contact-field-plain">
+                                        <label>Instagram:</label>
+                                        <div className="contact-input-with-star">
+                                            <input
+                                                type="text"
+                                                value={publicContact.instagram}
+                                                onChange={(e) => handleContactChange('instagram', e.target.value)}
+                                                placeholder="username"
+                                                className={`info-input-inline ${contactErrors.instagram ? 'error' : ''}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'instagram' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('instagram')}
+                                                disabled={!publicContact.instagram}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'instagram' ? '★' : '☆'}
+                                            </button>
+                                        </div>
+                                        {contactErrors.instagram && <span className="contact-error">{contactErrors.instagram}</span>}
+                                    </div>
+
+                                    <div className="contact-field-plain">
+                                        <label>LinkedIn:</label>
+                                        <div className="contact-input-with-star">
+                                            <input
+                                                type="text"
+                                                value={publicContact.linkedin}
+                                                onChange={(e) => handleContactChange('linkedin', e.target.value)}
+                                                placeholder="username"
+                                                className={`info-input-inline ${contactErrors.linkedin ? 'error' : ''}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'linkedin' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('linkedin')}
+                                                disabled={!publicContact.linkedin}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'linkedin' ? '★' : '☆'}
+                                            </button>
+                                        </div>
+                                        {contactErrors.linkedin && <span className="contact-error">{contactErrors.linkedin}</span>}
+                                    </div>
+                                    {contactErrors.preferred && <span className="contact-error general-error">{contactErrors.preferred}</span>}
+                                </div>
+                            ) : (
+                                <div className="contact-display-plain">
+                                    {isOwnProfile && !viewingContact.cell && !viewingContact.instagram && !viewingContact.linkedin ? (
+                                        <>
+                                            <div className="info-value-plain"></div>
+                                            <div className="info-value-plain"></div>
+                                            <div className="info-value-plain"></div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {(isOwnProfile || viewingContact.cell) && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'cell' ? 'preferred' : ''}`}>
+                                                    {viewingContact.cell ? (
+                                                        <a href={`tel:${viewingContact.cell}`} className="contact-link-plain">
+                                                            {viewingContact.cell}
+                                                        </a>
+                                                    ) : (
+                                                        ''
+                                                    )}
+                                                    {viewingContact.preferred === 'cell' && viewingContact.cell && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                            {(isOwnProfile || viewingContact.instagram) && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'instagram' ? 'preferred' : ''}`}>
+                                                    {viewingContact.instagram ? (
+                                                        <a
+                                                            href={`https://www.instagram.com/${viewingContact.instagram}/`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                                                        >
+                                                            @{viewingContact.instagram}
+                                                        </a>
+                                                    ) : (
+                                                        ''
+                                                    )}
+                                                    {viewingContact.preferred === 'instagram' && viewingContact.instagram && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                            {(isOwnProfile || viewingContact.linkedin) && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'linkedin' ? 'preferred' : ''}`}>
+                                                    {viewingContact.linkedin ? (
+                                                        <a
+                                                            href={`https://www.linkedin.com/in/${viewingContact.linkedin}/`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                                                        >
+                                                            in/{viewingContact.linkedin}
+                                                        </a>
+                                                    ) : (
+                                                        ''
+                                                    )}
+                                                    {viewingContact.preferred === 'linkedin' && viewingContact.linkedin && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
                             )}
                         </div>
 
@@ -629,7 +911,7 @@ const Profile = () => {
                             <label>Zoom</label>
                             <input
                                 type="range"
-                                min="0.5"
+                                min="1"
                                 max="3"
                                 step="0.1"
                                 value={zoom}
@@ -637,13 +919,15 @@ const Profile = () => {
                             />
                         </div>
 
+                        <canvas ref={canvasRef} style={{ display: 'none' }} />
+
                         <div className="crop-modal-actions">
                             <button
                                 className="crop-confirm-btn"
                                 onClick={handleCropConfirm}
                                 disabled={uploadingPhoto}
                             >
-                                {uploadingPhoto ? 'Uploading...' : 'Set Photo'}
+                                {uploadingPhoto ? 'Uploading...' : 'Save Photo'}
                             </button>
                             <button
                                 className="crop-cancel-btn"
@@ -653,8 +937,6 @@ const Profile = () => {
                                 Cancel
                             </button>
                         </div>
-
-                        <canvas ref={canvasRef} style={{ display: 'none' }} />
                     </div>
                 </div>
             )}
