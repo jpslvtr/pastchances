@@ -113,10 +113,15 @@ service cloud.firestore {
     }
     
     function validateLockedCrushes(existingData, newData) {
+      // If document doesn't have lockedCrushes, allow
       return !('lockedCrushes' in existingData) || 
              !('lockedCrushes' in newData) ||
+             // If lockedCrushes hasn't changed, skip validation
+             existingData.lockedCrushes == newData.lockedCrushes ||
+             // Otherwise ensure all locked crushes remain in crushes
              (existingData.lockedCrushes is list && 
               newData.lockedCrushes is list &&
+              newData.crushes is list &&
               existingData.lockedCrushes.toSet().difference(newData.crushes.toSet()).size() == 0);
     }
     

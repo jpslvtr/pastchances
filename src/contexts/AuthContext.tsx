@@ -27,6 +27,7 @@ interface AuthContextType {
     selectName: (name: string) => Promise<void>;
     completeAccountLinking: () => void;
     startNewAccount: () => void;
+    updateUserDataOptimistically: (updates: Partial<UserData>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -338,6 +339,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
     };
 
+    const updateUserDataOptimistically = (updates: Partial<UserData>) => {
+        setUserData(prev => prev ? { ...prev, ...updates } : null);
+    };
+
     const value = {
         user,
         userData,
@@ -351,7 +356,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         refreshUserData,
         selectName,
         completeAccountLinking,
-        startNewAccount
+        startNewAccount,
+        updateUserDataOptimistically
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
