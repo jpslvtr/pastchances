@@ -295,6 +295,88 @@ export const runAnalyticsNow = functions.https.onRequest(async (req, res) => {
 });
 
 ================
+File: functions/src/utils.ts
+================
+import { UserWithId } from './types';
+
+// Helper function to normalize names for case-insensitive comparison
+export function normalizeName(name: string): string {
+    if (!name || typeof name !== 'string') return '';
+
+    return name
+        .normalize('NFD')  // Decompose accented characters
+        .replace(/[\u0300-\u036f]/g, '')  // Remove accent marks
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s]/g, ' ')  // Replace non-alphanumeric with spaces
+        .replace(/\s+/g, ' ')  // Normalize spaces
+        .trim();
+}
+
+// Enhanced function to find the best matching user for a crush name
+// Only matches users within the same class
+export function findUserByName(crushName: string, allUsers: UserWithId[], userClass?: string): UserWithId | null {
+    if (!crushName || !crushName.trim()) return null;
+
+    const normalizedCrush = normalizeName(crushName);
+
+    // Filter users by class if specified
+    const filteredUsers = userClass
+        ? allUsers.filter(user => (user.userClass || 'gsb') === userClass)
+        : allUsers;
+
+    // First try exact match on name field
+    let match = filteredUsers.find(user =>
+        user.name &&
+        normalizeName(user.name) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try exact match on legacy verifiedName field (for migration)
+    match = filteredUsers.find(user =>
+        user.verifiedName &&
+        normalizeName(user.verifiedName) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try exact match on legacy displayName field (for migration)
+    match = filteredUsers.find(user =>
+        user.displayName &&
+        normalizeName(user.displayName) === normalizedCrush
+    );
+
+    if (match) return match;
+
+    // Try partial match (first and last name only) for cases with middle names
+    const crushParts = normalizedCrush.split(' ');
+    if (crushParts.length >= 2) {
+        const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
+
+        // Try partial match with name field
+        match = filteredUsers.find(user => {
+            const userIdentityName = user.name || user.verifiedName || user.displayName;
+            if (userIdentityName) {
+                const nameParts = normalizeName(userIdentityName).split(' ');
+                if (nameParts.length >= 2) {
+                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
+                    return nameFirstLast === crushFirstLast;
+                }
+            }
+            return false;
+        });
+    }
+
+    return match || null;
+}
+
+// Helper function to get user's identity name (with migration support)
+export function getUserIdentityName(user: UserWithId): string {
+    return user.name || user.verifiedName || user.displayName || '';
+}
+
+================
 File: functions/.eslintrc.js
 ================
 module.exports = {
@@ -586,85 +668,37 @@ File: tsconfig.node.json
 }
 
 ================
-File: functions/src/utils.ts
+File: functions/src/types.ts
 ================
-import { UserWithId } from './types';
+export type UserClass = 'gsb' | 'undergrad';
 
-// Helper function to normalize names for case-insensitive comparison
-export function normalizeName(name: string): string {
-    if (!name || typeof name !== 'string') return '';
+export interface UserData {
+    uid: string;
+    email: string;
+    name: string;  // Single name field instead of displayName/verifiedName
+    photoURL: string;
+    crushes: string[];
+    lockedCrushes?: string[];
+    matches?: MatchInfo[];
+    crushCount?: number;
+    userClass: UserClass;
+    createdAt: any;
+    updatedAt: any;
+    lastLogin: any;
 
-    return name
-        .normalize('NFD')  // Decompose accented characters
-        .replace(/[\u0300-\u036f]/g, '')  // Remove accent marks
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s]/g, ' ')  // Replace non-alphanumeric with spaces
-        .replace(/\s+/g, ' ')  // Normalize spaces
-        .trim();
+    // Legacy fields for migration support
+    displayName?: string;
+    verifiedName?: string;
 }
 
-// Enhanced function to find the best matching user for a crush name
-// Only matches users within the same class
-export function findUserByName(crushName: string, allUsers: UserWithId[], userClass?: string): UserWithId | null {
-    if (!crushName || !crushName.trim()) return null;
-
-    const normalizedCrush = normalizeName(crushName);
-
-    // Filter users by class if specified
-    const filteredUsers = userClass
-        ? allUsers.filter(user => (user.userClass || 'gsb') === userClass)
-        : allUsers;
-
-    // First try exact match on name field
-    let match = filteredUsers.find(user =>
-        user.name &&
-        normalizeName(user.name) === normalizedCrush
-    );
-
-    if (match) return match;
-
-    // Try exact match on legacy verifiedName field (for migration)
-    match = filteredUsers.find(user =>
-        user.verifiedName &&
-        normalizeName(user.verifiedName) === normalizedCrush
-    );
-
-    if (match) return match;
-
-    // Try exact match on legacy displayName field (for migration)
-    match = filteredUsers.find(user =>
-        user.displayName &&
-        normalizeName(user.displayName) === normalizedCrush
-    );
-
-    if (match) return match;
-
-    // Try partial match (first and last name only) for cases with middle names
-    const crushParts = normalizedCrush.split(' ');
-    if (crushParts.length >= 2) {
-        const crushFirstLast = `${crushParts[0]} ${crushParts[crushParts.length - 1]}`;
-
-        // Try partial match with name field
-        match = filteredUsers.find(user => {
-            const userIdentityName = user.name || user.verifiedName || user.displayName;
-            if (userIdentityName) {
-                const nameParts = normalizeName(userIdentityName).split(' ');
-                if (nameParts.length >= 2) {
-                    const nameFirstLast = `${nameParts[0]} ${nameParts[nameParts.length - 1]}`;
-                    return nameFirstLast === crushFirstLast;
-                }
-            }
-            return false;
-        });
-    }
-
-    return match || null;
+export interface UserWithId extends UserData {
+    id: string;
 }
 
-// Helper function to get user's identity name (with migration support)
-export function getUserIdentityName(user: UserWithId): string {
-    return user.name || user.verifiedName || user.displayName || '';
+export interface MatchInfo {
+    name: string;
+    email: string;
+    matchedAt?: any; // Firebase Timestamp or Date - now optional
 }
 
 ================
@@ -2534,79 +2568,6 @@ File: src/styles/dashboard/dashboard-photos.css
 }
 
 ================
-File: src/utils/photoUtils.ts
-================
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
-
-export const getInitials = (name: string): string => {
-    if (!name) return '?';
-
-    const parts = name.trim().split(' ');
-    // Just return the first letter of the first name
-    return parts[0].charAt(0).toUpperCase();
-};
-
-export const generateInitialsColor = (name: string): string => {
-    // Handle undefined, null, or empty string
-    if (!name) {
-        return 'hsl(0, 0%, 70%)'; // Default gray color for missing names
-    }
-
-    // Generate a consistent color based on name
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-
-    const hue = hash % 360;
-    return `hsl(${hue}, 65%, 50%)`;
-};
-
-interface UserPhoto {
-    photoURL?: string;
-    customPhotoURL?: string;
-}
-
-export const getUserPhoto = async (name: string, userClass: string = 'gsb'): Promise<UserPhoto> => {
-    try {
-        if (!name) {
-            return {};
-        }
-
-        const usersRef = collection(db, 'users');
-        const q = query(
-            usersRef,
-            where('name', '==', name),
-            where('userClass', '==', userClass)
-        );
-
-        const snapshot = await getDocs(q);
-
-        if (!snapshot.empty) {
-            const userData = snapshot.docs[0].data();
-            return {
-                photoURL: userData.photoURL,
-                customPhotoURL: userData.customPhotoURL
-            };
-        }
-
-        return {};
-    } catch (error) {
-        console.error('Error fetching user photo:', error);
-        return {};
-    }
-};
-
-export const getPhotoUrl = (userPhoto: UserPhoto): string | null => {
-    // Only show photos that were explicitly uploaded through the site
-    // or preserved from Google (copied to customPhotoURL)
-    // All other Google photos (default silhouettes, generated initials, etc.) 
-    // will return null and show our colored initials instead
-    return userPhoto.customPhotoURL || null;
-};
-
-================
 File: .firebaserc
 ================
 {
@@ -2643,40 +2604,6 @@ service firebase.storage {
         && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$');
     }
   }
-}
-
-================
-File: functions/src/types.ts
-================
-export type UserClass = 'gsb' | 'undergrad';
-
-export interface UserData {
-    uid: string;
-    email: string;
-    name: string;  // Single name field instead of displayName/verifiedName
-    photoURL: string;
-    crushes: string[];
-    lockedCrushes?: string[];
-    matches?: MatchInfo[];
-    crushCount?: number;
-    userClass: UserClass;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
-
-    // Legacy fields for migration support
-    displayName?: string;
-    verifiedName?: string;
-}
-
-export interface UserWithId extends UserData {
-    id: string;
-}
-
-export interface MatchInfo {
-    name: string;
-    email: string;
-    matchedAt?: any; // Firebase Timestamp or Date - now optional
 }
 
 ================
@@ -3682,6 +3609,316 @@ const calculateMatchScore = (name1: string, name2: string): number => {
 
     return Math.min(score, 100);
 };
+
+================
+File: src/utils/photoUtils.ts
+================
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
+
+export const getInitials = (name: string): string => {
+    if (!name) return '?';
+
+    const parts = name.trim().split(' ');
+    // Just return the first letter of the first name
+    return parts[0].charAt(0).toUpperCase();
+};
+
+export const generateInitialsColor = (name: string): string => {
+    // Handle undefined, null, or empty string
+    if (!name) {
+        return 'hsl(0, 0%, 70%)'; // Default gray color for missing names
+    }
+
+    // Generate a consistent color based on name
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    const hue = hash % 360;
+    return `hsl(${hue}, 65%, 50%)`;
+};
+
+interface UserPhoto {
+    photoURL?: string;
+    customPhotoURL?: string;
+}
+
+export const getUserPhoto = async (name: string, userClass: string = 'gsb'): Promise<UserPhoto> => {
+    try {
+        if (!name) {
+            return {};
+        }
+
+        const usersRef = collection(db, 'users');
+        const q = query(
+            usersRef,
+            where('name', '==', name),
+            where('userClass', '==', userClass)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+            const userData = snapshot.docs[0].data();
+            return {
+                photoURL: userData.photoURL,
+                customPhotoURL: userData.customPhotoURL
+            };
+        }
+
+        return {};
+    } catch (error) {
+        console.error('Error fetching user photo:', error);
+        return {};
+    }
+};
+
+export const getPhotoUrl = (userPhoto: UserPhoto): string | null => {
+    // Only show photos that were explicitly uploaded through the site
+    // or preserved from Google (copied to customPhotoURL)
+    // All other Google photos (default silhouettes, generated initials, etc.) 
+    // will return null and show our colored initials instead
+    return userPhoto.customPhotoURL || null;
+};
+
+================
+File: src/components/admin/AdminAnalytics.tsx
+================
+import React from 'react';
+
+interface CrusherInfo {
+    name: string;
+    email: string;
+}
+
+interface AnalyticsData {
+    totalUsers: number;
+    totalClassSize: number;
+    totalMatches: number;
+    matchedPairs: string[];
+    totalCrushes: number;
+    peopleWithCrushes: number;
+    avgCrushes: number;
+    usersWithCrushes: number;
+    usersWithMatches: number;
+    participationRate: number;
+    classParticipationRate: number;
+    orphanedCrushes: string[];
+    topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
+    topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
+    inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }>;
+    activeUsersLast24h: number;
+}
+
+interface AdminAnalyticsProps {
+    analytics: AnalyticsData | null;
+    classView: 'gsb' | 'undergrad';
+    classDisplayName: string;
+    allUsers: any[];
+}
+
+// Helper function to check if a match should have a timestamp (consistent with backend logic)
+const shouldMatchHaveTimestamp = (user1Name: string, user2Name: string): boolean => {
+    const isUser1JamesPark = user1Name === 'James Park';
+    const isUser2JamesPark = user2Name === 'James Park';
+
+    return !(isUser1JamesPark || isUser2JamesPark);
+};
+
+const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplayName, allUsers }) => {
+    if (!analytics) {
+        return (
+            <div className="admin-loading">
+                Loading {classDisplayName} analytics...
+            </div>
+        );
+    }
+
+    // Get all matches with timestamps from users in this class
+    const getAllMatchesWithTimestamps = () => {
+        const matches: Array<{ pair: string; timestamp: any; users: string[] }> = [];
+        const seenPairs = new Set<string>();
+
+        allUsers.forEach(user => {
+            if (user.matches && user.matches.length > 0) {
+                user.matches.forEach((match: any) => {
+                    const pair = [user.name, match.name].sort().join(' ↔ ');
+                    if (!seenPairs.has(pair)) {
+                        seenPairs.add(pair);
+                        matches.push({
+                            pair,
+                            timestamp: match.matchedAt,
+                            users: [user.name, match.name]
+                        });
+                    }
+                });
+            }
+        });
+
+        // Sort matches: those with timestamps first (by most recent), then those without
+        return matches.sort((a, b) => {
+            const aHasTimestamp = shouldMatchHaveTimestamp(a.users[0], a.users[1]) && !!a.timestamp;
+            const bHasTimestamp = shouldMatchHaveTimestamp(b.users[0], b.users[1]) && !!b.timestamp;
+
+            // James Park matches always go to the end
+            const aIsJamesPark = !shouldMatchHaveTimestamp(a.users[0], a.users[1]);
+            const bIsJamesPark = !shouldMatchHaveTimestamp(b.users[0], b.users[1]);
+
+            if (aIsJamesPark && !bIsJamesPark) return 1;
+            if (!aIsJamesPark && bIsJamesPark) return -1;
+
+            // If both are James Park matches, sort alphabetically
+            if (aIsJamesPark && bIsJamesPark) {
+                return a.pair.localeCompare(b.pair);
+            }
+
+            // If one has timestamp and other doesn't, prioritize the one with timestamp
+            if (aHasTimestamp && !bHasTimestamp) return -1;
+            if (!aHasTimestamp && bHasTimestamp) return 1;
+
+            // If both have timestamps, sort by most recent first
+            if (aHasTimestamp && bHasTimestamp) {
+                try {
+                    let dateA: Date, dateB: Date;
+
+                    // Handle different timestamp formats for sorting
+                    if (a.timestamp && a.timestamp.seconds) {
+                        dateA = new Date(a.timestamp.seconds * 1000);
+                    } else if (a.timestamp && a.timestamp._seconds) {
+                        dateA = new Date(a.timestamp._seconds * 1000);
+                    } else if (a.timestamp && typeof a.timestamp.toDate === 'function') {
+                        dateA = a.timestamp.toDate();
+                    } else {
+                        dateA = new Date(a.timestamp);
+                    }
+
+                    if (b.timestamp && b.timestamp.seconds) {
+                        dateB = new Date(b.timestamp.seconds * 1000);
+                    } else if (b.timestamp && b.timestamp._seconds) {
+                        dateB = new Date(b.timestamp._seconds * 1000);
+                    } else if (b.timestamp && typeof b.timestamp.toDate === 'function') {
+                        dateB = b.timestamp.toDate();
+                    } else {
+                        dateB = new Date(b.timestamp);
+                    }
+
+                    return dateB.getTime() - dateA.getTime();
+                } catch (error) {
+                    console.error('Error sorting timestamps:', error);
+                    return 0;
+                }
+            }
+
+            // If neither has timestamp, sort alphabetically
+            return a.pair.localeCompare(b.pair);
+        });
+    };
+
+    const matchesWithTimestamps = getAllMatchesWithTimestamps();
+
+    return (
+        <div className="admin-overview">
+            <div className="admin-class-header">
+                <h4>{classDisplayName} Class of 2025 - Analytics Dashboard</h4>
+                <div className="admin-class-stats-summary">
+                    <span className="class-stat">
+                        <strong>{analytics.totalUsers}</strong> active users
+                    </span>
+                    <span className="class-stat">
+                        <strong>{analytics.totalClassSize}</strong> total class size
+                    </span>
+                </div>
+            </div>
+
+            <div className="admin-quick-insights">
+                <div className="admin-insight-card">
+                    <h4>Platform Activity</h4>
+                    <p>{analytics.usersWithCrushes} users have sent crushes</p>
+                    <p>{analytics.usersWithMatches} users have matches</p>
+                    <p>{analytics.avgCrushes} average crushes sent per user</p>
+                    <p>{analytics.activeUsersLast24h}% of active users logged in (last 24h)</p>
+                </div>
+
+                <div className="admin-insight-card">
+                    <h4>Participation Metrics</h4>
+                    <p>{analytics.participationRate}% of signed-up users active</p>
+                    <p>{analytics.inactiveReceivers.length} inactive receivers</p>
+                </div>
+
+                <div className="admin-insight-card">
+                    <h4>Matching Success</h4>
+                    <p>{analytics.totalMatches} total matches</p>
+                    <p>{analytics.totalCrushes} total crushes sent</p>
+                    <p>{analytics.peopleWithCrushes} people receiving crushes</p>
+                </div>
+            </div>
+
+            <div className="admin-analytics">
+                <div className="admin-analytics-section">
+                    <h4>Top {classDisplayName} Crush Receivers</h4>
+                    <div className="admin-list">
+                        {analytics.topCrushReceivers.slice(0, 15).map((receiver, index) => (
+                            <div key={receiver.name} className="admin-list-item">
+                                <span>{index + 1}. {receiver.name}</span>
+                                <span>{receiver.count} crushes</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="admin-analytics-section">
+                    <h4>Top {classDisplayName} Crush Senders</h4>
+                    <div className="admin-list">
+                        {analytics.topCrushSenders.slice(0, 15).map((sender, index) => (
+                            <div key={sender.name} className="admin-list-item">
+                                <span>{index + 1}. {sender.name}</span>
+                                <span>{sender.count} crushes sent</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="admin-analytics-section">
+                    <h4>{classDisplayName} Inactive Receivers ({analytics.inactiveReceivers.length})</h4>
+                    <div className="admin-list">
+                        {analytics.inactiveReceivers.map((inactive, index) => (
+                            <div key={inactive.email} className="admin-inactive-item">
+                                <div className="admin-inactive-header">
+                                    <span>{index + 1}. {inactive.name}</span>
+                                    <span>{inactive.crushCount} crushes</span>
+                                </div>
+                                <div className="admin-inactive-details">
+                                    <p>Email: {inactive.email}</p>
+                                    <p>Reason: {inactive.reason}</p>
+                                    <p>Crushers: {inactive.crushers.map(c => c.name).join(', ')}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="admin-analytics-section">
+                    <h4>All {classDisplayName} Matches ({analytics.totalMatches})</h4>
+                    {matchesWithTimestamps.length ? (
+                        <div className="admin-list">
+                            {matchesWithTimestamps.map((match, index) => (
+                                <div key={index} className="admin-list-item">
+                                    <span>{index + 1}. {match.pair}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p>No matches found yet in {classDisplayName} class.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default AdminAnalytics;
 
 ================
 File: src/components/dashboard/SelectedNamesSection.tsx
@@ -5246,6 +5483,24 @@ File: src/styles/dashboard/dashboard-components.css
 }
 
 ================
+File: src/styles/admin.css
+================
+/* Admin View Main Styles */
+@import './admin/admin-base.css';
+@import './admin/admin-layout.css';
+@import './admin/admin-responsive.css';
+
+================
+File: src/styles/dashboard.css
+================
+/* Dashboard Main Styles */
+@import './dashboard/dashboard-layout.css';
+@import './dashboard/dashboard-components.css';
+@import './dashboard/dashboard-responsive.css';
+@import './dashboard/dashboard-photos.css';
+@import './dashboard/dashboard-header.css';
+
+================
 File: src/utils/adminUtils.ts
 ================
 import type { User } from 'firebase/auth';
@@ -5490,9 +5745,9 @@ File: functions/src/index.ts
 ================
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import { UserData, UserWithId } from './types';
-import { findUserByName, getUserIdentityName } from './utils';
-import { processUpdatedCrushes, fixAllCrushCounts, fixAllMatchTimestampsToNow, processIncrementalUpdate } from './matchingEngine';
+import { UserData } from './types';
+import { getUserIdentityName } from './utils';
+import { processUpdatedCrushes, fixAllCrushCounts, processIncrementalUpdate } from './matchingEngine';
 
 export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
 
@@ -5581,7 +5836,7 @@ export const recalculateAllMatches = functions.https.onRequest(async (req, res) 
     }
 });
 
-// NEW: Manual function to fix crush count discrepancies
+// Manual function to fix crush count discrepancies
 export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
     try {
         console.log('🔧 Starting manual fix of crush count discrepancies...');
@@ -5596,37 +5851,7 @@ export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, 
     }
 });
 
-// NEW: Function to fix all match timestamps to now (one-time)
-export const fixMatchTimestampsToNow = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Setting all existing match timestamps to now...');
-        await fixAllMatchTimestampsToNow();
-        res.json({
-            success: true,
-            message: 'Successfully set all existing match timestamps to now (except James Park matches)'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing match timestamps:', error);
-        res.status(500).json({ error: 'Failed to fix match timestamps' });
-    }
-});
-
-// Legacy timestamp function
-export const fixMatchTimestamps = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting one-time fix for missing match timestamps...');
-        await fixAllMatchTimestampsToNow();
-        res.json({
-            success: true,
-            message: 'Successfully fixed missing match timestamps'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing match timestamps:', error);
-        res.status(500).json({ error: 'Failed to fix match timestamps' });
-    }
-});
-
-// New function to add timestamps to existing matches
+// One-time function to add timestamps to existing matches that don't have them
 export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
     try {
         console.log('🔄 Adding timestamps to existing matches...');
@@ -5687,416 +5912,6 @@ export const addTimestampsToMatches = functions.https.onRequest(async (req, res)
         res.status(500).json({ error: 'Failed to add timestamps to existing matches' });
     }
 });
-
-================
-File: src/components/admin/AdminAnalytics.tsx
-================
-import React from 'react';
-
-interface CrusherInfo {
-    name: string;
-    email: string;
-}
-
-interface AnalyticsData {
-    totalUsers: number;
-    totalClassSize: number;
-    totalMatches: number;
-    matchedPairs: string[];
-    totalCrushes: number;
-    peopleWithCrushes: number;
-    avgCrushes: number;
-    usersWithCrushes: number;
-    usersWithMatches: number;
-    participationRate: number;
-    classParticipationRate: number;
-    orphanedCrushes: string[];
-    topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
-    topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
-    inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }>;
-    activeUsersLast24h: number;
-}
-
-interface AdminAnalyticsProps {
-    analytics: AnalyticsData | null;
-    classView: 'gsb' | 'undergrad';
-    classDisplayName: string;
-    allUsers: any[];
-}
-
-// Helper function to check if a match should have a timestamp (consistent with backend logic)
-const shouldMatchHaveTimestamp = (user1Name: string, user2Name: string): boolean => {
-    const isUser1JamesPark = user1Name === 'James Park';
-    const isUser2JamesPark = user2Name === 'James Park';
-
-    return !(isUser1JamesPark || isUser2JamesPark);
-};
-
-const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplayName, allUsers }) => {
-    if (!analytics) {
-        return (
-            <div className="admin-loading">
-                Loading {classDisplayName} analytics...
-            </div>
-        );
-    }
-
-    // Get all matches with timestamps from users in this class
-    const getAllMatchesWithTimestamps = () => {
-        const matches: Array<{ pair: string; timestamp: any; users: string[] }> = [];
-        const seenPairs = new Set<string>();
-
-        allUsers.forEach(user => {
-            if (user.matches && user.matches.length > 0) {
-                user.matches.forEach((match: any) => {
-                    const pair = [user.name, match.name].sort().join(' ↔ ');
-                    if (!seenPairs.has(pair)) {
-                        seenPairs.add(pair);
-                        matches.push({
-                            pair,
-                            timestamp: match.matchedAt,
-                            users: [user.name, match.name]
-                        });
-                    }
-                });
-            }
-        });
-
-        // Sort matches: those with timestamps first (by most recent), then those without
-        return matches.sort((a, b) => {
-            const aHasTimestamp = shouldMatchHaveTimestamp(a.users[0], a.users[1]) && !!a.timestamp;
-            const bHasTimestamp = shouldMatchHaveTimestamp(b.users[0], b.users[1]) && !!b.timestamp;
-
-            // James Park matches always go to the end
-            const aIsJamesPark = !shouldMatchHaveTimestamp(a.users[0], a.users[1]);
-            const bIsJamesPark = !shouldMatchHaveTimestamp(b.users[0], b.users[1]);
-
-            if (aIsJamesPark && !bIsJamesPark) return 1;
-            if (!aIsJamesPark && bIsJamesPark) return -1;
-
-            // If both are James Park matches, sort alphabetically
-            if (aIsJamesPark && bIsJamesPark) {
-                return a.pair.localeCompare(b.pair);
-            }
-
-            // If one has timestamp and other doesn't, prioritize the one with timestamp
-            if (aHasTimestamp && !bHasTimestamp) return -1;
-            if (!aHasTimestamp && bHasTimestamp) return 1;
-
-            // If both have timestamps, sort by most recent first
-            if (aHasTimestamp && bHasTimestamp) {
-                try {
-                    let dateA: Date, dateB: Date;
-
-                    // Handle different timestamp formats for sorting
-                    if (a.timestamp && a.timestamp.seconds) {
-                        dateA = new Date(a.timestamp.seconds * 1000);
-                    } else if (a.timestamp && a.timestamp._seconds) {
-                        dateA = new Date(a.timestamp._seconds * 1000);
-                    } else if (a.timestamp && typeof a.timestamp.toDate === 'function') {
-                        dateA = a.timestamp.toDate();
-                    } else {
-                        dateA = new Date(a.timestamp);
-                    }
-
-                    if (b.timestamp && b.timestamp.seconds) {
-                        dateB = new Date(b.timestamp.seconds * 1000);
-                    } else if (b.timestamp && b.timestamp._seconds) {
-                        dateB = new Date(b.timestamp._seconds * 1000);
-                    } else if (b.timestamp && typeof b.timestamp.toDate === 'function') {
-                        dateB = b.timestamp.toDate();
-                    } else {
-                        dateB = new Date(b.timestamp);
-                    }
-
-                    return dateB.getTime() - dateA.getTime();
-                } catch (error) {
-                    console.error('Error sorting timestamps:', error);
-                    return 0;
-                }
-            }
-
-            // If neither has timestamp, sort alphabetically
-            return a.pair.localeCompare(b.pair);
-        });
-    };
-
-    const matchesWithTimestamps = getAllMatchesWithTimestamps();
-
-    return (
-        <div className="admin-overview">
-            <div className="admin-class-header">
-                <h4>{classDisplayName} Class of 2025 - Analytics Dashboard</h4>
-                <div className="admin-class-stats-summary">
-                    <span className="class-stat">
-                        <strong>{analytics.totalUsers}</strong> active users
-                    </span>
-                    <span className="class-stat">
-                        <strong>{analytics.totalClassSize}</strong> total class size
-                    </span>
-                </div>
-            </div>
-
-            <div className="admin-quick-insights">
-                <div className="admin-insight-card">
-                    <h4>Platform Activity</h4>
-                    <p>{analytics.usersWithCrushes} users have sent crushes</p>
-                    <p>{analytics.usersWithMatches} users have matches</p>
-                    <p>{analytics.avgCrushes} average crushes sent per user</p>
-                    <p>{analytics.activeUsersLast24h}% of active users logged in (last 24h)</p>
-                </div>
-
-                <div className="admin-insight-card">
-                    <h4>Participation Metrics</h4>
-                    <p>{analytics.participationRate}% of signed-up users active</p>
-                    <p>{analytics.inactiveReceivers.length} inactive receivers</p>
-                </div>
-
-                <div className="admin-insight-card">
-                    <h4>Matching Success</h4>
-                    <p>{analytics.totalMatches} total matches</p>
-                    <p>{analytics.totalCrushes} total crushes sent</p>
-                    <p>{analytics.peopleWithCrushes} people receiving crushes</p>
-                </div>
-            </div>
-
-            <div className="admin-analytics">
-                <div className="admin-analytics-section">
-                    <h4>Top {classDisplayName} Crush Receivers</h4>
-                    <div className="admin-list">
-                        {analytics.topCrushReceivers.slice(0, 15).map((receiver, index) => (
-                            <div key={receiver.name} className="admin-list-item">
-                                <span>{index + 1}. {receiver.name}</span>
-                                <span>{receiver.count} crushes</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="admin-analytics-section">
-                    <h4>Top {classDisplayName} Crush Senders</h4>
-                    <div className="admin-list">
-                        {analytics.topCrushSenders.slice(0, 15).map((sender, index) => (
-                            <div key={sender.name} className="admin-list-item">
-                                <span>{index + 1}. {sender.name}</span>
-                                <span>{sender.count} crushes sent</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="admin-analytics-section">
-                    <h4>{classDisplayName} Inactive Receivers ({analytics.inactiveReceivers.length})</h4>
-                    <div className="admin-list">
-                        {analytics.inactiveReceivers.map((inactive, index) => (
-                            <div key={inactive.email} className="admin-inactive-item">
-                                <div className="admin-inactive-header">
-                                    <span>{index + 1}. {inactive.name}</span>
-                                    <span>{inactive.crushCount} crushes</span>
-                                </div>
-                                <div className="admin-inactive-details">
-                                    <p>Email: {inactive.email}</p>
-                                    <p>Reason: {inactive.reason}</p>
-                                    <p>Crushers: {inactive.crushers.map(c => c.name).join(', ')}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="admin-analytics-section">
-                    <h4>All {classDisplayName} Matches ({analytics.totalMatches})</h4>
-                    {matchesWithTimestamps.length ? (
-                        <div className="admin-list">
-                            {matchesWithTimestamps.map((match, index) => (
-                                <div key={index} className="admin-list-item">
-                                    <span>{index + 1}. {match.pair}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p>No matches found yet in {classDisplayName} class.</p>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default AdminAnalytics;
-
-================
-File: src/components/Terms.tsx
-================
-import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import Navbar from './shared/Navbar';
-import '../styles/legal.css';
-
-const Terms: React.FC = () => {
-    const { user, userData } = useAuth();
-
-    return (
-        <div className="dashboard-container">
-            <div className="dashboard-card">
-                {user && userData && (
-                    <Navbar
-                        user={user}
-                        userData={userData}
-                    />
-                )}
-
-                <div className="legal-content">
-                    <h1>Terms of Service</h1>
-                    <p className="last-updated">Last updated: December 19, 2024</p>
-
-                    <section>
-                        <h2>Acceptance of Terms</h2>
-                        <p>
-                            By accessing Second Chances, you agree to these terms. If you disagree with any part of these terms, you may not use our service.
-                        </p>
-                    </section>
-
-                    <section>
-                        <h2>Eligibility</h2>
-                        <p>
-                            This service is exclusively for Stanford Graduate School of Business alumni and students with valid @stanford.edu, @alumni.stanford.edu, or @alumni.gsb.stanford.edu email addresses.
-                        </p>
-                    </section>
-
-                    <section>
-                        <h2>User Conduct</h2>
-                        <p>You agree to:</p>
-                        <ul>
-                            <li>Provide accurate information</li>
-                            <li>Use the service respectfully and appropriately</li>
-                            <li>Not harass, abuse, or harm other users</li>
-                            <li>Not attempt to access other users' accounts or data</li>
-                            <li>Not use the service for commercial purposes</li>
-                        </ul>
-                    </section>
-
-                    <section>
-                        <h2>How It Works</h2>
-                        <p>
-                            Second Chances allows you to select other users you're interested in connecting with. If two users mutually select each other, both parties are made known of the match. Selections remain private unless mutual interest exists.
-                        </p>
-                    </section>
-
-                    <section>
-                        <h2>Account Security</h2>
-                        <p>
-                            You are responsible for maintaining the security of your account. Do not share your login credentials with others.
-                        </p>
-                    </section>
-
-                    <section>
-                        <h2>Limitation of Liability</h2>
-                        <p>
-                            Second Chances is not responsible for the outcomes of matches or interactions between users. We are not liable for any damages arising from your use of the service.
-                        </p>
-                    </section>
-
-                    <section>
-                        <h2>Privacy</h2>
-                        <p>
-                            Your use of the service is also governed by our Privacy Policy, which describes how we collect and use your information.
-                        </p>
-                    </section>
-
-                    <section>
-                        <h2>Termination</h2>
-                        <p>
-                            We reserve the right to terminate or suspend your account at any time for violations of these terms or for any other reason.
-                        </p>
-                    </section>
-
-                    <section>
-                        <h2>Changes to Terms</h2>
-                        <p>
-                            We may update these terms at any time. Continued use of the service after changes constitutes acceptance of the updated terms.
-                        </p>
-                    </section>
-
-                    <section>
-                        <h2>Contact</h2>
-                        <p>
-                            For questions about these terms, please contact jamespark@alumni.stanford.edu.
-                        </p>
-                    </section>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default Terms;
-
-================
-File: src/styles/admin.css
-================
-/* Admin View Main Styles */
-@import './admin/admin-base.css';
-@import './admin/admin-layout.css';
-@import './admin/admin-responsive.css';
-
-================
-File: src/styles/dashboard.css
-================
-/* Dashboard Main Styles */
-@import './dashboard/dashboard-layout.css';
-@import './dashboard/dashboard-components.css';
-@import './dashboard/dashboard-responsive.css';
-@import './dashboard/dashboard-photos.css';
-@import './dashboard/dashboard-header.css';
-
-================
-File: src/types/index.ts
-================
-export type UserClass = 'gsb' | 'undergrad';
-
-export interface MatchInfo {
-    name: string;
-    email: string;
-    matchedAt?: any;
-}
-
-export interface UserData {
-    uid: string;
-    email: string;
-    emailAlumni?: string;
-    emailAlumniGSB?: string;
-    name: string;
-    photoURL: string;
-    customPhotoURL?: string;
-    crushes: string[];
-    lockedCrushes: string[];
-    matches: MatchInfo[];
-    crushCount: number;
-    userClass: UserClass;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
-    location?: string;
-    about?: string;
-}
-
-export interface UserWithId extends UserData {
-    id: string;
-}
-
-export interface InactiveUser extends UserData {
-    isInactive: boolean;
-}
-
-export interface GhostUser extends UserData {
-    isGhost: boolean;
-}
-
-export interface CrusherInfo {
-    name: string;
-    email: string;
-}
 
 ================
 File: src/components/admin/AdminUsers.tsx
@@ -6891,14 +6706,14 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
 export default AdminUsers;
 
 ================
-File: src/components/Privacy.tsx
+File: src/components/Terms.tsx
 ================
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from './shared/Navbar';
 import '../styles/legal.css';
 
-const Privacy: React.FC = () => {
+const Terms: React.FC = () => {
     const { user, userData } = useAuth();
 
     return (
@@ -6912,66 +6727,81 @@ const Privacy: React.FC = () => {
                 )}
 
                 <div className="legal-content">
-                    <h1>Privacy Policy</h1>
+                    <h1>Terms of Service</h1>
                     <p className="last-updated">Last updated: December 19, 2024</p>
 
                     <section>
-                        <h2>What We Collect</h2>
+                        <h2>Acceptance of Terms</h2>
                         <p>
-                            Second Chances collects only the information necessary to provide our service:
+                            By accessing Second Chances, you agree to these terms. If you disagree with any part of these terms, you may not use our service.
                         </p>
+                    </section>
+
+                    <section>
+                        <h2>Eligibility</h2>
+                        <p>
+                            This service is exclusively for Stanford Graduate School of Business alumni and students with valid @stanford.edu, @alumni.stanford.edu, or @alumni.gsb.stanford.edu email addresses.
+                        </p>
+                    </section>
+
+                    <section>
+                        <h2>User Conduct</h2>
+                        <p>You agree to:</p>
                         <ul>
-                            <li>Your name (from Google account)</li>
-                            <li>Your email address (@stanford.edu, @alumni.stanford.edu, or @alumni.gsb.stanford.edu)</li>
-                            <li>Account metadata</li>
+                            <li>Provide accurate information</li>
+                            <li>Use the service respectfully and appropriately</li>
+                            <li>Not harass, abuse, or harm other users</li>
+                            <li>Not attempt to access other users' accounts or data</li>
+                            <li>Not use the service for commercial purposes</li>
                         </ul>
                     </section>
 
                     <section>
-                        <h2>How We Use Your Information</h2>
-                        <p>We use your information to:</p>
-                        <ul>
-                            <li>Authenticate your account</li>
-                            <li>Match you with other users who share mutual interest</li>
-                            <li>Notify you of matches</li>
-                        </ul>
-                    </section>
-
-                    <section>
-                        <h2>Who Can See Your Information</h2>
+                        <h2>How It Works</h2>
                         <p>
-                            Your name selections remain private unless a mutual match occurs. When you and another user both select each other, both parties are made known of the match.
+                            Second Chances allows you to select other users you're interested in connecting with. If two users mutually select each other, both parties are made known of the match. Selections remain private unless mutual interest exists.
                         </p>
                     </section>
 
                     <section>
-                        <h2>Data Retention</h2>
+                        <h2>Account Security</h2>
                         <p>
-                            Your account and data remain active as long as you use the service. You may request account deletion by contacting us.
+                            You are responsible for maintaining the security of your account. Do not share your login credentials with others.
                         </p>
                     </section>
 
                     <section>
-                        <h2>Third-Party Services</h2>
+                        <h2>Limitation of Liability</h2>
                         <p>
-                            We use Google OAuth for authentication and Google Firebase for data storage. These services have their own privacy policies.
+                            Second Chances is not responsible for the outcomes of matches or interactions between users. We are not liable for any damages arising from your use of the service.
                         </p>
                     </section>
 
                     <section>
-                        <h2>Your Rights</h2>
-                        <p>You have the right to:</p>
-                        <ul>
-                            <li>Access your data</li>
-                            <li>Request data deletion</li>
-                            <li>Update your information</li>
-                        </ul>
+                        <h2>Privacy</h2>
+                        <p>
+                            Your use of the service is also governed by our Privacy Policy, which describes how we collect and use your information.
+                        </p>
+                    </section>
+
+                    <section>
+                        <h2>Termination</h2>
+                        <p>
+                            We reserve the right to terminate or suspend your account at any time for violations of these terms or for any other reason.
+                        </p>
+                    </section>
+
+                    <section>
+                        <h2>Changes to Terms</h2>
+                        <p>
+                            We may update these terms at any time. Continued use of the service after changes constitutes acceptance of the updated terms.
+                        </p>
                     </section>
 
                     <section>
                         <h2>Contact</h2>
                         <p>
-                            For questions about this privacy policy or to request data deletion, please contact jamespark@alumni.stanford.edu.
+                            For questions about these terms, please contact jamespark@alumni.stanford.edu.
                         </p>
                     </section>
                 </div>
@@ -6980,292 +6810,7 @@ const Privacy: React.FC = () => {
     );
 };
 
-export default Privacy;
-
-================
-File: src/config/firebase.ts
-================
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
-import { getStorage } from "firebase/storage";
-
-const firebaseConfig = {
-    apiKey: "AIzaSyDC_YL8wau3PKK1r2ZYYHc32TtnoXe5giQ",
-    authDomain: "stanford-lastchances.firebaseapp.com",
-    projectId: "stanford-lastchances",
-    storageBucket: "stanford-lastchances.firebasestorage.app",
-    messagingSenderId: "792276801448",
-    appId: "1:792276801448:web:84a43cc96308673321ef9d",
-    measurementId: "G-HLD1E4T34S"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const analytics = getAnalytics(app);
-export const storage = getStorage(app);
-
-// Set persistence to LOCAL to ensure auth state survives redirects
-setPersistence(auth, browserLocalPersistence).catch((error) => {
-    console.error('Error setting auth persistence:', error);
-});
-
-// Configure Google provider
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-    prompt: 'select_account'
-});
-
-auth.useDeviceLanguage();
-
-================
-File: src/styles/dashboard/dashboard-responsive.css
-================
-/* Dashboard Mobile Responsiveness */
-
-@media (max-width: 768px) {
-    .dashboard-container {
-      padding: 5px;
-    }
-    
-    .dashboard-header {
-      padding: 12px 15px;
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .header-left {
-      flex: 1;
-      gap: 8px;
-    }
-
-    .header-logo {
-      width: 24px;
-      height: 24px;
-    }
-
-    .header-title h1 {
-      font-size: 16px;
-    }
-
-    .header-subtitle {
-      font-size: 11px;
-      padding: 6px 12px;
-    }
-
-    .user-info {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 6px;
-      margin-left: auto;
-    }
-
-    .user-profile-link {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .header-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .logout-btn,
-    .admin-toggle-btn {
-      font-size: 10px;
-      padding: 5px 10px;
-      white-space: nowrap;
-    }
-    
-    .dashboard-content {
-      padding: 15px;
-      gap: 15px;
-    }
-    
-    /* Increase height for mobile to show more names */
-    .names-simple-list {
-      max-height: 60vh;
-    }
-    
-    .name-list-item {
-      padding: 14px 12px;
-      font-size: 13px;
-      min-height: 48px;
-    }
-    
-    .name-text {
-      font-weight: 500;
-    }
-    
-    .add-btn {
-      width: 28px;
-      height: 28px;
-      font-size: 20px;
-    }
-  
-    .name-chips {
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 6px;
-    }
-  
-    .name-chip {
-      font-size: 11px;
-      padding: 6px 10px;
-      min-height: 28px;
-    }
-  
-    .dashboard-content h2 {
-      font-size: 16px;
-    }
-  
-    .action-buttons {
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-  
-    .save-draft-btn, .submit-btn, .update-btn {
-      width: 100%;
-      max-width: 250px;
-      padding: 12px 16px;
-    }
-  
-    .submitted-message {
-      padding: 15px 10px;
-    }
-  
-    .matches-section {
-      padding: 12px;
-    }
-  
-    .matches-section h2 {
-      font-size: 16px;
-    }
-  
-    .matches-list {
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-  
-    .match-item {
-      padding: 12px;
-    }
-  
-    .match-name {
-      font-size: 14px;
-    }
-  
-    .selected-names {
-      padding: 12px;
-    }
-  
-    .crush-count-section {
-      padding: 12px;
-      margin-bottom: 15px;
-    }
-    
-    .crush-count-section h2 {
-      font-size: 16px;
-    }
-  
-    .instructions ol {
-      padding-left: 16px;
-    }
-    
-    .instructions li {
-      font-size: 13px;
-      margin-bottom: 6px;
-    }
-  
-    .locked-badge {
-      font-size: 9px;
-      padding: 1px 4px;
-    }
-    
-    .lock-icon {
-      font-size: 10px;
-    }
-  
-    .search-input-container {
-      margin-bottom: 10px;
-    }
-    
-    .search-clear-btn {
-      right: 12px;
-      width: 28px;
-      height: 28px;
-      font-size: 20px;
-    }
-    
-    .search-hint {
-      font-size: 10px;
-      padding: 5px 8px;
-    }
-    
-    .clear-all-btn, .submit-all-btn {
-      font-size: 11px;
-      padding: 6px 12px;
-    }
-    
-    .search-input {
-      font-size: 13px;
-      padding: 10px 40px 10px 12px;
-    }
-    
-    .matches-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-    }
-    
-    .unlock-btn {
-      font-size: 10px;
-      padding: 4px 8px;
-    }
-
-    .dashboard-footer {
-      padding: 15px;
-    }
-
-    .dashboard-footer a {
-      font-size: 12px;
-    }
-
-    .footer-separator {
-      margin: 0 8px;
-    }
-
-    /* Mobile dropdown styles */
-    .profile-dropdown-menu {
-        min-width: 180px;
-    }
-
-    .dropdown-item {
-        font-size: 13px;
-        padding: 10px 14px;
-    }
-
-    .dropdown-item.profile-item {
-        padding: 14px;
-    }
-
-    .dropdown-profile-pic {
-        width: 36px;
-        height: 36px;
-    }
-
-    .profile-pic {
-        width: 36px;
-        height: 36px;
-    }
-  }
+export default Terms;
 
 ================
 File: src/styles/auth.css
@@ -7998,6 +7543,54 @@ File: src/styles/auth.css
 }
 
 ================
+File: src/types/index.ts
+================
+export type UserClass = 'gsb' | 'undergrad';
+
+export interface MatchInfo {
+    name: string;
+    email: string;
+    matchedAt?: any;
+}
+
+export interface UserData {
+    uid: string;
+    email: string;
+    emailAlumni?: string;
+    emailAlumniGSB?: string;
+    name: string;
+    photoURL: string;
+    customPhotoURL?: string;
+    crushes: string[];
+    lockedCrushes: string[];
+    matches: MatchInfo[];
+    crushCount: number;
+    userClass: UserClass;
+    createdAt: any;
+    updatedAt: any;
+    lastLogin: any;
+    location?: string;
+    about?: string;
+}
+
+export interface UserWithId extends UserData {
+    id: string;
+}
+
+export interface InactiveUser extends UserData {
+    isInactive: boolean;
+}
+
+export interface GhostUser extends UserData {
+    isGhost: boolean;
+}
+
+export interface CrusherInfo {
+    name: string;
+    email: string;
+}
+
+================
 File: src/types/userTypes.ts
 ================
 export type UserClass = 'gsb' | 'undergrad';
@@ -8031,6 +7624,383 @@ export interface UserData {
 export interface UserWithId extends UserData {
     id: string;
 }
+
+================
+File: src/components/Privacy.tsx
+================
+import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import Navbar from './shared/Navbar';
+import '../styles/legal.css';
+
+const Privacy: React.FC = () => {
+    const { user, userData } = useAuth();
+
+    return (
+        <div className="dashboard-container">
+            <div className="dashboard-card">
+                {user && userData && (
+                    <Navbar
+                        user={user}
+                        userData={userData}
+                    />
+                )}
+
+                <div className="legal-content">
+                    <h1>Privacy Policy</h1>
+                    <p className="last-updated">Last updated: December 19, 2024</p>
+
+                    <section>
+                        <h2>What We Collect</h2>
+                        <p>
+                            Second Chances collects only the information necessary to provide our service:
+                        </p>
+                        <ul>
+                            <li>Your name (from Google account)</li>
+                            <li>Your email address (@stanford.edu, @alumni.stanford.edu, or @alumni.gsb.stanford.edu)</li>
+                            <li>Account metadata</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>How We Use Your Information</h2>
+                        <p>We use your information to:</p>
+                        <ul>
+                            <li>Authenticate your account</li>
+                            <li>Match you with other users who share mutual interest</li>
+                            <li>Notify you of matches</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>Who Can See Your Information</h2>
+                        <p>
+                            Your name selections remain private unless a mutual match occurs. When you and another user both select each other, both parties are made known of the match.
+                        </p>
+                    </section>
+
+                    <section>
+                        <h2>Data Retention</h2>
+                        <p>
+                            Your account and data remain active as long as you use the service. You may request account deletion by contacting us.
+                        </p>
+                    </section>
+
+                    <section>
+                        <h2>Third-Party Services</h2>
+                        <p>
+                            We use Google OAuth for authentication and Google Firebase for data storage. These services have their own privacy policies.
+                        </p>
+                    </section>
+
+                    <section>
+                        <h2>Your Rights</h2>
+                        <p>You have the right to:</p>
+                        <ul>
+                            <li>Access your data</li>
+                            <li>Request data deletion</li>
+                            <li>Update your information</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>Contact</h2>
+                        <p>
+                            For questions about this privacy policy or to request data deletion, please contact jamespark@alumni.stanford.edu.
+                        </p>
+                    </section>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Privacy;
+
+================
+File: src/config/firebase.ts
+================
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getAnalytics } from "firebase/analytics";
+import { getStorage } from "firebase/storage";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDC_YL8wau3PKK1r2ZYYHc32TtnoXe5giQ",
+    authDomain: "stanford-lastchances.firebaseapp.com",
+    projectId: "stanford-lastchances",
+    storageBucket: "stanford-lastchances.firebasestorage.app",
+    messagingSenderId: "792276801448",
+    appId: "1:792276801448:web:84a43cc96308673321ef9d",
+    measurementId: "G-HLD1E4T34S"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const analytics = getAnalytics(app);
+export const storage = getStorage(app);
+
+// Set persistence to LOCAL to ensure auth state survives redirects
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+    console.error('Error setting auth persistence:', error);
+});
+
+// Configure Google provider
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+    prompt: 'select_account'
+});
+
+auth.useDeviceLanguage();
+
+================
+File: src/styles/dashboard/dashboard-responsive.css
+================
+/* Dashboard Mobile Responsiveness */
+
+@media (max-width: 768px) {
+    .dashboard-container {
+      padding: 5px;
+    }
+    
+    .dashboard-header {
+      padding: 12px 15px;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-left {
+      flex: 1;
+      gap: 8px;
+    }
+
+    .header-logo {
+      width: 24px;
+      height: 24px;
+    }
+
+    .header-title h1 {
+      font-size: 16px;
+    }
+
+    .header-subtitle {
+      font-size: 11px;
+      padding: 6px 12px;
+    }
+
+    .user-info {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .user-profile-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .logout-btn,
+    .admin-toggle-btn {
+      font-size: 10px;
+      padding: 5px 10px;
+      white-space: nowrap;
+    }
+    
+    .dashboard-content {
+      padding: 15px;
+      gap: 15px;
+    }
+    
+    /* Increase height for mobile to show more names */
+    .names-simple-list {
+      max-height: 60vh;
+    }
+    
+    .name-list-item {
+      padding: 14px 12px;
+      font-size: 13px;
+      min-height: 48px;
+    }
+    
+    .name-text {
+      font-weight: 500;
+    }
+    
+    .add-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 20px;
+    }
+  
+    .name-chips {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 6px;
+    }
+  
+    .name-chip {
+      font-size: 11px;
+      padding: 6px 10px;
+      min-height: 28px;
+    }
+  
+    .dashboard-content h2 {
+      font-size: 16px;
+    }
+  
+    .action-buttons {
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+  
+    .save-draft-btn, .submit-btn, .update-btn {
+      width: 100%;
+      max-width: 250px;
+      padding: 12px 16px;
+    }
+  
+    .submitted-message {
+      padding: 15px 10px;
+    }
+  
+    .matches-section {
+      padding: 12px;
+    }
+  
+    .matches-section h2 {
+      font-size: 16px;
+    }
+  
+    .matches-list {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+  
+    .match-item {
+      padding: 12px;
+    }
+  
+    .match-name {
+      font-size: 14px;
+    }
+  
+    .selected-names {
+      padding: 12px;
+    }
+  
+    .crush-count-section {
+      padding: 12px;
+      margin-bottom: 15px;
+    }
+    
+    .crush-count-section h2 {
+      font-size: 16px;
+    }
+  
+    .instructions ol {
+      padding-left: 16px;
+    }
+    
+    .instructions li {
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+  
+    .locked-badge {
+      font-size: 9px;
+      padding: 1px 4px;
+    }
+    
+    .lock-icon {
+      font-size: 10px;
+    }
+  
+    .search-input-container {
+      margin-bottom: 10px;
+    }
+    
+    .search-clear-btn {
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      font-size: 20px;
+    }
+    
+    .search-hint {
+      font-size: 10px;
+      padding: 5px 8px;
+    }
+    
+    .clear-all-btn, .submit-all-btn {
+      font-size: 11px;
+      padding: 6px 12px;
+    }
+    
+    .search-input {
+      font-size: 13px;
+      padding: 10px 40px 10px 12px;
+    }
+    
+    .matches-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    
+    .unlock-btn {
+      font-size: 10px;
+      padding: 4px 8px;
+    }
+
+    .dashboard-footer {
+      padding: 15px;
+    }
+
+    .dashboard-footer a {
+      font-size: 12px;
+    }
+
+    .footer-separator {
+      margin: 0 8px;
+    }
+
+    /* Mobile dropdown styles */
+    .profile-dropdown-menu {
+        min-width: 180px;
+    }
+
+    .dropdown-item {
+        font-size: 13px;
+        padding: 10px 14px;
+    }
+
+    .dropdown-item.profile-item {
+        padding: 14px;
+    }
+
+    .dropdown-profile-pic {
+        width: 36px;
+        height: 36px;
+    }
+
+    .profile-pic {
+        width: 36px;
+        height: 36px;
+    }
+  }
 
 ================
 File: src/App.tsx
@@ -8139,6 +8109,210 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+================
+File: src/components/AdminView.tsx
+================
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import AdminAnalytics from './admin/AdminAnalytics';
+import AdminUsers from './admin/AdminUsers';
+import { useAdminData } from '../hooks/useAdminData';
+import { useAdminUtils } from '../hooks/useAdminUtils';
+import type { UserData, UserClass } from '../types/userTypes';
+import { isAdminUser } from '../utils/adminUtils';
+
+type ViewMode = 'analytics' | 'users';
+type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
+
+interface AdminViewProps {
+    user: any;
+    userData: UserData | null;
+}
+
+const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
+    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
+    const [adminSearchTerm, setAdminSearchTerm] = useState('');
+    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+    const [userFilter, setUserFilter] = useState<UserFilter>('all');
+    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const currentClassView: UserClass = userData?.userClass || 'gsb';
+    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
+
+    const {
+        allUsers,
+        loadingUsers,
+        currentAnalytics,
+        loadingAnalytics,
+        loadAllUsers
+    } = useAdminData(user, currentClassView, refreshKey);
+
+    const { findCrushersForUser } = useAdminUtils(allUsers || []);
+
+    // Admin access control
+    useEffect(() => {
+        if (!isAdminUser(user, userData)) {
+            setAdminAccessDenied(true);
+            return;
+        }
+        setAdminAccessDenied(false);
+    }, [user, userData]);
+
+    // Early return for non-admin users
+    if (adminAccessDenied) {
+        return (
+            <div className="admin-access-denied">
+                <div className="access-denied-card">
+                    <h2>Access Denied</h2>
+                    <p>You do not have permission to view this page.</p>
+                    <p>Admin access is restricted to authorized personnel only.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Double-check admin status
+    if (!isAdminUser(user, userData)) {
+        return (
+            <div className="admin-loading">
+                Verifying admin access...
+            </div>
+        );
+    }
+
+    // Set up real-time listener for analytics with error handling
+    useEffect(() => {
+        if (!isAdminUser(user, userData)) return;
+
+        const analyticsQuery = query(
+            collection(db, 'analytics'),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+        );
+
+        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                console.log('Live analytics updated');
+                setRefreshKey(prev => prev + 1);
+            }
+        }, (error) => {
+            console.error('Error listening to analytics:', error);
+            if (error.code === 'permission-denied') {
+                setAdminAccessDenied(true);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user, userData]);
+
+    const currentClassStats = useMemo(() => {
+        if (!allUsers || !Array.isArray(allUsers)) {
+            return {
+                activeUsers: 0,
+                inactiveUsers: 0,
+                ghostUsers: 0,
+                total: 0
+            };
+        }
+
+        const realUsers = allUsers.filter(u => !(u as any).isInactive && !(u as any).isGhost);
+        const inactiveUsers = allUsers.filter(u => (u as any).isInactive);
+        const ghostUsers = allUsers.filter(u => (u as any).isGhost);
+
+        return {
+            activeUsers: realUsers.length,
+            inactiveUsers: inactiveUsers.length,
+            ghostUsers: ghostUsers.length,
+            total: allUsers.length
+        };
+    }, [allUsers]);
+
+    const handleViewUser = useCallback((userId: string) => {
+        setViewingUserId(viewingUserId === userId ? null : userId);
+    }, [viewingUserId]);
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshKey(prev => prev + 1);
+        await loadAllUsers();
+    }, [loadAllUsers]);
+
+    if (!allUsers && loadingUsers) {
+        return (
+            <div className="admin-loading">
+                Loading {classDisplayName} admin data...
+            </div>
+        );
+    }
+
+    return (
+        <div className="admin-section">
+            <div className="admin-header-section">
+                <div className="admin-title-row">
+                    <h3>{classDisplayName} Admin Dashboard</h3>
+                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
+                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
+                    </button>
+                </div>
+
+                <div className="admin-definitions">
+                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
+                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
+                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
+                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
+                </div>
+            </div>
+
+            <div className="admin-nav">
+                <button
+                    onClick={() => setViewMode('analytics')}
+                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
+                    disabled={loadingAnalytics}
+                >
+                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
+                </button>
+                <button
+                    onClick={() => setViewMode('users')}
+                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
+                    disabled={loadingUsers}
+                >
+                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
+                </button>
+            </div>
+
+            <div className="admin-content">
+                {viewMode === 'analytics' && (
+                    <AdminAnalytics
+                        analytics={currentAnalytics}
+                        classView={currentClassView}
+                        classDisplayName={classDisplayName}
+                        allUsers={allUsers || []}
+                    />
+                )}
+                {viewMode === 'users' && (
+                    <AdminUsers
+                        allUsers={allUsers || []}
+                        loadingUsers={loadingUsers}
+                        adminSearchTerm={adminSearchTerm}
+                        setAdminSearchTerm={setAdminSearchTerm}
+                        userFilter={userFilter}
+                        setUserFilter={setUserFilter}
+                        viewingUserId={viewingUserId}
+                        handleViewUser={handleViewUser}
+                        findCrushersForUser={findCrushersForUser}
+                        userStats={currentClassStats}
+                        classView={currentClassView}
+                        classDisplayName={classDisplayName}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default AdminView;
 
 ================
 File: firestore.rules
@@ -8349,210 +8523,6 @@ service cloud.firestore {
     }
   }
 }
-
-================
-File: src/components/AdminView.tsx
-================
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import AdminAnalytics from './admin/AdminAnalytics';
-import AdminUsers from './admin/AdminUsers';
-import { useAdminData } from '../hooks/useAdminData';
-import { useAdminUtils } from '../hooks/useAdminUtils';
-import type { UserData, UserClass } from '../types/userTypes';
-import { isAdminUser } from '../utils/adminUtils';
-
-type ViewMode = 'analytics' | 'users';
-type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
-
-interface AdminViewProps {
-    user: any;
-    userData: UserData | null;
-}
-
-const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
-    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
-    const [adminSearchTerm, setAdminSearchTerm] = useState('');
-    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
-    const [userFilter, setUserFilter] = useState<UserFilter>('all');
-    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
-    const [refreshKey, setRefreshKey] = useState(0);
-
-    const currentClassView: UserClass = userData?.userClass || 'gsb';
-    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
-
-    const {
-        allUsers,
-        loadingUsers,
-        currentAnalytics,
-        loadingAnalytics,
-        loadAllUsers
-    } = useAdminData(user, currentClassView, refreshKey);
-
-    const { findCrushersForUser } = useAdminUtils(allUsers || []);
-
-    // Admin access control
-    useEffect(() => {
-        if (!isAdminUser(user, userData)) {
-            setAdminAccessDenied(true);
-            return;
-        }
-        setAdminAccessDenied(false);
-    }, [user, userData]);
-
-    // Early return for non-admin users
-    if (adminAccessDenied) {
-        return (
-            <div className="admin-access-denied">
-                <div className="access-denied-card">
-                    <h2>Access Denied</h2>
-                    <p>You do not have permission to view this page.</p>
-                    <p>Admin access is restricted to authorized personnel only.</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Double-check admin status
-    if (!isAdminUser(user, userData)) {
-        return (
-            <div className="admin-loading">
-                Verifying admin access...
-            </div>
-        );
-    }
-
-    // Set up real-time listener for analytics with error handling
-    useEffect(() => {
-        if (!isAdminUser(user, userData)) return;
-
-        const analyticsQuery = query(
-            collection(db, 'analytics'),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-        );
-
-        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                console.log('Live analytics updated');
-                setRefreshKey(prev => prev + 1);
-            }
-        }, (error) => {
-            console.error('Error listening to analytics:', error);
-            if (error.code === 'permission-denied') {
-                setAdminAccessDenied(true);
-            }
-        });
-
-        return () => unsubscribe();
-    }, [user, userData]);
-
-    const currentClassStats = useMemo(() => {
-        if (!allUsers || !Array.isArray(allUsers)) {
-            return {
-                activeUsers: 0,
-                inactiveUsers: 0,
-                ghostUsers: 0,
-                total: 0
-            };
-        }
-
-        const realUsers = allUsers.filter(u => !(u as any).isInactive && !(u as any).isGhost);
-        const inactiveUsers = allUsers.filter(u => (u as any).isInactive);
-        const ghostUsers = allUsers.filter(u => (u as any).isGhost);
-
-        return {
-            activeUsers: realUsers.length,
-            inactiveUsers: inactiveUsers.length,
-            ghostUsers: ghostUsers.length,
-            total: allUsers.length
-        };
-    }, [allUsers]);
-
-    const handleViewUser = useCallback((userId: string) => {
-        setViewingUserId(viewingUserId === userId ? null : userId);
-    }, [viewingUserId]);
-
-    const handleRefresh = useCallback(async () => {
-        setRefreshKey(prev => prev + 1);
-        await loadAllUsers();
-    }, [loadAllUsers]);
-
-    if (!allUsers && loadingUsers) {
-        return (
-            <div className="admin-loading">
-                Loading {classDisplayName} admin data...
-            </div>
-        );
-    }
-
-    return (
-        <div className="admin-section">
-            <div className="admin-header-section">
-                <div className="admin-title-row">
-                    <h3>{classDisplayName} Admin Dashboard</h3>
-                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
-                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
-                    </button>
-                </div>
-
-                <div className="admin-definitions">
-                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
-                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
-                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
-                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
-                </div>
-            </div>
-
-            <div className="admin-nav">
-                <button
-                    onClick={() => setViewMode('analytics')}
-                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
-                    disabled={loadingAnalytics}
-                >
-                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
-                </button>
-                <button
-                    onClick={() => setViewMode('users')}
-                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
-                    disabled={loadingUsers}
-                >
-                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
-                </button>
-            </div>
-
-            <div className="admin-content">
-                {viewMode === 'analytics' && (
-                    <AdminAnalytics
-                        analytics={currentAnalytics}
-                        classView={currentClassView}
-                        classDisplayName={classDisplayName}
-                        allUsers={allUsers || []}
-                    />
-                )}
-                {viewMode === 'users' && (
-                    <AdminUsers
-                        allUsers={allUsers || []}
-                        loadingUsers={loadingUsers}
-                        adminSearchTerm={adminSearchTerm}
-                        setAdminSearchTerm={setAdminSearchTerm}
-                        userFilter={userFilter}
-                        setUserFilter={setUserFilter}
-                        viewingUserId={viewingUserId}
-                        handleViewUser={handleViewUser}
-                        findCrushersForUser={findCrushersForUser}
-                        userStats={currentClassStats}
-                        classView={currentClassView}
-                        classDisplayName={classDisplayName}
-                    />
-                )}
-            </div>
-        </div>
-    );
-};
-
-export default AdminView;
 
 ================
 File: src/components/UserDashboard.tsx
@@ -9354,29 +9324,6 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// Helper function to determine if a match should have a timestamp
-function shouldMatchHaveTimestamp(user1Id: string, user2Id: string, user1Name: string, user2Name: string): boolean {
-    // Check if either user is James Park (by document ID containing jpark22@stanford.edu OR by name)
-    const isUser1JamesPark = user1Id.includes('jpark22@stanford.edu') ||
-        user1Name === 'James Park' ||
-        user1Id.includes('_gsb') && user1Id.includes('jpark22@stanford.edu') ||
-        user1Id.includes('_undergrad') && user1Id.includes('jpark22@stanford.edu');
-
-    const isUser2JamesPark = user2Id.includes('jpark22@stanford.edu') ||
-        user2Name === 'James Park' ||
-        user2Id.includes('_gsb') && user2Id.includes('jpark22@stanford.edu') ||
-        user2Id.includes('_undergrad') && user2Id.includes('jpark22@stanford.edu');
-
-    // Skip timestamp for ANY James Park matches (GSB or undergrad)
-    if (isUser1JamesPark || isUser2JamesPark) {
-        console.log(`🚫 Skipping timestamp for James Park match: ${user1Name} ↔ ${user2Name}`);
-        return false;
-    }
-
-    // All other matches should have timestamps
-    return true;
-}
-
 // Incremental update - only processes users affected by the change
 export async function processIncrementalUpdate(
     userId: string,
@@ -9428,6 +9375,9 @@ export async function processIncrementalUpdate(
 
             console.log(`👥 Affected users: ${affectedUserIds.size}`);
 
+            // Create single timestamp for this batch of updates (ensures consistency)
+            const batchTimestamp = admin.firestore.Timestamp.now();
+
             // For each affected user, recalculate their matches and crushCount
             for (const affectedId of affectedUserIds) {
                 const affectedUser = allUsers.find(u => u.id === affectedId);
@@ -9478,12 +9428,6 @@ export async function processIncrementalUpdate(
 
                     if (isMutual) {
                         const existingMatch = existingMatchMap.get(crushedUserName);
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(
-                            affectedId,
-                            crushedUser.id,
-                            affectedUserName,
-                            crushedUserName
-                        );
 
                         if (existingMatch && existingMatch.matchedAt) {
                             // Preserve existing timestamp
@@ -9492,146 +9436,91 @@ export async function processIncrementalUpdate(
                                 email: crushedUser.email || 'unknown@stanford.edu',
                                 matchedAt: existingMatch.matchedAt
                             });
-                        } else if (shouldHaveTimestamp) {
-                            // New match - add timestamp
+                            console.log(`🔒 Preserving existing timestamp for ${affectedUserName} ↔ ${crushedUserName}`);
+                        } else {
+                            // New match - add timestamp using batch timestamp for consistency
                             userMatches.push({
                                 name: crushedUserName,
                                 email: crushedUser.email || 'unknown@stanford.edu',
-                                matchedAt: admin.firestore.Timestamp.now()
+                                matchedAt: batchTimestamp
                             });
-                        } else {
-                            // No timestamp for James Park matches
-                            userMatches.push({
-                                name: crushedUserName,
-                                email: crushedUser.email || 'unknown@stanford.edu'
-                            });
+                            console.log(`🆕 New match with timestamp: ${affectedUserName} ↔ ${crushedUserName}`);
                         }
 
                         userLockedCrushes.push(crushedUserName);
                     }
                 }
 
-                // Update this user's document
+                // Update this affected user
                 const userRef = db.collection('users').doc(affectedId);
-                const updateData = {
+                transaction.update(userRef, {
                     matches: userMatches,
                     lockedCrushes: userLockedCrushes,
                     crushCount: crushCount,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                };
-
-                transaction.update(userRef, updateData);
-                console.log(`✅ Updated ${affectedUserName}: ${userMatches.length} matches, ${crushCount} crush count`);
+                });
             }
 
-            console.log(`✅ Incremental update complete - updated ${affectedUserIds.size} users`);
+            console.log(`✅ Updated ${affectedUserIds.size} affected users`);
         });
+
     } catch (error) {
         console.error('❌ Error in processIncrementalUpdate:', error);
         throw error;
     }
 }
 
-// Enhanced function to recalculate all matches and crush counts with better name matching
-// Now respects class boundaries - GSB students can only match with GSB, undergrads with undergrads
+// Full recalculation of all matches and crush counts
 export async function processUpdatedCrushes(): Promise<void> {
-    console.log('🔄 Starting enhanced recalculation of all matches and crush counts with class separation...');
+    console.log('🔄 Starting full match and crush count recalculation...');
 
     try {
         await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
+            // Get all users from both classes
+            const gsbSnapshot = await transaction.get(db.collection('users').where('userClass', '==', 'gsb'));
+            const undergradSnapshot = await transaction.get(db.collection('users').where('userClass', '==', 'undergrad'));
 
-            const allUsers: UserWithId[] = allUsersSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data() as any
-            }));
+            const allUsers: UserWithId[] = [
+                ...gsbSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })),
+                ...undergradSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }))
+            ];
 
-            console.log(`📊 Processing ${allUsers.length} users`);
+            console.log(`📊 Total users: ${allUsers.length} (GSB: ${gsbSnapshot.size}, Undergrad: ${undergradSnapshot.size})`);
 
-            // Separate users by class
-            const gsbUsers = allUsers.filter(user => user.userClass === 'gsb' || !user.userClass); // Default to GSB for backwards compatibility
-            const undergradUsers = allUsers.filter(user => user.userClass === 'undergrad');
-
-            console.log(`📊 GSB users: ${gsbUsers.length}, Undergrad users: ${undergradUsers.length}`);
-
-            // Enhanced crush count calculation with better name matching and class separation
+            // Calculate crush counts for each user (by class)
             const crushCounts = new Map<string, number>();
-            const crushersMap = new Map<string, string[]>(); // Track who is crushing on whom
+            const crushersMap = new Map<string, string[]>();
 
-            // Process GSB users
-            for (const user of gsbUsers) {
+            for (const user of allUsers) {
                 const userCrushes = user.crushes || [];
+                const userIdentityName = getUserIdentityName(user);
+                const userClass = user.userClass || 'gsb';
+
+                if (!userIdentityName || !userIdentityName.trim()) {
+                    console.log(`⏭️ Skipping user ${user.id} - no identity name`);
+                    continue;
+                }
+
+                const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
+
                 for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name within GSB class
-                    const targetUser = findUserByName(crushName, gsbUsers, 'gsb');
+                    const targetUser = findUserByName(crushName, sameClassUsers, userClass);
 
                     if (targetUser) {
-                        // Use the user's identity name
-                        const actualName = getUserIdentityName(targetUser);
-                        if (actualName) {
-                            const key = `gsb:${actualName}`;
+                        const targetUserIdentityName = getUserIdentityName(targetUser);
+                        if (targetUserIdentityName) {
+                            const key = `${userClass}:${targetUserIdentityName}`;
                             crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
 
-                            // Track the crusher
-                            if (!crushersMap.has(key)) {
-                                crushersMap.set(key, []);
-                            }
-                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
+                            const crushers = crushersMap.get(key) || [];
+                            crushers.push(userIdentityName);
+                            crushersMap.set(key, crushers);
                         }
-                    } else {
-                        // If no user found, still count it but use the crush name directly
-                        console.log(`⚠️ No GSB user found for crush name: "${crushName}" - counting anyway`);
-                        const key = `gsb:${crushName}`;
-                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                        // Track the crusher for orphaned crushes too
-                        if (!crushersMap.has(key)) {
-                            crushersMap.set(key, []);
-                        }
-                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
                     }
                 }
             }
 
-            // Process Undergrad users
-            for (const user of undergradUsers) {
-                const userCrushes = user.crushes || [];
-                for (const crushName of userCrushes) {
-                    // Find the actual user that matches this crush name within undergrad class
-                    const targetUser = findUserByName(crushName, undergradUsers, 'undergrad');
-
-                    if (targetUser) {
-                        // Use the user's identity name
-                        const actualName = getUserIdentityName(targetUser);
-                        if (actualName) {
-                            const key = `undergrad:${actualName}`;
-                            crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                            // Track the crusher
-                            if (!crushersMap.has(key)) {
-                                crushersMap.set(key, []);
-                            }
-                            crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                        }
-                    } else {
-                        // If no user found, still count it but use the crush name directly
-                        console.log(`⚠️ No undergrad user found for crush name: "${crushName}" - counting anyway`);
-                        const key = `undergrad:${crushName}`;
-                        crushCounts.set(key, (crushCounts.get(key) || 0) + 1);
-
-                        // Track the crusher for orphaned crushes too
-                        if (!crushersMap.has(key)) {
-                            crushersMap.set(key, []);
-                        }
-                        crushersMap.get(key)!.push(getUserIdentityName(user) || user.email);
-                    }
-                }
-            }
-
-            console.log('💕 Enhanced crush counts calculated:', Object.fromEntries(crushCounts));
-
-            // Calculate matches and locked crushes with enhanced matching and class separation
+            // Calculate matches for all users
             const allMatches = new Map<string, MatchInfo[]>();
             const allLockedCrushes = new Map<string, string[]>();
 
@@ -9641,7 +9530,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                 const userLockedCrushes: string[] = [];
                 const userCrushes = user.crushes || [];
                 const userIdentityName = getUserIdentityName(user);
-                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
+                const userClass = user.userClass || 'gsb';
 
                 if (!userIdentityName || !userIdentityName.trim()) {
                     console.log(`⏭️ Skipping user ${user.id} - no identity name`);
@@ -9653,7 +9542,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                 // Get users from the same class only
                 const sameClassUsers = allUsers.filter(u => (u.userClass || 'gsb') === userClass);
 
-                // Get existing matches to preserve timestamps (CRITICAL: preserve exact timestamp objects)
+                // Get existing matches to preserve timestamps
                 const existingMatches = user.matches || [];
                 const existingMatchMap = new Map<string, any>();
                 existingMatches.forEach(match => {
@@ -9685,37 +9574,24 @@ export async function processUpdatedCrushes(): Promise<void> {
                         // Check if this is an existing match to preserve timestamp
                         const existingMatch = existingMatchMap.get(crushedUserIdentityName);
 
-                        // Determine if this match should have a timestamp
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(user.id, crushedUser.id, userIdentityName, crushedUserIdentityName);
-
                         let matchInfo: MatchInfo;
 
-                        if (shouldHaveTimestamp) {
-                            if (existingMatch && existingMatch.matchedAt) {
-                                // PRESERVE the exact existing timestamp object - don't convert it
-                                matchInfo = {
-                                    name: crushedUserIdentityName,
-                                    email: crushedUser.email,
-                                    matchedAt: existingMatch.matchedAt
-                                };
-                                console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                            } else {
-                                // NEW MATCH - Create timestamp at the exact moment this match is discovered
-                                matchInfo = {
-                                    name: crushedUserIdentityName,
-                                    email: crushedUser.email,
-                                    matchedAt: admin.firestore.Timestamp.now() // Real-time timestamp for new matches
-                                };
-                                console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
-                            }
-                        } else {
-                            // No timestamp for James Park matches
+                        if (existingMatch && existingMatch.matchedAt) {
+                            // Preserve the exact existing timestamp object
                             matchInfo = {
                                 name: crushedUserIdentityName,
-                                email: crushedUser.email
-                                // No matchedAt field
+                                email: crushedUser.email,
+                                matchedAt: existingMatch.matchedAt
                             };
-                            console.log(`🚫 No timestamp for James Park match: ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                            console.log(`🔒 Preserving existing timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
+                        } else {
+                            // New match - create timestamp at the exact moment this match is discovered
+                            matchInfo = {
+                                name: crushedUserIdentityName,
+                                email: crushedUser.email,
+                                matchedAt: admin.firestore.Timestamp.now()
+                            };
+                            console.log(`🆕 Creating new timestamp for ${userIdentityName} ↔ ${crushedUserIdentityName}`);
                         }
 
                         userMatches.push(matchInfo);
@@ -9726,7 +9602,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                         }
 
                         const isNewMatch = !existingMatchMap.has(crushedUserIdentityName);
-                        const timestampStatus = shouldHaveTimestamp ? (isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING') : 'NO_TIMESTAMP';
+                        const timestampStatus = isNewMatch ? 'NEW_TIMESTAMP' : 'PRESERVED_EXISTING';
                         console.log(`💕 ${userClass.toUpperCase()} Match ${isNewMatch ? 'NEW' : 'EXISTING'} (${timestampStatus}): ${userIdentityName} ↔ ${crushedUserIdentityName}`);
                     }
                 }
@@ -9739,7 +9615,7 @@ export async function processUpdatedCrushes(): Promise<void> {
             for (const user of allUsers) {
                 const userRef = db.collection('users').doc(user.id);
                 const userIdentityName = getUserIdentityName(user);
-                const userClass = user.userClass || 'gsb'; // Default to GSB for backwards compatibility
+                const userClass = user.userClass || 'gsb';
 
                 // For crush count, we need to check the user's identity name with class prefix
                 let userCrushCount = 0;
@@ -9759,7 +9635,7 @@ export async function processUpdatedCrushes(): Promise<void> {
                     matches: allMatches.get(user.id) || [],
                     lockedCrushes: allLockedCrushes.get(user.id) || [],
                     crushCount: userCrushCount,
-                    userClass: userClass, // Ensure userClass is set for legacy users
+                    userClass: userClass,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 };
 
@@ -9770,80 +9646,12 @@ export async function processUpdatedCrushes(): Promise<void> {
         });
 
     } catch (error) {
-        console.error('❌ Error in enhanced processUpdatedCrushes:', error);
+        console.error('❌ Error in processUpdatedCrushes:', error);
         throw error;
     }
 }
 
-// One-time function to set current timestamp for all existing matches (except James Park)
-export async function fixAllMatchTimestampsToNow(): Promise<void> {
-    console.log('🔧 Setting all existing match timestamps to now (except James Park matches)...');
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const allUsersSnapshot = await transaction.get(db.collection('users'));
-            const currentTimestamp = admin.firestore.Timestamp.now();
-
-            let updatedUsers = 0;
-            let fixedMatches = 0;
-
-            allUsersSnapshot.forEach(doc => {
-                const userData = doc.data();
-                const matches = userData.matches || [];
-                const userId = doc.id;
-                const userName = userData.name || userData.verifiedName || userData.displayName || userData.email;
-
-                if (matches.length > 0) {
-                    let needsUpdate = false;
-                    const updatedMatches = matches.map((match: any) => {
-                        // Check both the document owner AND the match partner for James Park
-                        const shouldHaveTimestamp = shouldMatchHaveTimestamp(userId, '', userName, match.name || '');
-
-                        if (shouldHaveTimestamp) {
-                            // Set timestamp to now for all non-James Park matches
-                            needsUpdate = true;
-                            fixedMatches++;
-                            console.log(`🔧 Setting timestamp to now for match: ${match.name} ↔ ${userName}`);
-                            return {
-                                name: match.name || 'Unknown',
-                                email: match.email || 'unknown@stanford.edu',
-                                matchedAt: currentTimestamp
-                            };
-                        } else {
-                            // Remove timestamp for James Park matches
-                            if (match.matchedAt) {
-                                needsUpdate = true;
-                                console.log(`🔧 Removing timestamp for James Park match: ${match.name} ↔ ${userName}`);
-                            }
-                            return {
-                                name: match.name || 'Unknown',
-                                email: match.email || 'unknown@stanford.edu'
-                                // No matchedAt field
-                            };
-                        }
-                    });
-
-                    if (needsUpdate) {
-                        const userRef = db.collection('users').doc(userId);
-                        transaction.update(userRef, {
-                            matches: updatedMatches,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                        });
-                        updatedUsers++;
-                    }
-                }
-            });
-
-            console.log(`✅ Fixed timestamps for ${fixedMatches} matches across ${updatedUsers} users`);
-        });
-    } catch (error) {
-        console.error('❌ Error fixing all match timestamps:', error);
-        throw error;
-    }
-}
-
-// New function to manually fix all crush count discrepancies
+// Manual function to fix crush count discrepancies
 export async function fixAllCrushCounts(): Promise<void> {
     console.log('🔧 Starting manual fix of all crush count discrepancies...');
 
@@ -9854,16 +9662,6 @@ export async function fixAllCrushCounts(): Promise<void> {
         console.error('❌ Error fixing crush counts:', error);
         throw error;
     }
-}
-
-// Legacy function - keeping for backward compatibility
-export async function fixAllMatchTimestampsOnce(): Promise<void> {
-    await fixAllMatchTimestampsToNow();
-}
-
-// Legacy function - keeping for backward compatibility
-export async function fixMissingMatchTimestamps(): Promise<void> {
-    await fixAllMatchTimestampsToNow();
 }
 
 ================
@@ -11244,7 +11042,7 @@ import {
     signOut as firebaseSignOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
 import type { UserData, UserClass } from '../types';
@@ -11292,6 +11090,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     // Prevent concurrent fetches
     const fetchingUserData = useRef(false);
+    // Track the current document listener
+    const userDocUnsubscribe = useRef<(() => void) | null>(null);
 
     const fetchUserData = async (firebaseUser: FirebaseUser): Promise<UserData | null> => {
         if (fetchingUserData.current) {
@@ -11364,6 +11164,37 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
     };
 
+    // Set up real-time listener for user document
+    const setupUserDocumentListener = (docId: string) => {
+        // Clean up existing listener
+        if (userDocUnsubscribe.current) {
+            userDocUnsubscribe.current();
+            userDocUnsubscribe.current = null;
+        }
+
+        const userDocRef = doc(db, 'users', docId);
+
+        // Set up real-time listener
+        const unsubscribe = onSnapshot(
+            userDocRef,
+            (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.data() as UserData;
+                    console.log('Real-time update received for user document');
+                    setUserData(data);
+                } else {
+                    console.log('User document no longer exists');
+                    setUserData(null);
+                }
+            },
+            (error) => {
+                console.error('Error in user document listener:', error);
+            }
+        );
+
+        userDocUnsubscribe.current = unsubscribe;
+    };
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             console.log('Auth state changed:', firebaseUser?.email);
@@ -11373,13 +11204,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 const data = await fetchUserData(firebaseUser);
                 setUserData(data);
 
-                // Update lastLogin for existing users (non-blocking, fire-and-forget)
+                // Set up real-time listener if user document exists
                 if (data) {
                     const docId = getUserDocumentId(firebaseUser, data);
-                    const userRef = doc(db, 'users', docId);
+                    setupUserDocumentListener(docId);
 
-                    // Use updateDoc without transaction to avoid conflicts
-                    // This is non-critical data so we don't need strong consistency
+                    // Update lastLogin for existing users (non-blocking, fire-and-forget)
+                    const userRef = doc(db, 'users', docId);
                     updateDoc(userRef, {
                         lastLogin: serverTimestamp()
                     }).catch(error => {
@@ -11420,6 +11251,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                     setNameOptions(null);
                 }
             } else {
+                // Clean up listener when user signs out
+                if (userDocUnsubscribe.current) {
+                    userDocUnsubscribe.current();
+                    userDocUnsubscribe.current = null;
+                }
                 setUserData(null);
                 setNeedsOnboarding(false);
                 setNeedsAccountLinking(false);
@@ -11429,7 +11265,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+            // Clean up listener on unmount
+            if (userDocUnsubscribe.current) {
+                userDocUnsubscribe.current();
+            }
+        };
     }, []);
 
     const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
@@ -11463,6 +11305,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 await createUserDocument(firebaseUser, matchingNames[0], userClass);
                 const data = await fetchUserData(firebaseUser);
                 setUserData(data);
+
+                // Set up real-time listener for new user
+                if (data) {
+                    const docId = getUserDocumentId(firebaseUser, data);
+                    setupUserDocumentListener(docId);
+                }
+
                 setNeedsOnboarding(false);
                 setNameOptions(null);
             } else {
@@ -11513,6 +11362,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await createUserDocument(user, name, pendingUserClass);
         const data = await fetchUserData(user);
         setUserData(data);
+
+        // Set up real-time listener for newly created user
+        if (data) {
+            const docId = getUserDocumentId(user, data);
+            setupUserDocumentListener(docId);
+        }
+
         setNeedsOnboarding(false);
         setNameOptions(null);
     };
@@ -11553,6 +11409,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const signOut = async () => {
         try {
             await firebaseSignOut(auth);
+
+            // Clean up listener
+            if (userDocUnsubscribe.current) {
+                userDocUnsubscribe.current();
+                userDocUnsubscribe.current = null;
+            }
+
             setUser(null);
             setUserData(null);
             setNeedsOnboarding(false);
@@ -11570,6 +11433,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (user) {
             const data = await fetchUserData(user);
             setUserData(data);
+
+            // Set up real-time listener if not already set up
+            if (data && !userDocUnsubscribe.current) {
+                const docId = getUserDocumentId(user, data);
+                setupUserDocumentListener(docId);
+            }
 
             if (data) {
                 setNeedsAccountLinking(false);

@@ -2,6 +2,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import Navbar from './shared/Navbar';
 import UserPhoto from './shared/UserPhoto';
+import PhotoModal from './shared/PhotoModal';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -12,7 +13,6 @@ import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
 import type { UserData } from '../types/userTypes';
 import '../styles/profile.css';
 
-// Same hash function as UserDashboard
 const hashName = (name: string): string => {
     let hash = 0;
     const normalized = name.toLowerCase().trim();
@@ -46,38 +46,32 @@ const Profile = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [showPhotoModal, setShowPhotoModal] = useState(false);
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const previewRef = useRef<HTMLDivElement>(null);
 
-    // Determine if viewing own profile
     const isOwnProfile = !nameHash || (currentUserData && hashName(currentUserData.name) === nameHash);
 
-    // Load profile data
     useEffect(() => {
         const loadProfile = async () => {
             setLoadingProfile(true);
             try {
                 if (isOwnProfile) {
-                    // Viewing own profile - use currentUserData
                     setProfileData(currentUserData);
                     setProfileName(currentUserData?.name || '');
                     setProfileUserClass(currentUserData?.userClass || 'gsb');
                     setLocation(currentUserData?.location || '');
                     setAbout(currentUserData?.about || '');
                 } else if (nameHash) {
-                    // Viewing someone else's profile - find them by name hash
-                    // Try all names in the class lists
                     const userClass = currentUserData?.userClass || 'gsb';
                     const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
 
-                    // Find the name that matches this hash
                     const matchingName = classNames.find(name => hashName(name) === nameHash);
 
                     if (!matchingName) {
-                        // Invalid hash - redirect to home
                         navigate('/');
                         return;
                     }
@@ -85,7 +79,6 @@ const Profile = () => {
                     setProfileName(matchingName);
                     setProfileUserClass(userClass);
 
-                    // Try to find their user document
                     const usersRef = collection(db, 'users');
                     const q = query(
                         usersRef,
@@ -96,16 +89,13 @@ const Profile = () => {
                     const snapshot = await getDocs(q);
 
                     if (!snapshot.empty) {
-                        // User has a document
                         setProfileData(snapshot.docs[0].data() as UserData);
                     } else {
-                        // User doesn't have a document yet - that's fine, we'll show a minimal profile
                         setProfileData(null);
                     }
                 }
             } catch (error) {
                 console.error('Error loading profile:', error);
-                // Don't redirect on error - still show the profile
             } finally {
                 setLoadingProfile(false);
             }
@@ -119,7 +109,13 @@ const Profile = () => {
     const handlePhotoClick = () => {
         if (isOwnProfile) {
             fileInputRef.current?.click();
+        } else {
+            setShowPhotoModal(true);
         }
+    };
+
+    const handlePhotoViewClick = () => {
+        setShowPhotoModal(true);
     };
 
     const resizeImageIfNeeded = (file: File): Promise<string> => {
@@ -171,34 +167,22 @@ const Profile = () => {
         });
     };
 
-    const handlePhotoSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+    const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (!file) return;
 
-        if (!file.type.startsWith('image/')) {
-            alert('Please select an image file');
-            return;
-        }
-
         try {
-            const resizedDataUrl = await resizeImageIfNeeded(file);
-            setSelectedImage(resizedDataUrl);
+            const resizedImage = await resizeImageIfNeeded(file);
+            setSelectedImage(resizedImage);
             setImageFile(file);
+            setShowCropModal(true);
             setZoom(1);
             setPosition({ x: 0, y: 0 });
-            setShowCropModal(true);
         } catch (error) {
             console.error('Error loading image:', error);
             alert('Failed to load image. Please try again.');
         }
-    };
 
-    const handleCropCancel = () => {
-        setShowCropModal(false);
-        setSelectedImage(null);
-        setImageFile(null);
-        setZoom(1);
-        setPosition({ x: 0, y: 0 });
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -240,239 +224,197 @@ const Profile = () => {
         setIsDragging(false);
     };
 
-    const getCroppedImage = (): Promise<Blob> => {
-        return new Promise((resolve, reject) => {
-            const canvas = canvasRef.current;
-            const image = imageRef.current;
-
-            if (!canvas || !image) {
-                reject(new Error('Canvas or image not ready'));
-                return;
-            }
-
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                reject(new Error('Could not get canvas context'));
-                return;
-            }
-
-            const outputSize = 400;
-            canvas.width = outputSize;
-            canvas.height = outputSize;
-
-            const imgWidth = image.naturalWidth;
-            const imgHeight = image.naturalHeight;
-
-            const previewSize = 300;
-            const scale = Math.max(previewSize / imgWidth, previewSize / imgHeight);
-
-            const totalScale = scale * zoom;
-
-            const scaledWidth = imgWidth * totalScale;
-            const scaledHeight = imgHeight * totalScale;
-
-            const scaleRatio = outputSize / previewSize;
-            const x = (outputSize - scaledWidth) / 2 + (position.x * scaleRatio);
-            const y = (outputSize - scaledHeight) / 2 + (position.y * scaleRatio);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, outputSize, outputSize);
-
-            ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
-
-            canvas.toBlob((blob) => {
-                if (blob) {
-                    resolve(blob);
-                } else {
-                    reject(new Error('Failed to create blob'));
-                }
-            }, 'image/jpeg', 0.9);
-        });
-    };
-
     const handleCropConfirm = async () => {
-        if (!user || !currentUserData || !imageFile) return;
+        if (!imageRef.current || !canvasRef.current || !imageFile) return;
 
         setUploadingPhoto(true);
+
         try {
-            const croppedBlob = await getCroppedImage();
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Could not get canvas context');
 
-            const actualUid = getUserDocumentId(user, currentUserData);
+            const targetSize = 400;
+            canvas.width = targetSize;
+            canvas.height = targetSize;
 
-            if (currentUserData.customPhotoURL) {
+            const img = imageRef.current;
+            const previewContainer = previewRef.current;
+            if (!previewContainer) throw new Error('Preview container not found');
+
+            const containerRect = previewContainer.getBoundingClientRect();
+            const imageRect = img.getBoundingClientRect();
+
+            const scaleX = img.naturalWidth / imageRect.width;
+            const scaleY = img.naturalHeight / imageRect.height;
+
+            const centerX = containerRect.width / 2;
+            const centerY = containerRect.height / 2;
+
+            const imageCenterX = (imageRect.left - containerRect.left + imageRect.width / 2);
+            const imageCenterY = (imageRect.top - containerRect.top + imageRect.height / 2);
+
+            const offsetX = (centerX - imageCenterX) * scaleX;
+            const offsetY = (centerY - imageCenterY) * scaleY;
+
+            const cropSize = Math.min(containerRect.width, containerRect.height);
+            const sourceCropSize = cropSize * scaleX / zoom;
+
+            const sourceX = (img.naturalWidth / 2 + offsetX) - (sourceCropSize / 2);
+            const sourceY = (img.naturalHeight / 2 + offsetY) - (sourceCropSize / 2);
+
+            ctx.drawImage(
+                img,
+                sourceX,
+                sourceY,
+                sourceCropSize,
+                sourceCropSize,
+                0,
+                0,
+                targetSize,
+                targetSize
+            );
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) throw new Error('Failed to create blob');
+
+                const actualUid = getUserDocumentId(user!, currentUserData);
+                const storageRef = ref(storage, `profile-photos/${actualUid}`);
+
                 try {
-                    const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
-                    await deleteObject(oldPhotoRef);
+                    if (currentUserData?.customPhotoURL) {
+                        const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
+                        await deleteObject(oldPhotoRef).catch(() => { });
+                    }
                 } catch (error) {
-                    console.log('No previous photo to delete or deletion failed');
+                    console.error('Error deleting old photo:', error);
                 }
-            }
 
-            const storageRef = ref(storage, `profile-photos/${actualUid}`);
-            await uploadBytes(storageRef, croppedBlob);
-            const downloadURL = await getDownloadURL(storageRef);
+                await uploadBytes(storageRef, blob);
+                const downloadURL = await getDownloadURL(storageRef);
 
-            const userRef = doc(db, 'users', actualUid);
-            await updateDoc(userRef, {
-                customPhotoURL: downloadURL,
-                updatedAt: new Date()
-            });
+                const userDocRef = doc(db, 'users', actualUid);
+                await updateDoc(userDocRef, {
+                    customPhotoURL: downloadURL,
+                    updatedAt: new Date()
+                });
 
-            await refreshUserData();
+                await refreshUserData();
 
-            const successDiv = document.createElement('div');
-            successDiv.textContent = 'Photo updated!';
-            successDiv.style.cssText = `
-                position: fixed; top: 20px; right: 20px; background: #28a745; color: white;
-                padding: 12px 20px; border-radius: 8px; z-index: 1000; font-weight: 500;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            `;
-            document.body.appendChild(successDiv);
-            setTimeout(() => document.body.contains(successDiv) && document.body.removeChild(successDiv), 3000);
+                setShowCropModal(false);
+                setSelectedImage(null);
+                setImageFile(null);
+                setUploadingPhoto(false);
+                setZoom(1);
+                setPosition({ x: 0, y: 0 });
+            }, 'image/jpeg', 0.9);
 
-            handleCropCancel();
         } catch (error) {
             console.error('Error uploading photo:', error);
             alert('Failed to upload photo. Please try again.');
             setUploadingPhoto(false);
-        } finally {
-            setUploadingPhoto(false);
         }
     };
 
-    const fetchLocationSuggestions = useCallback(async (input: string) => {
-        if (input.length < 2) {
-            setSuggestions([]);
-            return;
-        }
+    const handleCropCancel = () => {
+        setShowCropModal(false);
+        setSelectedImage(null);
+        setImageFile(null);
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
+    };
 
-        try {
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?` +
-                `format=json&` +
-                `q=${encodeURIComponent(input)}&` +
-                `limit=8&` +
-                `addressdetails=1`,
-                {
-                    headers: {
-                        'User-Agent': 'SecondChancesApp/1.0'
-                    }
-                }
-            );
-
-            if (!response.ok) {
-                setSuggestions([]);
-                return;
-            }
-
-            const data = await response.json();
-
-            const uniqueSuggestions = new Map<string, boolean>();
-
-            data.forEach((item: any) => {
-                const city = item.address?.city ||
-                    item.address?.town ||
-                    item.address?.village ||
-                    item.address?.hamlet || '';
-                const state = item.address?.state || '';
-                const country = item.address?.country || '';
-
-                let formatted = '';
-
-                if (city && state) {
-                    formatted = `${city}, ${state}`;
-                } else if (city && country) {
-                    formatted = `${city}, ${country}`;
-                } else if (state && country) {
-                    formatted = `${state}, ${country}`;
-                } else if (country) {
-                    formatted = country;
-                }
-
-                if (formatted) {
-                    uniqueSuggestions.set(formatted, true);
-                }
-            });
-
-            setSuggestions(Array.from(uniqueSuggestions.keys()).slice(0, 8));
-        } catch (error) {
-            console.error('Error fetching suggestions:', error);
-            setSuggestions([]);
-        }
-    }, []);
-
-    const handleLocationChange = useCallback((value: string) => {
+    const handleLocationChange = (value: string) => {
         setLocation(value);
-        setShowSuggestions(true);
 
         if (debounceTimer.current) {
             clearTimeout(debounceTimer.current);
         }
 
-        debounceTimer.current = setTimeout(() => {
-            fetchLocationSuggestions(value);
-        }, 300);
-    }, [fetchLocationSuggestions]);
+        if (value.length < 2) {
+            setSuggestions([]);
+            return;
+        }
 
-    const handleSuggestionClick = useCallback((suggestion: string) => {
+        debounceTimer.current = setTimeout(async () => {
+            try {
+                const response = await fetch(
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&limit=5&addressdetails=1`
+                );
+                const data = await response.json();
+
+                const locationSuggestions = data.map((item: any) => {
+                    const parts = [];
+                    if (item.address.city) parts.push(item.address.city);
+                    else if (item.address.town) parts.push(item.address.town);
+                    else if (item.address.village) parts.push(item.address.village);
+
+                    if (item.address.country) parts.push(item.address.country);
+
+                    return parts.join(', ');
+                }).filter((location: string, index: number, self: string[]) =>
+                    location && self.indexOf(location) === index
+                );
+
+                setSuggestions(locationSuggestions);
+            } catch (error) {
+                console.error('Error fetching location suggestions:', error);
+            }
+        }, 300);
+    };
+
+    const handleSuggestionClick = (suggestion: string) => {
         setLocation(suggestion);
         setSuggestions([]);
         setShowSuggestions(false);
-    }, []);
+    };
 
-    const handleSave = useCallback(async () => {
-        if (!user || !currentUserData || saving) return;
+    const handleSave = async () => {
+        if (!user || !currentUserData) return;
 
         setSaving(true);
-        try {
-            const actualUid = getUserDocumentId(user, currentUserData);
-            const userRef = doc(db, 'users', actualUid);
 
-            await updateDoc(userRef, {
-                location: location.trim(),
-                about: about.trim(),
+        try {
+            const actualUid = getUserDocumentId(user!, currentUserData);
+            const userDocRef = doc(db, 'users', actualUid);
+
+            await updateDoc(userDocRef, {
+                location,
+                about,
                 updatedAt: new Date()
             });
 
             await refreshUserData();
-            setIsEditing(false);
 
-            const successDiv = document.createElement('div');
-            successDiv.textContent = 'Profile updated!';
-            successDiv.style.cssText = `
-                position: fixed; top: 20px; right: 20px; background: #28a745; color: white;
-                padding: 12px 20px; border-radius: 8px; z-index: 1000; font-weight: 500;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            `;
-            document.body.appendChild(successDiv);
-            setTimeout(() => document.body.contains(successDiv) && document.body.removeChild(successDiv), 3000);
+            setIsEditing(false);
         } catch (error) {
-            console.error('Error updating profile:', error);
-            alert('Failed to update. Please try again.');
+            console.error('Error saving profile:', error);
+            alert('Failed to save profile. Please try again.');
         } finally {
             setSaving(false);
         }
-    }, [user, currentUserData, location, about, saving, refreshUserData]);
+    };
 
-    const handleCancel = useCallback(() => {
+    const handleCancel = () => {
+        setIsEditing(false);
         setLocation(currentUserData?.location || '');
         setAbout(currentUserData?.about || '');
-        setIsEditing(false);
-        setSuggestions([]);
-        setShowSuggestions(false);
-    }, [currentUserData]);
+    };
 
     const handleAdminToggle = useCallback(() => {
-        navigate('/');
+        navigate('/', { state: { openAdminMode: true } });
     }, [navigate]);
 
     const formatDate = (timestamp: any) => {
         if (!timestamp) return 'N/A';
         let date;
-        if (timestamp.toDate) date = timestamp.toDate();
-        else if (timestamp.seconds) date = new Date(timestamp.seconds * 1000);
-        else if (timestamp._seconds) date = new Date(timestamp._seconds * 1000);
-        else date = new Date(timestamp);
+        if (timestamp.toDate) {
+            date = timestamp.toDate();
+        } else if (timestamp._seconds) {
+            date = new Date(timestamp._seconds * 1000);
+        } else {
+            date = new Date(timestamp);
+        }
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     };
 
@@ -497,6 +439,7 @@ const Profile = () => {
     }
 
     const currentEmail = user?.email || '';
+    const displayPhotoUrl = profileData?.customPhotoURL || null;
 
     return (
         <div className="dashboard-container">
@@ -516,6 +459,7 @@ const Profile = () => {
                                 userClass={profileUserClass}
                                 size="large"
                                 photoUrl={profileData?.customPhotoURL || null}
+                                onClick={handlePhotoViewClick}
                             />
                             {isOwnProfile && (
                                 <>
@@ -713,6 +657,14 @@ const Profile = () => {
                         <canvas ref={canvasRef} style={{ display: 'none' }} />
                     </div>
                 </div>
+            )}
+
+            {showPhotoModal && displayPhotoUrl && (
+                <PhotoModal
+                    photoUrl={displayPhotoUrl}
+                    userName={profileName}
+                    onClose={() => setShowPhotoModal(false)}
+                />
             )}
         </div>
     );
