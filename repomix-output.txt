@@ -71,6 +71,7 @@ src/
       LoadingSpinner.tsx
       MatchItem.tsx
       Navbar.tsx
+      PhotoModal.tsx
       SearchInput.tsx
       UserPhoto.tsx
     AccountLinking.tsx
@@ -108,6 +109,7 @@ src/
     base.css
     dashboard.css
     legal.css
+    photo-modal.css
     profile.css
   types/
     index.ts
@@ -791,6 +793,59 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
 );
 
 ================
+File: src/components/shared/PhotoModal.tsx
+================
+import { useEffect } from 'react';
+import '../../styles/photo-modal.css';
+
+interface PhotoModalProps {
+    photoUrl: string;
+    userName: string;
+    onClose: () => void;
+}
+
+const PhotoModal = ({ photoUrl, userName, onClose }: PhotoModalProps) => {
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        document.addEventListener('keydown', handleEscape);
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.removeEventListener('keydown', handleEscape);
+            document.body.style.overflow = 'unset';
+        };
+    }, [onClose]);
+
+    const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.target === e.currentTarget) {
+            onClose();
+        }
+    };
+
+    return (
+        <div className="photo-modal-backdrop" onClick={handleBackdropClick}>
+            <div className="photo-modal-content">
+                <button className="photo-modal-close" onClick={onClose} aria-label="Close">
+                    ×
+                </button>
+                <img
+                    src={photoUrl}
+                    alt={userName}
+                    className="photo-modal-image"
+                />
+            </div>
+        </div>
+    );
+};
+
+export default PhotoModal;
+
+================
 File: src/components/shared/SearchInput.tsx
 ================
 import React, { useRef } from 'react';
@@ -843,89 +898,6 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         </div>
     );
 };
-
-================
-File: src/components/shared/UserPhoto.tsx
-================
-import { useState, useEffect } from 'react';
-import { getUserPhoto, getPhotoUrl, getInitials, generateInitialsColor } from '../../utils/photoUtils';
-
-interface UserPhotoProps {
-    name: string;
-    userClass?: string;
-    size?: 'small' | 'medium' | 'large';
-    className?: string;
-    photoUrl?: string | null | undefined; // Pre-loaded photo URL to skip database query
-}
-
-const UserPhoto = ({ name, userClass = 'gsb', size = 'small', className = '', photoUrl: propsPhotoUrl }: UserPhotoProps) => {
-    const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // If photo URL is provided as prop, use it immediately
-        if (propsPhotoUrl !== undefined) {
-            setPhotoUrl(propsPhotoUrl);
-            setLoading(false);
-            return;
-        }
-
-        // Otherwise, fetch from database
-        let mounted = true;
-
-        const loadPhoto = async () => {
-            setLoading(true);
-            const userPhoto = await getUserPhoto(name, userClass);
-            const url = getPhotoUrl(userPhoto);
-
-            if (mounted) {
-                setPhotoUrl(url);
-                setLoading(false);
-            }
-        };
-
-        loadPhoto();
-
-        return () => {
-            mounted = false;
-        };
-    }, [name, userClass, propsPhotoUrl]);
-
-    const initials = getInitials(name);
-    const bgColor = generateInitialsColor(name);
-    const sizeClass = `user-photo-${size}`;
-
-    if (loading) {
-        return (
-            <div className={`user-photo ${sizeClass} user-photo-loading ${className}`}>
-                <div className="user-photo-spinner"></div>
-            </div>
-        );
-    }
-
-    // Show actual photo if it exists (only real uploaded photos)
-    if (photoUrl) {
-        return (
-            <img
-                src={photoUrl}
-                alt={name}
-                className={`user-photo ${sizeClass} ${className}`}
-            />
-        );
-    }
-
-    // Show initials for: no photo, default silhouettes, Google-generated initials
-    return (
-        <div
-            className={`user-photo ${sizeClass} user-photo-initials ${className}`}
-            style={{ backgroundColor: bgColor }}
-        >
-            {initials}
-        </div>
-    );
-};
-
-export default UserPhoto;
 
 ================
 File: src/styles/admin/admin-base.css
@@ -2478,93 +2450,87 @@ File: src/styles/dashboard/dashboard-header.css
 }
 
 ================
-File: src/styles/dashboard/dashboard-photos.css
+File: src/styles/photo-modal.css
 ================
-/* User Photo Styles */
-.user-photo {
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-    border: 2px solid #e0e0e0;
-}
-
-.user-photo-small {
-    width: 32px;
-    height: 32px;
-    font-size: 13px;
-}
-
-.user-photo-medium {
-    width: 48px;
-    height: 48px;
-    font-size: 18px;
-}
-
-.user-photo-large {
-    width: 64px;
-    height: 64px;
-    font-size: 24px;
-}
-
-.user-photo-initials {
+.photo-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.85);
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.photo-modal-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.photo-modal-image {
+    max-width: 100%;
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.photo-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
     color: white;
-    font-weight: 600;
-    user-select: none;
-}
-
-.user-photo-loading {
-    background-color: #f0f0f0;
+    font-size: 24px;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+    line-height: 1;
+    transition: opacity 0.2s;
+    z-index: 1;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
 }
 
-.user-photo-spinner {
-    width: 50%;
-    height: 50%;
-    border: 2px solid #e0e0e0;
-    border-top-color: #666;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+.photo-modal-close:hover {
+    opacity: 0.7;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
+@media (max-width: 768px) {
+    .photo-modal-backdrop {
+        padding: 10px;
+    }
 
-/* Update match-item to work with photos */
-.match-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
+    .photo-modal-content {
+        max-width: 95vw;
+        max-height: 95vh;
+    }
 
-.match-details {
-    flex: 1;
-    min-width: 0;
-}
+    .photo-modal-image {
+        max-height: 95vh;
+        border-radius: 4px;
+    }
 
-/* Update name-chip to work with photos */
-.name-chip {
-    gap: 8px;
-}
-
-/* Update name-list-item to work with photos */
-.name-list-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.name-list-item .name-text {
-    flex: 1;
-}
-
-.name-list-item .add-btn {
-    margin-left: auto;
+    .photo-modal-close {
+        top: 8px;
+        right: 8px;
+        font-size: 22px;
+        width: 22px;
+        height: 22px;
+    }
 }
 
 ================
@@ -2655,6 +2621,90 @@ export const MatchItem: React.FC<MatchItemProps> = ({ match, index, userClass = 
         </div>
     </div>
 );
+
+================
+File: src/components/shared/UserPhoto.tsx
+================
+import { useState, useEffect } from 'react';
+import { getUserPhoto, getPhotoUrl, getInitials, generateInitialsColor } from '../../utils/photoUtils';
+
+interface UserPhotoProps {
+    name: string;
+    userClass?: string;
+    size?: 'small' | 'medium' | 'large';
+    className?: string;
+    photoUrl?: string | null | undefined;
+    onClick?: (e: React.MouseEvent) => void;
+}
+
+const UserPhoto = ({ name, userClass = 'gsb', size = 'small', className = '', photoUrl: propsPhotoUrl, onClick }: UserPhotoProps) => {
+    const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (propsPhotoUrl !== undefined) {
+            setPhotoUrl(propsPhotoUrl);
+            setLoading(false);
+            return;
+        }
+
+        let mounted = true;
+
+        const loadPhoto = async () => {
+            setLoading(true);
+            const userPhoto = await getUserPhoto(name, userClass);
+            const url = getPhotoUrl(userPhoto);
+
+            if (mounted) {
+                setPhotoUrl(url);
+                setLoading(false);
+            }
+        };
+
+        loadPhoto();
+
+        return () => {
+            mounted = false;
+        };
+    }, [name, userClass, propsPhotoUrl]);
+
+    const initials = getInitials(name);
+    const bgColor = generateInitialsColor(name);
+    const sizeClass = `user-photo-${size}`;
+    const clickableClass = onClick ? 'user-photo-clickable' : '';
+
+    if (loading) {
+        return (
+            <div className={`user-photo ${sizeClass} user-photo-loading ${className}`}>
+                <div className="user-photo-spinner"></div>
+            </div>
+        );
+    }
+
+    if (photoUrl) {
+        return (
+            <img
+                src={photoUrl}
+                alt={name}
+                className={`user-photo ${sizeClass} ${clickableClass} ${className}`}
+                onClick={onClick}
+                style={{ cursor: onClick ? 'pointer' : 'default' }}
+            />
+        );
+    }
+
+    return (
+        <div
+            className={`user-photo ${sizeClass} user-photo-initials ${clickableClass} ${className}`}
+            style={{ backgroundColor: bgColor, cursor: onClick ? 'pointer' : 'default' }}
+            onClick={onClick}
+        >
+            {initials}
+        </div>
+    );
+};
+
+export default UserPhoto;
 
 ================
 File: src/components/HowTo.tsx
@@ -3358,6 +3408,107 @@ export const useUserDocumentManager = (
         createNewAccountWithAlumniEmail
     };
 };
+
+================
+File: src/styles/dashboard/dashboard-photos.css
+================
+/* User Photo Styles */
+.user-photo {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid #e0e0e0;
+}
+
+.user-photo-clickable {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.user-photo-clickable:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.user-photo-small {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+}
+
+.user-photo-medium {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+}
+
+.user-photo-large {
+    width: 150px;
+    height: 150px;
+    font-size: 48px;
+}
+
+.user-photo-initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    user-select: none;
+}
+
+.user-photo-loading {
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-photo-spinner {
+    width: 50%;
+    height: 50%;
+    border: 2px solid #e0e0e0;
+    border-top-color: #666;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Update match-item to work with photos */
+.match-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.match-details {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Update name-chip to work with photos */
+.name-chip {
+    gap: 8px;
+}
+
+/* Update name-list-item to work with photos */
+.name-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Mobile responsive for photos */
+@media (max-width: 768px) {
+    .user-photo-large {
+        width: 120px;
+        height: 120px;
+        font-size: 38px;
+    }
+}
 
 ================
 File: src/styles/legal.css
@@ -8565,19 +8716,17 @@ interface UserDashboardProps {
     handleUpdatePreferences: () => void;
 }
 
-// Simple hash function for generating consistent IDs from names
 const hashName = (name: string): string => {
     let hash = 0;
     const normalized = name.toLowerCase().trim();
     for (let i = 0; i < normalized.length; i++) {
         const char = normalized.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
+        hash = hash & hash;
     }
     return Math.abs(hash).toString(36);
 };
 
-// Fast name matching function optimized for first/last name searches
 const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
     if (!searchTerm.trim()) return { matches: true, score: 0 };
 
@@ -8585,7 +8734,6 @@ const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boo
     const normalizedName = normalizeText(fullName);
     const normalizedSearch = normalizeText(searchTerm);
 
-    // Exact substring match (highest priority)
     if (normalizedName.includes(normalizedSearch)) {
         return { matches: true, score: 100 };
     }
@@ -8593,7 +8741,6 @@ const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boo
     const nameParts = normalizedName.split(' ').filter(Boolean);
     const searchParts = normalizedSearch.split(' ').filter(Boolean);
 
-    // First + Last name matching (most common use case)
     if (searchParts.length >= 2) {
         const searchFirst = searchParts[0];
         const searchLast = searchParts[searchParts.length - 1];
@@ -8602,34 +8749,28 @@ const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boo
             const nameFirst = nameParts[0];
             const nameLast = nameParts[nameParts.length - 1];
 
-            // Exact first + last match
             if (nameFirst === searchFirst && nameLast === searchLast) {
                 return { matches: true, score: 95 };
             }
 
-            // Partial first + exact last
             if (nameFirst.startsWith(searchFirst) && nameLast === searchLast) {
                 return { matches: true, score: 90 };
             }
 
-            // Exact first + partial last
             if (nameFirst === searchFirst && nameLast.startsWith(searchLast)) {
                 return { matches: true, score: 85 };
             }
         }
     }
 
-    // Single term matching
     if (searchParts.length === 1) {
         const searchTerm = searchParts[0];
 
-        // Check if any name part starts with search term
         if (nameParts.some(part => part.startsWith(searchTerm))) {
             return { matches: true, score: 80 };
         }
     }
 
-    // Multi-word progressive matching
     let nameIndex = 0;
     let matchedParts = 0;
 
@@ -8672,22 +8813,18 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const lockedCrushes = userData?.lockedCrushes || [];
     const matches = userData?.matches || [];
 
-    // Ensure arrays are defined before using sort
     const safeSelectedNames = selectedNames || [];
     const safeSavedNames = savedNames || [];
     const hasUnsavedChanges = JSON.stringify([...safeSelectedNames].sort()) !== JSON.stringify([...safeSavedNames].sort());
 
-    // Get the appropriate class names based on user's class
     const classNames = userData?.userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
     const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
-    // Batch load all photos on mount
     React.useEffect(() => {
         let mounted = true;
 
         const loadAllPhotos = async () => {
             try {
-                // Fetch all users with customPhotoURL
                 const usersRef = collection(db, 'users');
                 const q = query(
                     usersRef,
@@ -8719,13 +8856,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         };
     }, [userData.userClass]);
 
-    // Handle search input change
     const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
-        setVirtualStart(0); // Reset scroll when search changes
+        setVirtualStart(0);
     }, [setSearchTerm]);
 
-    // Fast filtering with optimized name matching
     const filteredAvailableNames = React.useMemo(() => {
         const excludedNames = [...safeSelectedNames];
 
@@ -8737,7 +8872,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 
         if (!searchTerm.trim()) return availableNames;
 
-        // Apply fast matching and sort by relevance score
         const matchedNames = availableNames
             .map(name => {
                 const result = matchesSearchTerm(name, searchTerm);
@@ -8750,17 +8884,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         return matchedNames;
     }, [safeSelectedNames, searchTerm, userData?.name, classNames]);
 
-    // Virtual scrolling constants
     const ITEM_HEIGHT = 48;
     const VISIBLE_ITEMS = Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
     const BUFFER_SIZE = 5;
 
-    // Calculate visible range for virtual scrolling
     const startIndex = Math.max(0, virtualStart - BUFFER_SIZE);
     const endIndex = Math.min(filteredAvailableNames.length, virtualStart + VISIBLE_ITEMS + BUFFER_SIZE);
     const visibleNames = filteredAvailableNames.slice(startIndex, endIndex);
 
-    // Handle scroll for virtual scrolling
     const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
         const scrollTop = e.currentTarget.scrollTop;
         const newStart = Math.floor(scrollTop / ITEM_HEIGHT);
@@ -8770,7 +8901,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         }
     }, [virtualStart]);
 
-    // Clear search function
     const clearSearch = React.useCallback(() => {
         setSearchTerm('');
         setVirtualStart(0);
@@ -8779,21 +8909,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         }
     }, [setSearchTerm]);
 
-    // Simple function that just returns the name without highlighting
     const highlightMatch = React.useCallback((name: string, _searchTerm: string) => {
         return name;
     }, []);
 
-    // Create set of matched names for quick lookup
     const matchedNames = new Set(matches.map((m: { name: string; email: string }) => m.name));
 
-    // Navigate to profile using name hash
     const handleNavigateToProfile = React.useCallback((name: string) => {
         const nameHash = hashName(name);
         navigate(`/profile/${nameHash}`);
     }, [navigate]);
 
-    // Handle match click
     const handleMatchClick = React.useCallback((match: { name: string; email: string }) => {
         const nameHash = hashName(match.name);
         navigate(`/profile/${nameHash}`);
@@ -8839,7 +8965,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
             </div>
 
-            {/* Memoize sorted selections outside of conditional */}
             {React.useMemo(() => {
                 if (safeSelectedNames.length === 0) return null;
 
@@ -8972,7 +9097,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                     onScroll={handleScroll}
                     style={{ height: `${VISIBLE_ITEMS * ITEM_HEIGHT}px` }}
                 >
-                    {/* Spacer for items before visible range */}
                     {startIndex > 0 && (
                         <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
                     )}
@@ -9024,7 +9148,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         );
                     })}
 
-                    {/* Spacer for items after visible range */}
                     {endIndex < filteredAvailableNames.length && (
                         <div style={{ height: `${(filteredAvailableNames.length - endIndex) * ITEM_HEIGHT}px` }} />
                     )}
@@ -9671,6 +9794,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import Navbar from './shared/Navbar';
 import UserPhoto from './shared/UserPhoto';
+import PhotoModal from './shared/PhotoModal';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -9681,7 +9805,6 @@ import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
 import type { UserData } from '../types/userTypes';
 import '../styles/profile.css';
 
-// Same hash function as UserDashboard
 const hashName = (name: string): string => {
     let hash = 0;
     const normalized = name.toLowerCase().trim();
@@ -9715,38 +9838,32 @@ const Profile = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [showPhotoModal, setShowPhotoModal] = useState(false);
     const debounceTimer = useRef<NodeJS.Timeout | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const previewRef = useRef<HTMLDivElement>(null);
 
-    // Determine if viewing own profile
     const isOwnProfile = !nameHash || (currentUserData && hashName(currentUserData.name) === nameHash);
 
-    // Load profile data
     useEffect(() => {
         const loadProfile = async () => {
             setLoadingProfile(true);
             try {
                 if (isOwnProfile) {
-                    // Viewing own profile - use currentUserData
                     setProfileData(currentUserData);
                     setProfileName(currentUserData?.name || '');
                     setProfileUserClass(currentUserData?.userClass || 'gsb');
                     setLocation(currentUserData?.location || '');
                     setAbout(currentUserData?.about || '');
                 } else if (nameHash) {
-                    // Viewing someone else's profile - find them by name hash
-                    // Try all names in the class lists
                     const userClass = currentUserData?.userClass || 'gsb';
                     const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
 
-                    // Find the name that matches this hash
                     const matchingName = classNames.find(name => hashName(name) === nameHash);
 
                     if (!matchingName) {
-                        // Invalid hash - redirect to home
                         navigate('/');
                         return;
                     }
@@ -9754,7 +9871,6 @@ const Profile = () => {
                     setProfileName(matchingName);
                     setProfileUserClass(userClass);
 
-                    // Try to find their user document
                     const usersRef = collection(db, 'users');
                     const q = query(
                         usersRef,
@@ -9765,16 +9881,13 @@ const Profile = () => {
                     const snapshot = await getDocs(q);
 
                     if (!snapshot.empty) {
-                        // User has a document
                         setProfileData(snapshot.docs[0].data() as UserData);
                     } else {
-                        // User doesn't have a document yet - that's fine, we'll show a minimal profile
                         setProfileData(null);
                     }
                 }
             } catch (error) {
                 console.error('Error loading profile:', error);
-                // Don't redirect on error - still show the profile
             } finally {
                 setLoadingProfile(false);
             }
@@ -9788,7 +9901,13 @@ const Profile = () => {
     const handlePhotoClick = () => {
         if (isOwnProfile) {
             fileInputRef.current?.click();
+        } else {
+            setShowPhotoModal(true);
         }
+    };
+
+    const handlePhotoViewClick = () => {
+        setShowPhotoModal(true);
     };
 
     const resizeImageIfNeeded = (file: File): Promise<string> => {
@@ -9840,34 +9959,22 @@ const Profile = () => {
         });
     };
 
-    const handlePhotoSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+    const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (!file) return;
 
-        if (!file.type.startsWith('image/')) {
-            alert('Please select an image file');
-            return;
-        }
-
         try {
-            const resizedDataUrl = await resizeImageIfNeeded(file);
-            setSelectedImage(resizedDataUrl);
+            const resizedImage = await resizeImageIfNeeded(file);
+            setSelectedImage(resizedImage);
             setImageFile(file);
+            setShowCropModal(true);
             setZoom(1);
             setPosition({ x: 0, y: 0 });
-            setShowCropModal(true);
         } catch (error) {
             console.error('Error loading image:', error);
             alert('Failed to load image. Please try again.');
         }
-    };
 
-    const handleCropCancel = () => {
-        setShowCropModal(false);
-        setSelectedImage(null);
-        setImageFile(null);
-        setZoom(1);
-        setPosition({ x: 0, y: 0 });
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -9909,239 +10016,197 @@ const Profile = () => {
         setIsDragging(false);
     };
 
-    const getCroppedImage = (): Promise<Blob> => {
-        return new Promise((resolve, reject) => {
-            const canvas = canvasRef.current;
-            const image = imageRef.current;
-
-            if (!canvas || !image) {
-                reject(new Error('Canvas or image not ready'));
-                return;
-            }
-
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                reject(new Error('Could not get canvas context'));
-                return;
-            }
-
-            const outputSize = 400;
-            canvas.width = outputSize;
-            canvas.height = outputSize;
-
-            const imgWidth = image.naturalWidth;
-            const imgHeight = image.naturalHeight;
-
-            const previewSize = 300;
-            const scale = Math.max(previewSize / imgWidth, previewSize / imgHeight);
-
-            const totalScale = scale * zoom;
-
-            const scaledWidth = imgWidth * totalScale;
-            const scaledHeight = imgHeight * totalScale;
-
-            const scaleRatio = outputSize / previewSize;
-            const x = (outputSize - scaledWidth) / 2 + (position.x * scaleRatio);
-            const y = (outputSize - scaledHeight) / 2 + (position.y * scaleRatio);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, outputSize, outputSize);
-
-            ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
-
-            canvas.toBlob((blob) => {
-                if (blob) {
-                    resolve(blob);
-                } else {
-                    reject(new Error('Failed to create blob'));
-                }
-            }, 'image/jpeg', 0.9);
-        });
-    };
-
     const handleCropConfirm = async () => {
-        if (!user || !currentUserData || !imageFile) return;
+        if (!imageRef.current || !canvasRef.current || !imageFile) return;
 
         setUploadingPhoto(true);
+
         try {
-            const croppedBlob = await getCroppedImage();
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Could not get canvas context');
 
-            const actualUid = getUserDocumentId(user, currentUserData);
+            const targetSize = 400;
+            canvas.width = targetSize;
+            canvas.height = targetSize;
 
-            if (currentUserData.customPhotoURL) {
+            const img = imageRef.current;
+            const previewContainer = previewRef.current;
+            if (!previewContainer) throw new Error('Preview container not found');
+
+            const containerRect = previewContainer.getBoundingClientRect();
+            const imageRect = img.getBoundingClientRect();
+
+            const scaleX = img.naturalWidth / imageRect.width;
+            const scaleY = img.naturalHeight / imageRect.height;
+
+            const centerX = containerRect.width / 2;
+            const centerY = containerRect.height / 2;
+
+            const imageCenterX = (imageRect.left - containerRect.left + imageRect.width / 2);
+            const imageCenterY = (imageRect.top - containerRect.top + imageRect.height / 2);
+
+            const offsetX = (centerX - imageCenterX) * scaleX;
+            const offsetY = (centerY - imageCenterY) * scaleY;
+
+            const cropSize = Math.min(containerRect.width, containerRect.height);
+            const sourceCropSize = cropSize * scaleX / zoom;
+
+            const sourceX = (img.naturalWidth / 2 + offsetX) - (sourceCropSize / 2);
+            const sourceY = (img.naturalHeight / 2 + offsetY) - (sourceCropSize / 2);
+
+            ctx.drawImage(
+                img,
+                sourceX,
+                sourceY,
+                sourceCropSize,
+                sourceCropSize,
+                0,
+                0,
+                targetSize,
+                targetSize
+            );
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) throw new Error('Failed to create blob');
+
+                const actualUid = getUserDocumentId(user!, currentUserData);
+                const storageRef = ref(storage, `profile-photos/${actualUid}`);
+
                 try {
-                    const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
-                    await deleteObject(oldPhotoRef);
+                    if (currentUserData?.customPhotoURL) {
+                        const oldPhotoRef = ref(storage, `profile-photos/${actualUid}`);
+                        await deleteObject(oldPhotoRef).catch(() => { });
+                    }
                 } catch (error) {
-                    console.log('No previous photo to delete or deletion failed');
+                    console.error('Error deleting old photo:', error);
                 }
-            }
 
-            const storageRef = ref(storage, `profile-photos/${actualUid}`);
-            await uploadBytes(storageRef, croppedBlob);
-            const downloadURL = await getDownloadURL(storageRef);
+                await uploadBytes(storageRef, blob);
+                const downloadURL = await getDownloadURL(storageRef);
 
-            const userRef = doc(db, 'users', actualUid);
-            await updateDoc(userRef, {
-                customPhotoURL: downloadURL,
-                updatedAt: new Date()
-            });
+                const userDocRef = doc(db, 'users', actualUid);
+                await updateDoc(userDocRef, {
+                    customPhotoURL: downloadURL,
+                    updatedAt: new Date()
+                });
 
-            await refreshUserData();
+                await refreshUserData();
 
-            const successDiv = document.createElement('div');
-            successDiv.textContent = 'Photo updated!';
-            successDiv.style.cssText = `
-                position: fixed; top: 20px; right: 20px; background: #28a745; color: white;
-                padding: 12px 20px; border-radius: 8px; z-index: 1000; font-weight: 500;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            `;
-            document.body.appendChild(successDiv);
-            setTimeout(() => document.body.contains(successDiv) && document.body.removeChild(successDiv), 3000);
+                setShowCropModal(false);
+                setSelectedImage(null);
+                setImageFile(null);
+                setUploadingPhoto(false);
+                setZoom(1);
+                setPosition({ x: 0, y: 0 });
+            }, 'image/jpeg', 0.9);
 
-            handleCropCancel();
         } catch (error) {
             console.error('Error uploading photo:', error);
             alert('Failed to upload photo. Please try again.');
             setUploadingPhoto(false);
-        } finally {
-            setUploadingPhoto(false);
         }
     };
 
-    const fetchLocationSuggestions = useCallback(async (input: string) => {
-        if (input.length < 2) {
-            setSuggestions([]);
-            return;
-        }
+    const handleCropCancel = () => {
+        setShowCropModal(false);
+        setSelectedImage(null);
+        setImageFile(null);
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
+    };
 
-        try {
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?` +
-                `format=json&` +
-                `q=${encodeURIComponent(input)}&` +
-                `limit=8&` +
-                `addressdetails=1`,
-                {
-                    headers: {
-                        'User-Agent': 'SecondChancesApp/1.0'
-                    }
-                }
-            );
-
-            if (!response.ok) {
-                setSuggestions([]);
-                return;
-            }
-
-            const data = await response.json();
-
-            const uniqueSuggestions = new Map<string, boolean>();
-
-            data.forEach((item: any) => {
-                const city = item.address?.city ||
-                    item.address?.town ||
-                    item.address?.village ||
-                    item.address?.hamlet || '';
-                const state = item.address?.state || '';
-                const country = item.address?.country || '';
-
-                let formatted = '';
-
-                if (city && state) {
-                    formatted = `${city}, ${state}`;
-                } else if (city && country) {
-                    formatted = `${city}, ${country}`;
-                } else if (state && country) {
-                    formatted = `${state}, ${country}`;
-                } else if (country) {
-                    formatted = country;
-                }
-
-                if (formatted) {
-                    uniqueSuggestions.set(formatted, true);
-                }
-            });
-
-            setSuggestions(Array.from(uniqueSuggestions.keys()).slice(0, 8));
-        } catch (error) {
-            console.error('Error fetching suggestions:', error);
-            setSuggestions([]);
-        }
-    }, []);
-
-    const handleLocationChange = useCallback((value: string) => {
+    const handleLocationChange = (value: string) => {
         setLocation(value);
-        setShowSuggestions(true);
 
         if (debounceTimer.current) {
             clearTimeout(debounceTimer.current);
         }
 
-        debounceTimer.current = setTimeout(() => {
-            fetchLocationSuggestions(value);
-        }, 300);
-    }, [fetchLocationSuggestions]);
+        if (value.length < 2) {
+            setSuggestions([]);
+            return;
+        }
 
-    const handleSuggestionClick = useCallback((suggestion: string) => {
+        debounceTimer.current = setTimeout(async () => {
+            try {
+                const response = await fetch(
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&limit=5&addressdetails=1`
+                );
+                const data = await response.json();
+
+                const locationSuggestions = data.map((item: any) => {
+                    const parts = [];
+                    if (item.address.city) parts.push(item.address.city);
+                    else if (item.address.town) parts.push(item.address.town);
+                    else if (item.address.village) parts.push(item.address.village);
+
+                    if (item.address.country) parts.push(item.address.country);
+
+                    return parts.join(', ');
+                }).filter((location: string, index: number, self: string[]) =>
+                    location && self.indexOf(location) === index
+                );
+
+                setSuggestions(locationSuggestions);
+            } catch (error) {
+                console.error('Error fetching location suggestions:', error);
+            }
+        }, 300);
+    };
+
+    const handleSuggestionClick = (suggestion: string) => {
         setLocation(suggestion);
         setSuggestions([]);
         setShowSuggestions(false);
-    }, []);
+    };
 
-    const handleSave = useCallback(async () => {
-        if (!user || !currentUserData || saving) return;
+    const handleSave = async () => {
+        if (!user || !currentUserData) return;
 
         setSaving(true);
-        try {
-            const actualUid = getUserDocumentId(user, currentUserData);
-            const userRef = doc(db, 'users', actualUid);
 
-            await updateDoc(userRef, {
-                location: location.trim(),
-                about: about.trim(),
+        try {
+            const actualUid = getUserDocumentId(user!, currentUserData);
+            const userDocRef = doc(db, 'users', actualUid);
+
+            await updateDoc(userDocRef, {
+                location,
+                about,
                 updatedAt: new Date()
             });
 
             await refreshUserData();
-            setIsEditing(false);
 
-            const successDiv = document.createElement('div');
-            successDiv.textContent = 'Profile updated!';
-            successDiv.style.cssText = `
-                position: fixed; top: 20px; right: 20px; background: #28a745; color: white;
-                padding: 12px 20px; border-radius: 8px; z-index: 1000; font-weight: 500;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            `;
-            document.body.appendChild(successDiv);
-            setTimeout(() => document.body.contains(successDiv) && document.body.removeChild(successDiv), 3000);
+            setIsEditing(false);
         } catch (error) {
-            console.error('Error updating profile:', error);
-            alert('Failed to update. Please try again.');
+            console.error('Error saving profile:', error);
+            alert('Failed to save profile. Please try again.');
         } finally {
             setSaving(false);
         }
-    }, [user, currentUserData, location, about, saving, refreshUserData]);
+    };
 
-    const handleCancel = useCallback(() => {
+    const handleCancel = () => {
+        setIsEditing(false);
         setLocation(currentUserData?.location || '');
         setAbout(currentUserData?.about || '');
-        setIsEditing(false);
-        setSuggestions([]);
-        setShowSuggestions(false);
-    }, [currentUserData]);
+    };
 
     const handleAdminToggle = useCallback(() => {
-        navigate('/');
+        navigate('/', { state: { openAdminMode: true } });
     }, [navigate]);
 
     const formatDate = (timestamp: any) => {
         if (!timestamp) return 'N/A';
         let date;
-        if (timestamp.toDate) date = timestamp.toDate();
-        else if (timestamp.seconds) date = new Date(timestamp.seconds * 1000);
-        else if (timestamp._seconds) date = new Date(timestamp._seconds * 1000);
-        else date = new Date(timestamp);
+        if (timestamp.toDate) {
+            date = timestamp.toDate();
+        } else if (timestamp._seconds) {
+            date = new Date(timestamp._seconds * 1000);
+        } else {
+            date = new Date(timestamp);
+        }
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     };
 
@@ -10166,6 +10231,7 @@ const Profile = () => {
     }
 
     const currentEmail = user?.email || '';
+    const displayPhotoUrl = profileData?.customPhotoURL || null;
 
     return (
         <div className="dashboard-container">
@@ -10185,6 +10251,7 @@ const Profile = () => {
                                 userClass={profileUserClass}
                                 size="large"
                                 photoUrl={profileData?.customPhotoURL || null}
+                                onClick={handlePhotoViewClick}
                             />
                             {isOwnProfile && (
                                 <>
@@ -10383,6 +10450,14 @@ const Profile = () => {
                     </div>
                 </div>
             )}
+
+            {showPhotoModal && displayPhotoUrl && (
+                <PhotoModal
+                    photoUrl={displayPhotoUrl}
+                    userName={profileName}
+                    onClose={() => setShowPhotoModal(false)}
+                />
+            )}
         </div>
     );
 };
@@ -10408,8 +10483,8 @@ File: src/styles/profile.css
 }
 
 .profile-image-large {
-    width: 120px;
-    height: 120px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
     object-fit: cover;
     border: 3px solid #e9ecef;
@@ -10890,6 +10965,11 @@ File: src/styles/profile.css
     .crop-preview-circle {
         width: 250px;
         height: 250px;
+    }
+
+    .profile-image-large {
+        width: 160px;
+        height: 160px;
     }
 }
 

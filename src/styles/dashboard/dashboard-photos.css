@@ -29,9 +29,9 @@
 }
 
 .user-photo-large {
-    width: 64px;
-    height: 64px;
-    font-size: 24px;
+    width: 150px;
+    height: 150px;
+    font-size: 48px;
 }
 
 .user-photo-initials {
@@ -87,10 +87,11 @@
     gap: 12px;
 }
 
-.name-list-item .name-text {
-    flex: 1;
-}
-
-.name-list-item .add-btn {
-    margin-left: auto;
+/* Mobile responsive for photos */
+@media (max-width: 768px) {
+    .user-photo-large {
+        width: 120px;
+        height: 120px;
+        font-size: 38px;
+    }
 }
