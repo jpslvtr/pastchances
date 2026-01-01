@@ -7,7 +7,7 @@ import {
     signOut as firebaseSignOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
 import type { UserData, UserClass } from '../types';
@@ -135,23 +135,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 const data = await fetchUserData(firebaseUser);
                 setUserData(data);
 
-                // Update lastLogin for existing users
+                // Update lastLogin for existing users (non-blocking, fire-and-forget)
                 if (data) {
-                    try {
-                        const docId = getUserDocumentId(firebaseUser, data);
-                        const userRef = doc(db, 'users', docId);
+                    const docId = getUserDocumentId(firebaseUser, data);
+                    const userRef = doc(db, 'users', docId);
 
-                        await runTransaction(db, async (transaction) => {
-                            const userDoc = await transaction.get(userRef);
-                            if (userDoc.exists()) {
-                                transaction.update(userRef, {
-                                    lastLogin: serverTimestamp()
-                                });
-                            }
-                        });
-                    } catch (error) {
-                        console.error('Error updating lastLogin:', error);
-                    }
+                    // Use updateDoc without transaction to avoid conflicts
+                    // This is non-critical data so we don't need strong consistency
+                    updateDoc(userRef, {
+                        lastLogin: serverTimestamp()
+                    }).catch(error => {
+                        // Silently ignore errors - lastLogin is not critical
+                        console.log('lastLogin update skipped (non-critical):', error.code);
+                    });
                 }
 
                 const email = firebaseUser.email;

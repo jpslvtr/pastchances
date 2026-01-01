@@ -5,15 +5,16 @@ functions/node_modules/
 
 dist/
 functions/lib/
-# public/
+public/
 src/data/
 src/assets/
 
 .firebase/
 firebase.json
 firestore.indexes.json
-# firestore.rules
-# scripts
+# rules-database.txt
+# rules-storage.txt
+scripts
 
 functions/src/serviceAccountKey.json
 .env*

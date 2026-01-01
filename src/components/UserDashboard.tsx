@@ -6,6 +6,22 @@ import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
 import type { UserData } from '../types/userTypes';
 import UserPhoto from './shared/UserPhoto';
 
+const SaveIcon = () => (
+    <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ display: 'block' }}
+    >
+        <path
+            d="M12.5 2H3.5C2.67 2 2 2.67 2 3.5V12.5C2 13.33 2.67 14 3.5 14H12.5C13.33 14 14 13.33 14 12.5V3.5C14 2.67 13.33 2 12.5 2ZM11 6H9V11H7V6H5L8 3L11 6Z"
+            fill="currentColor"
+        />
+    </svg>
+);
+
 interface UserDashboardProps {
     userData: UserData;
     searchTerm: string;
@@ -111,6 +127,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const hasMatches = userData?.matches && userData.matches.length > 0;
     const crushCount = userData?.crushCount || 0;
     const lockedCrushes = userData?.lockedCrushes || [];
+    const matches = userData?.matches || [];
 
     // Ensure arrays are defined before using sort
     const safeSelectedNames = selectedNames || [];
@@ -224,6 +241,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         return name;
     }, []);
 
+    // Create set of matched names for quick lookup
+    const matchedNames = new Set(matches.map((m: { name: string; email: string }) => m.name));
+
     return (
         <>
             {crushCount > 0 && (
@@ -236,7 +256,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 <div className="matches-section">
                     <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
                     <div className="matches-list">
-                        {userData.matches.map((match, index) => (
+                        {userData.matches.map((match: { name: string; email: string }, index: number) => (
                             <div key={index} className="match-item">
                                 <UserPhoto
                                     name={match.name}
@@ -259,39 +279,82 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 {hasUnsavedChanges && <span className="unsaved-badge">UNSAVED CHANGES</span>}
             </div>
 
-            {safeSelectedNames.length > 0 && (
-                <div className="selected-names">
-                    <h3>Your Selections ({safeSelectedNames.length})</h3>
-                    <div className="name-chips">
-                        {safeSelectedNames.map(name => {
-                            const isLocked = lockedCrushes.includes(name);
-                            return (
-                                <div key={name} className={`name-chip ${isLocked ? 'locked' : 'selected'}`}>
-                                    <UserPhoto
-                                        name={name}
-                                        userClass={userData.userClass}
-                                        size="small"
-                                        photoUrl={photoCache.get(name)}
-                                    />
-                                    <span>{name}</span>
-                                    {isLocked ? (
-                                        <span className="lock-icon" title="Locked - you have matched with this person">🔒</span>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleRemoveSelected(name)}
-                                            className="remove-btn"
-                                            aria-label={`Remove ${name}`}
-                                            disabled={updating}
-                                        >
-                                            ×
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
+            {/* Memoize sorted selections outside of conditional */}
+            {React.useMemo(() => {
+                if (safeSelectedNames.length === 0) return null;
+
+                const sortedSelections = [...safeSelectedNames].sort((a, b) => {
+                    const aIsLocked = lockedCrushes.includes(a);
+                    const bIsLocked = lockedCrushes.includes(b);
+                    if (aIsLocked === bIsLocked) return 0;
+                    return aIsLocked ? -1 : 1;
+                });
+
+                return (
+                    <div className="selected-section">
+                        <div className="selected-section-header">
+                            <h3>Your Selections ({safeSelectedNames.length})</h3>
+                            <button
+                                onClick={handleUpdatePreferences}
+                                disabled={!hasUnsavedChanges || updating}
+                                className="update-btn-icon"
+                                title={updating ? "Saving..." : "Save changes"}
+                            >
+                                {updating ? (
+                                    <span className="spinner"></span>
+                                ) : (
+                                    <SaveIcon />
+                                )}
+                            </button>
+                        </div>
+                        <div className="names-simple-list selections-list">
+                            {sortedSelections.map((name: string) => {
+                                const isLocked = lockedCrushes.includes(name);
+                                const photoURL = photoCache.get(name);
+
+                                return (
+                                    <div
+                                        key={name}
+                                        className="name-list-item"
+                                        style={{
+                                            height: `${ITEM_HEIGHT}px`,
+                                            minHeight: `${ITEM_HEIGHT}px`
+                                        }}
+                                    >
+                                        <UserPhoto
+                                            name={name}
+                                            userClass={userData.userClass}
+                                            size="small"
+                                            photoUrl={photoURL}
+                                        />
+                                        <span className="name-text">
+                                            {name}
+                                        </span>
+
+                                        {isLocked ? (
+                                            <span
+                                                className="lock-btn"
+                                                title={matchedNames.has(name) ? "Matched!" : "Locked"}
+                                            >
+                                                🔒
+                                            </span>
+                                        ) : (
+                                            <button
+                                                className="remove-btn-icon"
+                                                onClick={() => handleRemoveSelected(name)}
+                                                title="Remove"
+                                                disabled={updating}
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            }, [safeSelectedNames, lockedCrushes, hasUnsavedChanges, updating, handleUpdatePreferences, handleRemoveSelected, photoCache, userData.userClass, matchedNames, ITEM_HEIGHT])}
 
             <div className="search-section">
                 <div className="search-input-container">
@@ -328,13 +391,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         {searchTerm && ` (${filteredAvailableNames.length} found)`}
                         {!searchTerm && ` (${filteredAvailableNames.length} available)`}
                     </h3>
-                    <button
-                        onClick={handleUpdatePreferences}
-                        disabled={!hasUnsavedChanges || updating}
-                        className="update-btn"
-                    >
-                        {updating ? '...' : 'Update'}
-                    </button>
                 </div>
                 <div
                     className="names-simple-list"
@@ -346,7 +402,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
                     )}
 
-                    {visibleNames.map((name, index) => {
+                    {visibleNames.map((name: string, index: number) => {
                         const actualIndex = startIndex + index;
                         return (
                             <div

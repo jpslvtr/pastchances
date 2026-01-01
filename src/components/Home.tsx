@@ -10,7 +10,7 @@ import { isAdminUser } from '../utils/adminUtils';
 import { getUserDocumentId } from '../utils';
 
 const Home = () => {
-    const { user, userData, refreshUserData } = useAuth();
+    const { user, userData } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedNames, setSelectedNames] = useState<string[]>([]);
@@ -99,29 +99,31 @@ const Home = () => {
             const userRef = doc(db, 'users', actualUid);
             const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
 
+            // Optimistic update - update local state immediately
+            setSelectedNames(finalCrushes);
+            setSavedNames(finalCrushes);
+
+            // Update Firestore
             await updateDoc(userRef, {
                 crushes: finalCrushes,
                 updatedAt: new Date()
             });
 
-            setSelectedNames(finalCrushes);
-            setSavedNames(finalCrushes);
-            await refreshUserData();
-
+            // Show success message
             const successDiv = document.createElement('div');
             successDiv.textContent = 'Preferences updated successfully!';
             successDiv.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #28a745;
-                color: white;
-                padding: 12px 20px;
-                border-radius: 8px;
-                z-index: 1000;
-                font-weight: 500;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            `;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        `;
             document.body.appendChild(successDiv);
 
             setTimeout(() => {
@@ -133,10 +135,13 @@ const Home = () => {
         } catch (error) {
             console.error('Error updating preferences:', error);
             setError('Failed to update preferences. Please try again.');
+
+            // Revert optimistic update on error
+            setSelectedNames(savedNames);
         } finally {
             setUpdating(false);
         }
-    }, [user, userData, updating, selectedNames, refreshUserData]);
+    }, [user, userData, updating, selectedNames, savedNames]);
 
     const handleAdminToggle = useCallback(() => {
         setIsAdminMode(prev => !prev);

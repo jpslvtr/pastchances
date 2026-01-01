@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Profile photos
+    // We rely on Firestore rules for the real security - users can only update 
+    // customPhotoURL in their own document. Storage just ensures the user is authenticated
+    // and the file is a valid image under 5MB.
+    match /profile-photos/{userId} {
+      // Allow any authenticated user to read profile photos
+      allow read: if request.auth != null;
+      
+      // Allow any authenticated user to upload
+      // Real security is in Firestore - users can only update their own document's customPhotoURL
+      allow write: if request.auth != null 
+        && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$')
+        && request.resource.size < 5 * 1024 * 1024  // Max 5MB
+        && request.resource.contentType.matches('image/.*');  // Only images
+      
+      // Allow any authenticated user to delete
+      // This is needed when updating photos (delete old, upload new)
+      allow delete: if request.auth != null 
+        && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$');
+    }
+  }
+}
