@@ -205,7 +205,9 @@ const Profile = () => {
     const [publicContact, setPublicContact] = useState<PublicContact>({
         cell: '',
         instagram: '',
+        x: '',
         linkedin: '',
+        other: '',
         preferred: ''
     });
     const [countryCode, setCountryCode] = useState('+1');
@@ -213,7 +215,9 @@ const Profile = () => {
     const [contactErrors, setContactErrors] = useState<{
         cell?: string;
         instagram?: string;
+        x?: string;
         linkedin?: string;
+        other?: string;
         preferred?: string;
     }>({});
     const [saving, setSaving] = useState(false);
@@ -247,11 +251,13 @@ const Profile = () => {
                     setLocation(currentUserData?.location || '');
                     setAbout(currentUserData?.about || '');
 
-                    const contact = currentUserData?.publicContact || {
-                        cell: '',
-                        instagram: '',
-                        linkedin: '',
-                        preferred: ''
+                    const contact: PublicContact = {
+                        cell: currentUserData?.publicContact?.cell || '',
+                        instagram: currentUserData?.publicContact?.instagram || '',
+                        x: currentUserData?.publicContact?.x || '',
+                        linkedin: currentUserData?.publicContact?.linkedin || '',
+                        other: currentUserData?.publicContact?.other || '',
+                        preferred: currentUserData?.publicContact?.preferred || ''
                     };
 
                     setPublicContact(contact);
@@ -382,6 +388,19 @@ const Profile = () => {
         return null;
     };
 
+    const validateX = (username: string): string | null => {
+        if (!username) return null;
+
+        // Username validation (1-15 characters, alphanumeric and underscores)
+        const xUsernameRegex = /^[a-zA-Z0-9_]{1,15}$/;
+
+        if (!xUsernameRegex.test(username)) {
+            return 'Invalid X username (1-15 characters, letters, numbers, underscores only)';
+        }
+
+        return null;
+    };
+
     const handlePhoneNumberChange = (value: string) => {
         const digits = value.replace(/\D/g, '');
         const formatted = formatPhoneNumber(digits, countryCode);
@@ -418,7 +437,7 @@ const Profile = () => {
         }));
     };
 
-    const handlePreferredToggle = (field: 'cell' | 'instagram' | 'linkedin') => {
+    const handlePreferredToggle = (field: 'cell' | 'instagram' | 'x' | 'linkedin' | 'other') => {
         setPublicContact(prev => ({
             ...prev,
             preferred: prev.preferred === field ? '' : field
@@ -429,7 +448,9 @@ const Profile = () => {
         const errors: {
             cell?: string;
             instagram?: string;
+            x?: string;
             linkedin?: string;
+            other?: string;
             preferred?: string;
         } = {};
         let isValid = true;
@@ -450,6 +471,14 @@ const Profile = () => {
             }
         }
 
+        if (publicContact.x) {
+            const xError = validateX(publicContact.x);
+            if (xError) {
+                errors.x = xError;
+                isValid = false;
+            }
+        }
+
         if (publicContact.linkedin) {
             const linkedinError = validateLinkedIn(publicContact.linkedin);
             if (linkedinError) {
@@ -458,12 +487,14 @@ const Profile = () => {
             }
         }
 
+        // Other field is free-text, no validation needed
+
         if (publicContact.preferred) {
-            const preferredField = publicContact.preferred as 'cell' | 'instagram' | 'linkedin';
+            const preferredField = publicContact.preferred as 'cell' | 'instagram' | 'x' | 'linkedin' | 'other';
             if (preferredField === 'cell' && !phoneNumber) {
                 errors.preferred = 'Cannot set cell as preferred when it\'s empty';
                 isValid = false;
-            } else if (!publicContact[preferredField]) {
+            } else if (preferredField !== 'cell' && !publicContact[preferredField]) {
                 errors.preferred = `Cannot set ${publicContact.preferred} as preferred when it's empty`;
                 isValid = false;
             }
@@ -472,7 +503,6 @@ const Profile = () => {
         setContactErrors(errors);
         return isValid;
     };
-
     const handlePhotoClick = () => {
         if (isOwnProfile) {
             fileInputRef.current?.click();
@@ -767,11 +797,13 @@ const Profile = () => {
         setLocation(currentUserData?.location || '');
         setAbout(currentUserData?.about || '');
 
-        const contact = currentUserData?.publicContact || {
-            cell: '',
-            instagram: '',
-            linkedin: '',
-            preferred: ''
+        const contact: PublicContact = {
+            cell: currentUserData?.publicContact?.cell || '',
+            instagram: currentUserData?.publicContact?.instagram || '',
+            x: currentUserData?.publicContact?.x || '',
+            linkedin: currentUserData?.publicContact?.linkedin || '',
+            other: currentUserData?.publicContact?.other || '',
+            preferred: currentUserData?.publicContact?.preferred || ''
         };
 
         setPublicContact(contact);
@@ -788,12 +820,14 @@ const Profile = () => {
         setContactErrors({});
     };
 
-    const viewingContact = isOwnProfile ? publicContact : (profileData?.publicContact || {
-        cell: '',
-        instagram: '',
-        linkedin: '',
-        preferred: ''
-    });
+    const viewingContact: PublicContact = isOwnProfile ? publicContact : {
+        cell: profileData?.publicContact?.cell || '',
+        instagram: profileData?.publicContact?.instagram || '',
+        x: profileData?.publicContact?.x || '',
+        linkedin: profileData?.publicContact?.linkedin || '',
+        other: profileData?.publicContact?.other || '',
+        preferred: profileData?.publicContact?.preferred || ''
+    };
 
     if (loadingProfile) {
         return <div className="loading">Loading...</div>;
@@ -1007,6 +1041,67 @@ const Profile = () => {
                                         </div>
                                         {contactErrors.linkedin && <span className="contact-error">{contactErrors.linkedin}</span>}
                                     </div>
+
+                                    <div className="contact-field-plain">
+                                        <label>X:</label>
+                                        <div className="contact-input-with-star">
+                                            <div style={{ position: 'relative', flex: 1 }}>
+                                                <span style={{
+                                                    position: 'absolute',
+                                                    left: '14px',
+                                                    top: '50%',
+                                                    transform: 'translateY(-50%)',
+                                                    color: '#6c757d',
+                                                    pointerEvents: 'none',
+                                                    fontSize: '14px',
+                                                    zIndex: 1
+                                                }}>
+                                                    https://x.com/
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    value={publicContact.x}
+                                                    onChange={(e) => handleContactChange('x', e.target.value)}
+                                                    placeholder=""
+                                                    className={`info-input-inline ${contactErrors.x ? 'error' : ''}`}
+                                                    style={{ paddingLeft: '103px', width: '100%' }}
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'x' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('x')}
+                                                disabled={!publicContact.x}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'x' ? '★' : '☆'}
+                                            </button>
+                                        </div>
+                                        {contactErrors.x && <span className="contact-error">{contactErrors.x}</span>}
+                                    </div>
+
+                                    <div className="contact-field-plain">
+                                        <label>Other:</label>
+                                        <div className="contact-input-with-star">
+                                            <input
+                                                type="text"
+                                                value={publicContact.other}
+                                                onChange={(e) => handleContactChange('other', e.target.value)}
+                                                placeholder="Any other contact method"
+                                                className={`info-input-inline ${contactErrors.other ? 'error' : ''}`}
+                                            />
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'other' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('other')}
+                                                disabled={!publicContact.other}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'other' ? '★' : '☆'}
+                                            </button>
+                                        </div>
+                                        {contactErrors.other && <span className="contact-error">{contactErrors.other}</span>}
+                                    </div>
                                     {contactErrors.preferred && <span className="contact-error general-error">{contactErrors.preferred}</span>}
                                 </div>
                             ) : (
@@ -1033,12 +1128,29 @@ const Profile = () => {
                                                         rel="noopener noreferrer"
                                                         className="contact-link-plain"
                                                     >
-                                                            https://www.instagram.com/{viewingContact.instagram}{viewingContact.instagram.endsWith('/') ? '' : '/'}
+                                                        https://www.instagram.com/{viewingContact.instagram}{viewingContact.instagram.endsWith('/') ? '' : '/'}
                                                     </a>
                                                 ) : (
                                                     ''
                                                 )}
                                                 {viewingContact.preferred === 'instagram' && viewingContact.instagram && <span className="preferred-badge">Preferred</span>}
+                                            </div>
+                                        )}
+                                        {(isOwnProfile || viewingContact.x) && (
+                                            <div className={`info-value-plain ${viewingContact.preferred === 'x' ? 'preferred' : ''}`}>
+                                                {viewingContact.x ? (
+                                                    <a
+                                                        href={`https://x.com/${viewingContact.x}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="contact-link-plain"
+                                                    >
+                                                        https://x.com/{viewingContact.x}
+                                                    </a>
+                                                ) : (
+                                                    ''
+                                                )}
+                                                {viewingContact.preferred === 'x' && viewingContact.x && <span className="preferred-badge">Preferred</span>}
                                             </div>
                                         )}
                                         {(isOwnProfile || viewingContact.linkedin) && (
@@ -1050,12 +1162,18 @@ const Profile = () => {
                                                         rel="noopener noreferrer"
                                                         className="contact-link-plain"
                                                     >
-                                                            https://www.linkedin.com/in/{viewingContact.linkedin}{viewingContact.linkedin.endsWith('/') ? '' : '/'}
+                                                        https://www.linkedin.com/in/{viewingContact.linkedin}{viewingContact.linkedin.endsWith('/') ? '' : '/'}
                                                     </a>
                                                 ) : (
                                                     ''
                                                 )}
                                                 {viewingContact.preferred === 'linkedin' && viewingContact.linkedin && <span className="preferred-badge">Preferred</span>}
+                                            </div>
+                                        )}
+                                        {(isOwnProfile || viewingContact.other) && (
+                                            <div className={`info-value-plain ${viewingContact.preferred === 'other' ? 'preferred' : ''}`}>
+                                                {viewingContact.other || ''}
+                                                {viewingContact.preferred === 'other' && viewingContact.other && <span className="preferred-badge">Preferred</span>}
                                             </div>
                                         )}
                                     </div>
