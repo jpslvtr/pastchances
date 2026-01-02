@@ -1,0 +1,76 @@
+.engagement-stats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #8C1515;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+
+.stat-divider {
+    color: #dee2e6;
+    font-size: 20px;
+    font-weight: 300;
+    line-height: 1;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .engagement-stats {
+        padding: 10px 16px;
+        gap: 12px;
+    }
+
+    .stat-value {
+        font-size: 20px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+    }
+
+    .stat-divider {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .engagement-stats {
+        gap: 10px;
+        padding: 8px 12px;
+    }
+
+    .stat-value {
+        font-size: 18px;
+    }
+
+    .stat-label {
+        font-size: 10px;
+    }
+}
