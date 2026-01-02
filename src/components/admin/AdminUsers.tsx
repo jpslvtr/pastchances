@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import type { UserData, MatchInfo, UserClass } from '../../types/userTypes';
+import type { UserData, MatchInfo, UserClass } from '../../types';
 
 interface CrusherInfo {
     name: string;

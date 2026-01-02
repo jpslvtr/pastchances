@@ -10,7 +10,7 @@ import { db, storage } from '../config/firebase';
 import { getUserDocumentId } from '../utils';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData, PublicContact } from '../types/userTypes';
+import type { UserData, PublicContact } from '../types';
 import '../styles/profile.css';
 
 const hashName = (name: string): string => {
@@ -814,7 +814,9 @@ const Profile = () => {
         if (contact.cell) {
             const parsed = parsePhoneNumber(contact.cell);
             setCountryCode(parsed.countryCode);
-            setPhoneNumber(parsed.number);
+            // Format the parsed number to include spaces
+            const formatted = formatPhoneNumber(parsed.number.replace(/\D/g, ''), parsed.countryCode);
+            setPhoneNumber(formatted);
         } else {
             setCountryCode('+1');
             setPhoneNumber('');
@@ -912,19 +914,6 @@ const Profile = () => {
                             ) : (
                                 <div style={{ flex: 1, width: '100%' }}>
                                     <div className="info-value-plain">{profileData?.location || ''}</div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="info-row">
-                            <label>About:</label>
-                            {isOwnProfile && isEditing ? (
-                                <textarea value={about} onChange={(e) => setAbout(e.target.value)}
-                                    placeholder="Tell us about yourself..." className="info-textarea"
-                                    rows={4} maxLength={500} />
-                            ) : (
-                                <div style={{ flex: 1, width: '100%' }}>
-                                    <div className="info-value-plain">{profileData?.about || ''}</div>
                                 </div>
                             )}
                         </div>
@@ -1156,7 +1145,7 @@ const Profile = () => {
                                                             rel="noopener noreferrer"
                                                             className="contact-link-plain"
                                                         >
-                                                            https://x.com/{viewingContact.x}
+                                                                https://x.com/{viewingContact.x}{viewingContact.x.endsWith('/') ? '' : '/'}
                                                         </a>
                                                     </>
                                                 ) : (

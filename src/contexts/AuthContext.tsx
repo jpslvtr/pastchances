@@ -308,6 +308,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             customPhotoURL: '',
             location: '',
             about: '',
+            publicContact: [],
             crushes: [],
             lockedCrushes: [],
             matches: [],

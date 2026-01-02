@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { UserData } from '../types/userTypes';
+import type { UserData } from '../types';
 
 interface CrusherInfo {
     name: string;

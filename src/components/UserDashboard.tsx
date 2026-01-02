@@ -4,7 +4,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData } from '../types/userTypes';
+import type { UserData } from '../types';
 import UserPhoto from './shared/UserPhoto';
 
 const SaveIcon = () => (

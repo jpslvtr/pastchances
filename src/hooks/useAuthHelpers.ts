@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { User } from 'firebase/auth';
-import type { MatchInfo, UserClass } from '../types/userTypes';
+import type { MatchInfo, UserClass } from '../types';
 
 export const useAuthHelpers = () => {
     const normalizeMatches = useCallback((matches: any[]): MatchInfo[] => {
