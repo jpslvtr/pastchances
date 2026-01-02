@@ -1,21 +1,43 @@
 import React from 'react';
-import type { MatchInfo } from '../../types';
-import { MatchItem } from '../shared/MatchItem';
+import UserPhoto from '../shared/UserPhoto';
+import type { UserData } from '../../types';
 
 interface MatchesSectionProps {
-    matches: MatchInfo[];
-    userClass?: string;
+    userData: UserData;
+    photoCache: Map<string, string | null>;
+    onMatchClick: (match: { name: string; email: string }) => void;
 }
 
-export const MatchesSection: React.FC<MatchesSectionProps> = ({ matches, userClass = 'gsb' }) => {
-    if (!matches || matches.length === 0) return null;
+export const MatchesSection: React.FC<MatchesSectionProps> = ({
+    userData,
+    photoCache,
+    onMatchClick
+}) => {
+    const hasMatches = userData?.matches && userData.matches.length > 0;
+
+    if (!hasMatches) return null;
 
     return (
         <div className="matches-section">
-            <h2>🎉 You have {matches.length} match{matches.length > 1 ? 'es' : ''}!</h2>
+            <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
             <div className="matches-list">
-                {matches.map((match, index) => (
-                    <MatchItem key={index} match={match} index={index} userClass={userClass} />
+                {userData.matches.map((match: { name: string; email: string }, index: number) => (
+                    <div
+                        key={index}
+                        className="match-item clickable"
+                        onClick={() => onMatchClick(match)}
+                        style={{ cursor: 'pointer' }}
+                    >
+                        <UserPhoto
+                            name={match.name}
+                            userClass={userData.userClass}
+                            size="medium"
+                            photoUrl={photoCache.get(match.name)}
+                        />
+                        <div className="match-details">
+                            <div className="match-name">{match.name}</div>
+                        </div>
+                    </div>
                 ))}
             </div>
         </div>
