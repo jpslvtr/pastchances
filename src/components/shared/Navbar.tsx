@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from 'firebase/auth';
-import type { UserData } from '../../types/userTypes';
+import type { UserData } from '../../types';
 import { isAdminUser } from '../../utils/adminUtils';
 import { signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '../../config/firebase';

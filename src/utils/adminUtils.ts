@@ -1,5 +1,5 @@
 import type { User } from 'firebase/auth';
-import type { UserData, UserClass } from '../types/userTypes';
+import type { UserData, UserClass } from '../types';
 
 const ADMIN_EMAILS = [
     'jpark22@stanford.edu',

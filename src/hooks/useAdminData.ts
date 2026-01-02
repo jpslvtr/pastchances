@@ -3,7 +3,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData, UserClass } from '../types/userTypes';
+import type { UserData, UserClass } from '../types';
 import { findUserByName, isAdminEmail } from '../utils/adminUtils';
 
 interface CrusherInfo {
