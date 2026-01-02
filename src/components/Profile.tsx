@@ -266,7 +266,9 @@ const Profile = () => {
                     if (contact.cell) {
                         const parsed = parsePhoneNumber(contact.cell);
                         setCountryCode(parsed.countryCode);
-                        setPhoneNumber(parsed.number);
+                        // Format the parsed number to include spaces
+                        const formatted = formatPhoneNumber(parsed.number.replace(/\D/g, ''), parsed.countryCode);
+                        setPhoneNumber(formatted);
                     } else {
                         setCountryCode('+1');
                         setPhoneNumber('');
@@ -402,6 +404,7 @@ const Profile = () => {
     };
 
     const handlePhoneNumberChange = (value: string) => {
+        // Strip all non-digits first to enforce proper formatting
         const digits = value.replace(/\D/g, '');
         const formatted = formatPhoneNumber(digits, countryCode);
         setPhoneNumber(formatted);
@@ -1005,44 +1008,6 @@ const Profile = () => {
                                     </div>
 
                                     <div className="contact-field-plain">
-                                        <label>LinkedIn:</label>
-                                        <div className="contact-input-with-star">
-                                            <div style={{ position: 'relative', flex: 1 }}>
-                                                <span style={{
-                                                    position: 'absolute',
-                                                    left: '14px',
-                                                    top: '50%',
-                                                    transform: 'translateY(-50%)',
-                                                    color: '#6c757d',
-                                                    pointerEvents: 'none',
-                                                    fontSize: '14px',
-                                                    zIndex: 1
-                                                }}>
-                                                    https://www.linkedin.com/in/
-                                                </span>
-                                                <input
-                                                    type="text"
-                                                    value={publicContact.linkedin}
-                                                    onChange={(e) => handleContactChange('linkedin', e.target.value)}
-                                                    placeholder=""
-                                                    className={`info-input-inline ${contactErrors.linkedin ? 'error' : ''}`}
-                                                    style={{ paddingLeft: '196px', width: '100%' }}
-                                                />
-                                            </div>
-                                            <button
-                                                type="button"
-                                                className={`preferred-star ${publicContact.preferred === 'linkedin' ? 'active' : ''}`}
-                                                onClick={() => handlePreferredToggle('linkedin')}
-                                                disabled={!publicContact.linkedin}
-                                                title="Set as preferred contact method"
-                                            >
-                                                {publicContact.preferred === 'linkedin' ? '★' : '☆'}
-                                            </button>
-                                        </div>
-                                        {contactErrors.linkedin && <span className="contact-error">{contactErrors.linkedin}</span>}
-                                    </div>
-
-                                    <div className="contact-field-plain">
                                         <label>X:</label>
                                         <div className="contact-input-with-star">
                                             <div style={{ position: 'relative', flex: 1 }}>
@@ -1081,6 +1046,44 @@ const Profile = () => {
                                     </div>
 
                                     <div className="contact-field-plain">
+                                        <label>LinkedIn:</label>
+                                        <div className="contact-input-with-star">
+                                            <div style={{ position: 'relative', flex: 1 }}>
+                                                <span style={{
+                                                    position: 'absolute',
+                                                    left: '14px',
+                                                    top: '50%',
+                                                    transform: 'translateY(-50%)',
+                                                    color: '#6c757d',
+                                                    pointerEvents: 'none',
+                                                    fontSize: '14px',
+                                                    zIndex: 1
+                                                }}>
+                                                    https://www.linkedin.com/in/
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    value={publicContact.linkedin}
+                                                    onChange={(e) => handleContactChange('linkedin', e.target.value)}
+                                                    placeholder=""
+                                                    className={`info-input-inline ${contactErrors.linkedin ? 'error' : ''}`}
+                                                    style={{ paddingLeft: '196px', width: '100%' }}
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className={`preferred-star ${publicContact.preferred === 'linkedin' ? 'active' : ''}`}
+                                                onClick={() => handlePreferredToggle('linkedin')}
+                                                disabled={!publicContact.linkedin}
+                                                title="Set as preferred contact method"
+                                            >
+                                                {publicContact.preferred === 'linkedin' ? '★' : '☆'}
+                                            </button>
+                                        </div>
+                                        {contactErrors.linkedin && <span className="contact-error">{contactErrors.linkedin}</span>}
+                                    </div>
+
+                                    <div className="contact-field-plain">
                                         <label>Other:</label>
                                         <div className="contact-input-with-star">
                                             <input
@@ -1110,9 +1113,12 @@ const Profile = () => {
                                         {(isOwnProfile || viewingContact.cell) && (
                                             <div className={`info-value-plain ${viewingContact.preferred === 'cell' ? 'preferred' : ''}`}>
                                                 {viewingContact.cell ? (
-                                                    <a href={`tel:${viewingContact.cell.replace(/\s/g, '')}`} className="contact-link-plain">
-                                                        {viewingContact.cell}
-                                                    </a>
+                                                    <>
+                                                        <strong>Cell: </strong>
+                                                        <a href={`tel:${viewingContact.cell.replace(/\s/g, '')}`} className="contact-link-plain">
+                                                            {viewingContact.cell}
+                                                        </a>
+                                                    </>
                                                 ) : (
                                                     ''
                                                 )}
@@ -1122,14 +1128,17 @@ const Profile = () => {
                                         {(isOwnProfile || viewingContact.instagram) && (
                                             <div className={`info-value-plain ${viewingContact.preferred === 'instagram' ? 'preferred' : ''}`}>
                                                 {viewingContact.instagram ? (
-                                                    <a
-                                                        href={`https://www.instagram.com/${viewingContact.instagram}/`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="contact-link-plain"
-                                                    >
-                                                        https://www.instagram.com/{viewingContact.instagram}{viewingContact.instagram.endsWith('/') ? '' : '/'}
-                                                    </a>
+                                                    <>
+                                                        <strong>Instagram: </strong>
+                                                        <a
+                                                            href={`https://www.instagram.com/${viewingContact.instagram}/`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                                                        >
+                                                            https://www.instagram.com/{viewingContact.instagram}{viewingContact.instagram.endsWith('/') ? '' : '/'}
+                                                        </a>
+                                                    </>
                                                 ) : (
                                                     ''
                                                 )}
@@ -1139,14 +1148,17 @@ const Profile = () => {
                                         {(isOwnProfile || viewingContact.x) && (
                                             <div className={`info-value-plain ${viewingContact.preferred === 'x' ? 'preferred' : ''}`}>
                                                 {viewingContact.x ? (
-                                                    <a
-                                                        href={`https://x.com/${viewingContact.x}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="contact-link-plain"
-                                                    >
-                                                        https://x.com/{viewingContact.x}
-                                                    </a>
+                                                    <>
+                                                        <strong>X: </strong>
+                                                        <a
+                                                            href={`https://x.com/${viewingContact.x}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                                                        >
+                                                            https://x.com/{viewingContact.x}
+                                                        </a>
+                                                    </>
                                                 ) : (
                                                     ''
                                                 )}
@@ -1156,14 +1168,17 @@ const Profile = () => {
                                         {(isOwnProfile || viewingContact.linkedin) && (
                                             <div className={`info-value-plain ${viewingContact.preferred === 'linkedin' ? 'preferred' : ''}`}>
                                                 {viewingContact.linkedin ? (
-                                                    <a
-                                                        href={`https://www.linkedin.com/in/${viewingContact.linkedin}/`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="contact-link-plain"
-                                                    >
-                                                        https://www.linkedin.com/in/{viewingContact.linkedin}{viewingContact.linkedin.endsWith('/') ? '' : '/'}
-                                                    </a>
+                                                    <>
+                                                        <strong>LinkedIn: </strong>
+                                                        <a
+                                                            href={`https://www.linkedin.com/in/${viewingContact.linkedin}/`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                                                        >
+                                                            https://www.linkedin.com/in/{viewingContact.linkedin}{viewingContact.linkedin.endsWith('/') ? '' : '/'}
+                                                        </a>
+                                                    </>
                                                 ) : (
                                                     ''
                                                 )}
@@ -1172,7 +1187,14 @@ const Profile = () => {
                                         )}
                                         {(isOwnProfile || viewingContact.other) && (
                                             <div className={`info-value-plain ${viewingContact.preferred === 'other' ? 'preferred' : ''}`}>
-                                                {viewingContact.other || ''}
+                                                {viewingContact.other ? (
+                                                    <>
+                                                        <strong>Other: </strong>
+                                                        {viewingContact.other}
+                                                    </>
+                                                ) : (
+                                                    ''
+                                                )}
                                                 {viewingContact.preferred === 'other' && viewingContact.other && <span className="preferred-badge">Preferred</span>}
                                             </div>
                                         )}
