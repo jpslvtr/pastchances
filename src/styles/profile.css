@@ -108,7 +108,10 @@
     gap: 12px;
 }
 
-.edit-btn, .save-btn, .cancel-btn {
+.profile-container .edit-btn,
+.profile-container .save-btn,
+.profile-container .cancel-btn {
+
     padding: 10px 24px;
     border-radius: 8px;
     font-size: 14px;
@@ -118,44 +121,44 @@
     border: none;
 }
 
-.edit-btn {
+.profile-container .edit-btn {
     background: #8C1515;
     color: white;
 }
 
-.edit-btn:hover {
+.profile-container .edit-btn:hover {
     background: #a01a1a;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(140, 21, 21, 0.2);
 }
 
-.save-btn {
+.profile-container .save-btn {
     background: #8C1515;
     color: white;
 }
 
-.save-btn:hover:not(:disabled) {
+.profile-container .save-btn:hover:not(:disabled) {
     background: #a01a1a;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(140, 21, 21, 0.2);
 }
 
-.save-btn:disabled {
+.profile-container .save-btn:disabled {
     background: #ccc;
     cursor: not-allowed;
     opacity: 0.6;
 }
 
-.cancel-btn {
+.profile-container .cancel-btn {
     background: #6c757d;
     color: white;
 }
 
-.cancel-btn:hover:not(:disabled) {
+.profile-container .cancel-btn:hover:not(:disabled) {
     background: #5a6268;
 }
 
-.cancel-btn:disabled {
+.profile-container .cancel-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
@@ -639,7 +642,9 @@
         flex-direction: row;
     }
 
-    .edit-btn, .save-btn, .cancel-btn {
+        .profile-container .edit-btn,
+        .profile-container .save-btn,
+        .profile-container .cancel-btn {
         width: auto;
         flex: 1;
     }
