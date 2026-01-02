@@ -113,7 +113,6 @@ src/
     profile.css
   types/
     index.ts
-    userTypes.ts
   utils/
     adminUtils.ts
     emailUtils.ts
@@ -2893,671 +2892,6 @@ const NameSelection: React.FC = () => {
 export default NameSelection;
 
 ================
-File: src/hooks/useAdminData.ts
-================
-import { useState, useCallback, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { GSB_CLASS_NAMES } from '../data/names';
-import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData, UserClass } from '../types/userTypes';
-import { findUserByName, isAdminEmail } from '../utils/adminUtils';
-
-interface CrusherInfo {
-    name: string;
-    email: string;
-}
-
-interface InactiveUser extends UserData {
-    isInactive: boolean;
-}
-
-interface GhostUser extends UserData {
-    isGhost: boolean;
-}
-
-interface ClassAnalyticsData {
-    totalUsers: number;
-    totalClassSize: number;
-    totalMatches: number;
-    matchedPairs: string[];
-    totalCrushes: number;
-    peopleWithCrushes: number;
-    avgCrushes: number;
-    usersWithCrushes: number;
-    usersWithMatches: number;
-    participationRate: number;
-    classParticipationRate: number;
-    orphanedCrushes: string[];
-    topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
-    topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
-    inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }>;
-    activeUsersLast24h: number;
-}
-
-export const useAdminData = (user: any, currentClassView: UserClass, refreshKey: number) => {
-    const [allUsers, setAllUsers] = useState<(UserData | InactiveUser | GhostUser)[]>([]);
-    const [loadingUsers, setLoadingUsers] = useState(false);
-    const [currentAnalytics, setCurrentAnalytics] = useState<ClassAnalyticsData | null>(null);
-    const [loadingAnalytics, setLoadingAnalytics] = useState(false);
-
-    const normalizeName = useCallback((name: string): string => {
-        if (!name || typeof name !== 'string') return '';
-
-        return name
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^\w\s]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }, []);
-
-    const calculateRealTime24hActiveUsers = useCallback((activeUsers: UserData[]): number => {
-        if (activeUsers.length === 0) return 0;
-
-        const twentyFourHoursAgo = new Date(Date.now() - (24 * 60 * 60 * 1000));
-        let recentlyActiveCount = 0;
-
-        activeUsers.forEach(user => {
-            if (user.lastLogin) {
-                let lastLoginDate;
-
-                if (user.lastLogin.toDate) {
-                    lastLoginDate = user.lastLogin.toDate();
-                } else if (user.lastLogin.seconds) {
-                    lastLoginDate = new Date(user.lastLogin.seconds * 1000);
-                } else {
-                    lastLoginDate = new Date(user.lastLogin);
-                }
-
-                if (lastLoginDate > twentyFourHoursAgo) {
-                    recentlyActiveCount++;
-                }
-            }
-        });
-
-        return Number((recentlyActiveCount / activeUsers.length * 100).toFixed(2));
-    }, []);
-
-    const calculateClassAnalytics = useCallback((targetClass: UserClass): ClassAnalyticsData => {
-        const realUsers = allUsers.filter(u =>
-            !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
-        ) as UserData[];
-
-        const classUsers = realUsers.filter(user => (user.userClass || 'gsb') === targetClass);
-
-        const totalClassSize = targetClass === 'gsb' ? GSB_CLASS_NAMES.length : UNDERGRAD_CLASS_NAMES.length;
-
-        const totalUsers = classUsers.length;
-
-        const classPairs = new Set<string>();
-
-        classUsers.forEach(user => {
-            const matches = user.matches || [];
-            if (Array.isArray(matches) && matches.length > 0) {
-                matches.forEach(match => {
-                    const matchName = match.name || match;
-                    const pair = [user.name, matchName].sort().join(' ↔ ');
-                    classPairs.add(pair);
-                });
-            }
-        });
-
-        const totalMatches = classPairs.size;
-        const matchedPairs = Array.from(classPairs).sort();
-
-        let totalCrushes = 0;
-
-        classUsers.forEach(user => {
-            const userCrushes = user.crushes || [];
-            totalCrushes += userCrushes.length;
-        });
-
-        const crushCounts = new Map<string, number>();
-        const crushersMap = new Map<string, string[]>();
-
-        classUsers.forEach(user => {
-            const userCrushes = user.crushes || [];
-            userCrushes.forEach(crushName => {
-                const targetUser = findUserByName(crushName, allUsers, targetClass);
-
-                if (targetUser) {
-                    const actualName = targetUser.name;
-                    if (actualName) {
-                        crushCounts.set(actualName, (crushCounts.get(actualName) || 0) + 1);
-                        if (!crushersMap.has(actualName)) {
-                            crushersMap.set(actualName, []);
-                        }
-                        crushersMap.get(actualName)!.push(user.name);
-                    }
-                } else {
-                    crushCounts.set(crushName, (crushCounts.get(crushName) || 0) + 1);
-                    if (!crushersMap.has(crushName)) {
-                        crushersMap.set(crushName, []);
-                    }
-                    crushersMap.get(crushName)!.push(user.name);
-                }
-            });
-        });
-
-        const peopleWithCrushes = Array.from(crushCounts.keys()).filter(name => crushCounts.get(name)! > 0).length;
-        const avgCrushes = totalUsers > 0 ? totalCrushes / totalUsers : 0;
-
-        const usersWithCrushes = classUsers.filter(user => user.crushes.length > 0).length;
-        const usersWithMatches = classUsers.filter(user => user.matches.length > 0).length;
-
-        const participationRate = totalUsers > 0 ? (usersWithCrushes / totalUsers * 100) : 0;
-        const classParticipationRate = totalClassSize > 0 ? (usersWithCrushes / totalClassSize * 100) : 0;
-
-        const orphanedCrushes: string[] = [];
-        const allCrushNames = new Set<string>();
-
-        classUsers.forEach(user => {
-            const userCrushes = user.crushes || [];
-            userCrushes.forEach(crushName => {
-                allCrushNames.add(crushName);
-            });
-        });
-
-        allCrushNames.forEach(crushName => {
-            const match = findUserByName(crushName, allUsers, targetClass);
-            if (!match) {
-                orphanedCrushes.push(crushName);
-            }
-        });
-
-        const topCrushReceivers = Array.from(crushCounts.entries())
-            .map(([name, count]) => ({
-                name,
-                count,
-                crushers: crushersMap.get(name) || []
-            }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 25);
-
-        const topCrushSenders = classUsers
-            .map(user => ({
-                name: user.name,
-                count: user.crushes.length,
-                crushNames: user.crushes
-            }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 25);
-
-        const inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }> = [];
-
-        classUsers.forEach(user => {
-            if (user.crushCount > 0) {
-                const hasSubmittedCrushes = !!(user.crushes && user.crushes.length > 0);
-
-                if (!hasSubmittedCrushes) {
-                    const crushers: CrusherInfo[] = [];
-                    const targetName = user.name;
-                    const targetClass = user.userClass || 'gsb';
-
-                    if (targetName) {
-                        allUsers.forEach(u => {
-                            if (u.uid === user.uid || (u as InactiveUser).isInactive || (u as GhostUser).isGhost) return;
-
-                            const userClass = u.userClass || 'gsb';
-                            if (userClass !== targetClass) return;
-
-                            const userCrushes = u.crushes || [];
-                            if (userCrushes.includes(targetName)) {
-                                crushers.push({
-                                    name: u.name,
-                                    email: u.email
-                                });
-                            }
-                        });
-                    }
-
-                    inactiveReceivers.push({
-                        name: user.name || 'Unknown',
-                        email: user.email,
-                        crushCount: user.crushCount,
-                        reason: 'No crushes submitted',
-                        crushers
-                    });
-                }
-            }
-        });
-
-        inactiveReceivers.sort((a, b) => b.crushCount - a.crushCount);
-
-        return {
-            totalUsers,
-            totalClassSize,
-            totalMatches,
-            matchedPairs,
-            totalCrushes,
-            peopleWithCrushes,
-            avgCrushes: Number(avgCrushes.toFixed(2)),
-            usersWithCrushes,
-            usersWithMatches,
-            participationRate: Number(participationRate.toFixed(2)),
-            classParticipationRate: Number(classParticipationRate.toFixed(2)),
-            orphanedCrushes,
-            topCrushReceivers,
-            topCrushSenders,
-            inactiveReceivers,
-            activeUsersLast24h: calculateRealTime24hActiveUsers(classUsers)
-        };
-    }, [allUsers, calculateRealTime24hActiveUsers]);
-
-    const loadAllUsers = useCallback(async () => {
-        if (!isAdminEmail(user?.email)) {
-            return;
-        }
-
-        setLoadingUsers(true);
-        try {
-            const usersSnapshot = await getDocs(collection(db, 'users'));
-            const realUsers: UserData[] = [];
-
-            usersSnapshot.forEach(doc => {
-                const data = doc.data() as UserData;
-                realUsers.push({
-                    ...data,
-                    uid: doc.id,
-                    userClass: data.userClass || 'gsb'
-                });
-            });
-
-            const realUserNames = new Set(realUsers.map(u => u.name).filter(Boolean));
-            const inactiveUsers: InactiveUser[] = [];
-            const ghostUsers: GhostUser[] = [];
-
-            const currentClassNames = currentClassView === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
-
-            currentClassNames.forEach(className => {
-                if (realUserNames.has(className)) {
-                    return;
-                }
-
-                let crushCount = 0;
-                realUsers.forEach(user => {
-                    if ((user.userClass || 'gsb') === currentClassView) {
-                        const userCrushes = user.crushes || [];
-                        if (userCrushes.includes(className)) {
-                            crushCount++;
-                        }
-                    }
-                });
-
-                const derivedEmail = `${className.toLowerCase().replace(/\s+/g, '.')}@stanford.edu`;
-
-                if (crushCount > 0) {
-                    const inactiveId = `inactive-${currentClassView}-${normalizeName(className).replace(/\s+/g, '-')}`;
-                    inactiveUsers.push({
-                        uid: inactiveId,
-                        email: derivedEmail,
-                        name: className,
-                        photoURL: '/files/default-profile.png',
-                        crushes: [],
-                        lockedCrushes: [],
-                        matches: [],
-                        crushCount: crushCount,
-                        userClass: currentClassView,
-                        isInactive: true,
-                        createdAt: null,
-                        updatedAt: null,
-                        lastLogin: null
-                    });
-                } else {
-                    const ghostId = `ghost-${currentClassView}-${normalizeName(className).replace(/\s+/g, '-')}`;
-                    ghostUsers.push({
-                        uid: ghostId,
-                        email: derivedEmail,
-                        name: className,
-                        photoURL: '/files/default-profile.png',
-                        crushes: [],
-                        lockedCrushes: [],
-                        matches: [],
-                        crushCount: 0,
-                        userClass: currentClassView,
-                        isGhost: true,
-                        createdAt: null,
-                        updatedAt: null,
-                        lastLogin: null
-                    });
-                }
-            });
-
-            const currentClassRealUsers = realUsers.filter(user => (user.userClass || 'gsb') === currentClassView);
-            const allUsersArray = [...currentClassRealUsers, ...inactiveUsers, ...ghostUsers];
-
-            allUsersArray.sort((a, b) => {
-                const aIsInactive = (a as InactiveUser).isInactive || false;
-                const bIsInactive = (b as InactiveUser).isInactive || false;
-                const aIsGhost = (a as GhostUser).isGhost || false;
-                const bIsGhost = (b as GhostUser).isGhost || false;
-
-                if (!aIsInactive && !aIsGhost && (bIsInactive || bIsGhost)) return -1;
-                if ((aIsInactive || aIsGhost) && !bIsInactive && !bIsGhost) return 1;
-
-                if (aIsInactive && !bIsInactive && bIsGhost) return -1;
-                if (!aIsInactive && aIsGhost && bIsInactive) return 1;
-
-                const nameA = a.name || a.email || '';
-                const nameB = b.name || b.email || '';
-                return nameA.localeCompare(nameB);
-            });
-
-            setAllUsers(allUsersArray);
-
-        } catch (error: any) {
-            console.error('Error loading all users:', error);
-        } finally {
-            setLoadingUsers(false);
-        }
-    }, [normalizeName, user?.email, currentClassView]);
-
-    useEffect(() => {
-        if (isAdminEmail(user?.email)) {
-            loadAllUsers();
-        }
-    }, [user, loadAllUsers]);
-
-    useEffect(() => {
-        if (allUsers.length > 0 && isAdminEmail(user?.email)) {
-            setLoadingAnalytics(true);
-
-            const timeoutId = setTimeout(() => {
-                try {
-                    const analyticsData = calculateClassAnalytics(currentClassView);
-                    setCurrentAnalytics(analyticsData);
-                } finally {
-                    setLoadingAnalytics(false);
-                }
-            }, 300);
-
-            return () => clearTimeout(timeoutId);
-        }
-    }, [allUsers, calculateClassAnalytics, refreshKey, user?.email, currentClassView]);
-
-    return {
-        allUsers,
-        loadingUsers,
-        currentAnalytics,
-        loadingAnalytics,
-        loadAllUsers
-    };
-};
-
-================
-File: src/hooks/useAdminUtils.ts
-================
-import { useCallback } from 'react';
-import type { UserData } from '../types/userTypes';
-
-interface CrusherInfo {
-    name: string;
-    email: string;
-}
-
-interface InactiveUser extends UserData {
-    isInactive: boolean;
-}
-
-interface GhostUser extends UserData {
-    isGhost: boolean;
-}
-
-export const useAdminUtils = (allUsers: (UserData | InactiveUser | GhostUser)[]) => {
-    const findCrushersForUser = useCallback((targetUser: UserData | InactiveUser | GhostUser): CrusherInfo[] => {
-        const crushers: CrusherInfo[] = [];
-        const targetName = targetUser.name;
-        const targetClass = targetUser.userClass || 'gsb';
-
-        if (!targetName) return crushers;
-
-        allUsers.forEach(u => {
-            if (u.uid === targetUser.uid || (u as InactiveUser).isInactive || (u as GhostUser).isGhost) return;
-
-            const userClass = u.userClass || 'gsb';
-            if (userClass !== targetClass) return;
-
-            const userCrushes = u.crushes || [];
-            if (userCrushes.includes(targetName)) {
-                crushers.push({
-                    name: u.name,
-                    email: u.email
-                });
-            }
-        });
-
-        return crushers;
-    }, [allUsers]);
-
-    return { findCrushersForUser };
-};
-
-================
-File: src/hooks/useUserDocumentManager.ts
-================
-import { useCallback } from 'react';
-import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import type { UserClass } from '../types/userTypes';
-import { getClassNames } from '../utils';
-import { findUserByEmail, normalizeEmail, isAlumniEmail, getEmailPrefix, generateAlumniEmails } from '../utils/emailUtils';
-
-export const useUserDocumentManager = (
-    setNameOptions: (options: string[] | null) => void,
-    setPendingUserClass: (userClass: UserClass | null) => void,
-    setLastUsedClass: (userClass: UserClass) => void,
-    setNeedsAccountLinking: (needs: boolean) => void,
-    setLinkedDocId: (id: string | null) => void
-) => {
-    const createOrUpdateUserDocument = useCallback(async (user: User, userClass: UserClass) => {
-        try {
-            console.log('=== START createOrUpdateUserDocument ===');
-            console.log('createOrUpdateUserDocument called with:', {
-                email: user.email,
-                uid: user.uid,
-                userClass
-            });
-
-            if (!user.email) {
-                console.log('No email, returning early');
-                return;
-            }
-
-            const signInEmail = normalizeEmail(user.email);
-            console.log('Normalized email:', signInEmail);
-
-            console.log('About to call findUserByEmail...');
-            const lookupResult = await findUserByEmail(signInEmail);
-            console.log('Lookup result:', lookupResult);
-
-            if (lookupResult.docId && lookupResult.userData) {
-                console.log('Found existing user, updating lastLogin');
-                const userRef = doc(db, 'users', lookupResult.docId);
-                await setDoc(userRef, {
-                    lastLogin: serverTimestamp()
-                }, { merge: true });
-                console.log('Updated lastLogin successfully');
-
-                setLastUsedClass(lookupResult.userData.userClass || userClass);
-                setNeedsAccountLinking(false);
-                console.log('=== END createOrUpdateUserDocument (existing user) ===');
-                return;
-            }
-
-            console.log('No existing user found');
-            if (isAlumniEmail(signInEmail)) {
-                console.log('Is alumni email, setting needsAccountLinking');
-                setNeedsAccountLinking(true);
-                setPendingUserClass(userClass);
-                console.log('=== END createOrUpdateUserDocument (needs linking) ===');
-                return;
-            }
-
-            console.log('Is Stanford email, checking for existing doc');
-            let actualUid: string;
-            let userRef;
-
-            if (user.email === 'jpark22@stanford.edu') {
-                actualUid = `${user.uid}_${userClass}`;
-                userRef = doc(db, 'users', actualUid);
-                console.log('Test user, using UID:', actualUid);
-            } else {
-                actualUid = user.uid;
-                userRef = doc(db, 'users', actualUid);
-                console.log('Regular user, using UID:', actualUid);
-            }
-
-            console.log('Checking if user doc exists...');
-            const userDoc = await getDoc(userRef);
-            console.log('User doc exists?', userDoc.exists());
-
-            if (userDoc.exists()) {
-                console.log('Doc exists, updating lastLogin');
-                await setDoc(userRef, {
-                    lastLogin: serverTimestamp()
-                }, { merge: true });
-
-                setLastUsedClass(userClass);
-                console.log('=== END createOrUpdateUserDocument (existing doc) ===');
-                return;
-            }
-
-            console.log('Doc does not exist, getting class names');
-            const allNames = await getClassNames(userClass);
-            console.log('Got class names, count:', allNames.length);
-
-            const displayName = user.displayName || '';
-            console.log('Display name:', displayName);
-
-            const nameParts = displayName.trim().split(' ');
-            console.log('Name parts:', nameParts);
-
-            let matchingNames: string[] = [];
-
-            if (nameParts.length >= 2) {
-                const firstName = nameParts[0].toLowerCase();
-                const lastName = nameParts[nameParts.length - 1].toLowerCase();
-                console.log('Searching for first+last:', firstName, lastName);
-
-                matchingNames = allNames.filter(name => {
-                    const lowerName = name.toLowerCase();
-                    return lowerName.includes(firstName) && lowerName.includes(lastName);
-                });
-                console.log('First+last matches:', matchingNames.length);
-            }
-
-            if (matchingNames.length === 0) {
-                console.log('No first+last matches, trying partial match');
-                matchingNames = allNames.filter(name => {
-                    const lowerName = name.toLowerCase();
-                    return nameParts.some(part =>
-                        part.length > 2 && lowerName.includes(part.toLowerCase())
-                    );
-                });
-                console.log('Partial matches:', matchingNames.length);
-            }
-
-            if (matchingNames.length === 1) {
-                console.log('Exactly one match, creating doc with name:', matchingNames[0]);
-                await setDoc(userRef, {
-                    uid: user.uid,
-                    email: signInEmail,
-                    emailAlumni: '',
-                    emailAlumniGSB: '',
-                    name: matchingNames[0],
-                    photoURL: user.photoURL || '',
-                    crushes: [],
-                    lockedCrushes: [],
-                    matches: [],
-                    crushCount: 0,
-                    userClass: userClass,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                    lastLogin: serverTimestamp()
-                });
-                console.log('Doc created successfully');
-
-                setLastUsedClass(userClass);
-                console.log('=== END createOrUpdateUserDocument (new doc created) ===');
-                return;
-            }
-
-            if (matchingNames.length > 1) {
-                console.log('Multiple matches, setting nameOptions');
-                setNameOptions(matchingNames);
-                setPendingUserClass(userClass);
-                console.log('=== END createOrUpdateUserDocument (multiple matches) ===');
-                return;
-            }
-
-            console.log('No matches, showing all names');
-            setNameOptions(allNames);
-            setPendingUserClass(userClass);
-            console.log('=== END createOrUpdateUserDocument (no matches, all names) ===');
-
-        } catch (error) {
-            console.error('!!! ERROR in createOrUpdateUserDocument !!!', error);
-            throw error;
-        }
-    }, [setNameOptions, setPendingUserClass, setLastUsedClass, setNeedsAccountLinking, setLinkedDocId]);
-
-    const createNewAccountWithAlumniEmail = useCallback(async (
-        user: User,
-        userClass: UserClass,
-        selectedName: string
-    ) => {
-        if (!user.email) return;
-
-        const signInEmail = normalizeEmail(user.email);
-        const prefix = getEmailPrefix(signInEmail);
-        const { emailAlumni, emailAlumniGSB } = generateAlumniEmails(prefix);
-
-        const actualUid = user.uid;
-        const userRef = doc(db, 'users', actualUid);
-
-        const userData: any = {
-            uid: user.uid,
-            name: selectedName,
-            photoURL: user.photoURL || '',
-            crushes: [],
-            lockedCrushes: [],
-            matches: [],
-            crushCount: 0,
-            userClass: userClass,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            lastLogin: serverTimestamp()
-        };
-
-        if (signInEmail.endsWith('@alumni.stanford.edu')) {
-            userData.email = '';
-            userData.emailAlumni = signInEmail;
-            userData.emailAlumniGSB = emailAlumniGSB;
-        } else if (signInEmail.endsWith('@alumni.gsb.stanford.edu')) {
-            userData.email = '';
-            userData.emailAlumni = emailAlumni;
-            userData.emailAlumniGSB = signInEmail;
-        } else {
-            userData.email = signInEmail;
-            userData.emailAlumni = '';
-            userData.emailAlumniGSB = '';
-        }
-
-        await setDoc(userRef, userData);
-        setLastUsedClass(userClass);
-    }, [setLastUsedClass]);
-
-    return {
-        createOrUpdateUserDocument,
-        createNewAccountWithAlumniEmail
-    };
-};
-
-================
 File: src/styles/admin.css
 ================
 /* Admin View Main Styles */
@@ -4137,12 +3471,1598 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplay
 export default AdminAnalytics;
 
 ================
+File: src/components/dashboard/SelectedNamesSection.tsx
+================
+import { useEffect, useState } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import UserPhoto from '../shared/UserPhoto';
+
+interface SelectedNamesSectionProps {
+    selectedNames: string[];
+    savedNames: string[];
+    lockedCrushes: string[];
+    matches: Array<{ name: string; email: string }>;
+    onRemove: (name: string) => void;
+    userClass: string;
+}
+
+interface UserPhotoData {
+    name: string;
+    customPhotoURL?: string;
+}
+
+const SelectedNamesSection = ({
+    selectedNames,
+    savedNames,
+    lockedCrushes,
+    matches,
+    onRemove,
+    userClass
+}: SelectedNamesSectionProps) => {
+    const [photoCache, setPhotoCache] = useState<Map<string, string>>(new Map());
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const loadPhotos = async () => {
+            if (selectedNames.length === 0) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const usersRef = collection(db, 'users');
+                const snapshot = await getDocs(usersRef);
+
+                const cache = new Map<string, string>();
+                snapshot.forEach(doc => {
+                    const data = doc.data() as UserPhotoData;
+                    if (data.customPhotoURL) {
+                        cache.set(data.name, data.customPhotoURL);
+                    }
+                });
+
+                setPhotoCache(cache);
+            } catch (error) {
+                console.error('Error loading photos:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadPhotos();
+    }, [selectedNames]);
+
+    const hasUnsavedChanges = JSON.stringify([...selectedNames].sort()) !== JSON.stringify([...savedNames].sort());
+    const matchedNames = new Set(matches.map(m => m.name));
+
+    const handleRemoveClick = (name: string) => {
+        if (lockedCrushes.includes(name)) {
+            return;
+        }
+        onRemove(name);
+    };
+
+    if (loading) {
+        return (
+            <div className="selected-section">
+                <h3>Your Selections ({selectedNames.length})</h3>
+                <div className="classmates-list">
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                        Loading...
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="selected-section">
+            <h3>Your Selections ({selectedNames.length})</h3>
+
+            {selectedNames.length === 0 ? (
+                <div className="classmates-list">
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                        No selections yet. Add classmates from below.
+                    </div>
+                </div>
+            ) : (
+                <div className="classmates-list">
+                    {selectedNames.map((name) => {
+                        const isLocked = lockedCrushes.includes(name);
+                        const isMatched = matchedNames.has(name);
+                        const photoURL = photoCache.get(name);
+
+                        return (
+                            <div
+                                key={name}
+                                className="classmate-item"
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                    <UserPhoto
+                                        name={name}
+                                        userClass={userClass}
+                                        size="small"
+                                        photoUrl={photoURL}
+                                    />
+                                    <span style={{
+                                        flex: 1,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        {name}
+                                    </span>
+                                </div>
+
+                                {isLocked ? (
+                                    <button
+                                        className="action-btn locked"
+                                        disabled
+                                        title={isMatched ? "Matched!" : "Locked"}
+                                    >
+                                        🔒
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="action-btn remove"
+                                        onClick={() => handleRemoveClick(name)}
+                                        title="Remove"
+                                    >
+                                        ×
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {hasUnsavedChanges && selectedNames.length > 0 && (
+                <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    background: '#fff3cd',
+                    border: '1px solid #ffc107',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#856404'
+                }}>
+                    You have unsaved changes. Click "Update Preferences" to save.
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default SelectedNamesSection;
+
+================
+File: src/components/AccountLinking.tsx
+================
+import { useState, useEffect } from 'react';
+import type { User as FirebaseUser } from 'firebase/auth';
+import { collection, getDocs, doc, runTransaction } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { normalizeEmail, fuzzyNameMatch, isAlumniEmail } from '../utils/emailUtils';
+import type { UserClass } from '../types';
+
+interface AccountLinkingProps {
+    user: FirebaseUser;
+    userClass: UserClass;
+    onLinkingComplete: () => void;
+    onStartNewAccount: () => void;
+    logout: () => void;
+}
+
+interface PotentialMatch {
+    id: string;
+    name: string;
+    email: string;
+}
+
+const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount, logout }: AccountLinkingProps) => {
+    const [filteredMatches, setFilteredMatches] = useState<PotentialMatch[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [linking, setLinking] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [selectedMatch, setSelectedMatch] = useState<PotentialMatch | null>(null);
+
+    useEffect(() => {
+        loadPotentialMatches();
+    }, []);
+
+    useEffect(() => {
+        // Validate alumni email on component mount
+        if (user?.email && !isAlumniEmail(user.email)) {
+            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
+            setLoading(false);
+        }
+    }, [user?.email]);
+
+    const loadPotentialMatches = async () => {
+        try {
+            const usersRef = collection(db, 'users');
+            const snapshot = await getDocs(usersRef);
+
+            const matches: PotentialMatch[] = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                // Only show users with empty alumni email fields and matching userClass
+                if (data.userClass === userClass && !data.emailAlumni && !data.emailAlumniGSB) {
+                    matches.push({
+                        id: doc.id,
+                        name: data.name,
+                        email: data.email
+                    });
+                }
+            });
+            
+            // Apply fuzzy matching
+            const googleName = user.displayName || '';
+            if (googleName) {
+                const MIN_SCORE = 60;
+                const filtered = matches
+                    .map(u => ({
+                        ...u,
+                        score: fuzzyNameMatch(googleName, u.name)
+                    }))
+                    .filter(u => u.score >= MIN_SCORE)
+                    .sort((a, b) => b.score - a.score);
+
+                setFilteredMatches(filtered);
+            } else {
+                // If no Google name available, show all (fallback)
+                setFilteredMatches(matches.sort((a, b) => a.name.localeCompare(b.name)));
+            }
+        } catch (err) {
+            console.error('Error loading potential matches:', err);
+            setError('Failed to load account options');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Check if we have a high-confidence match (score >= 75)
+    const hasHighConfidenceMatch = filteredMatches.length > 0 &&
+        filteredMatches.some(m => (m as any).score >= 75);
+
+    const handleSelectMatch = (match: PotentialMatch) => {
+        setSelectedMatch(match);
+        setError(null);
+    };
+
+    const handleConfirmLink = async () => {
+        if (!user?.email || !selectedMatch || linking) return;
+
+        // Validate alumni email before linking
+        if (!isAlumniEmail(user.email)) {
+            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
+            return;
+        }
+
+        setLinking(true);
+        setError(null);
+
+        try {
+            const alumniEmail = normalizeEmail(user.email);
+            const base = alumniEmail.split('@')[0];
+            const alumniStanford = `${base}@alumni.stanford.edu`;
+            const alumniGSB = `${base}@alumni.gsb.stanford.edu`;
+
+            // First check outside transaction if these emails are already in use
+            const usersRef = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersRef);
+
+            for (const doc of usersSnapshot.docs) {
+                if (doc.id === selectedMatch.id) continue;
+
+                const data = doc.data();
+                const emailMatch = (data.emailAlumni && normalizeEmail(data.emailAlumni) === alumniEmail) ||
+                    (data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === alumniEmail);
+
+                if (emailMatch) {
+                    throw new Error('This alumni email is already linked to another account');
+                }
+            }
+
+            const userRef = doc(db, 'users', selectedMatch.id);
+
+            // Use transaction to prevent race conditions
+            await runTransaction(db, async (transaction) => {
+                const userDoc = await transaction.get(userRef);
+
+                if (!userDoc.exists()) {
+                    throw new Error('Selected account no longer exists');
+                }
+
+                const userData = userDoc.data();
+
+                // Verify the account still has empty alumni emails
+                if (userData.emailAlumni || userData.emailAlumniGSB) {
+                    throw new Error('This account has already been linked to another alumni email');
+                }
+
+                // Verify it's the correct class
+                if (userData.userClass !== userClass) {
+                    throw new Error(`Can only link to ${userClass} accounts`);
+                }
+
+                // Update both alumni email fields atomically
+                transaction.update(userRef, {
+                    emailAlumni: alumniStanford,
+                    emailAlumniGSB: alumniGSB,
+                    updatedAt: new Date()
+                });
+            });
+
+            console.log('Account linked successfully');
+            onLinkingComplete();
+        } catch (err) {
+            console.error('Error linking account:', err);
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError('Failed to link account. Please try again.');
+            }
+            await loadPotentialMatches();
+            setSelectedMatch(null);
+        } finally {
+            setLinking(false);
+        }
+    };
+
+    const handleGoBack = () => {
+        setSelectedMatch(null);
+        setError(null);
+    };
+
+    if (loading) {
+        return (
+            <div className="auth-container">
+                <div className="auth-card">
+                    <div className="loading">Loading...</div>
+                </div>
+            </div>
+        );
+    }
+
+    // Confirmation screen
+    if (selectedMatch) {
+        return (
+            <div className="auth-container">
+                <div className="auth-card">
+                    <h1>Confirm Account Link</h1>
+                    <p className="auth-email">
+                        Signing in as <strong>{user?.email}</strong>
+                    </p>
+
+                    {error && (
+                        <div className="error-banner">
+                            {error}
+                        </div>
+                    )}
+
+                    {linking && (
+                        <div className="linking-banner">
+                            Linking account...
+                        </div>
+                    )}
+
+                    <div className="confirmation-box">
+                        <p className="confirmation-question">Are you sure you want to link your alumni email to this account?</p>
+                        <div className="selected-account-display">
+                            <div className="selected-name">{selectedMatch.name}</div>
+                            <div className="selected-email">{selectedMatch.email}</div>
+                        </div>
+                    </div>
+
+                    <div className="confirmation-buttons">
+                        <button
+                            onClick={handleConfirmLink}
+                            disabled={linking}
+                            className="confirm-btn"
+                        >
+                            Yes, Link Account
+                        </button>
+                        <button
+                            onClick={handleGoBack}
+                            disabled={linking}
+                            className="cancel-btn"
+                        >
+                            Go Back
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={logout}
+                        disabled={linking}
+                        className="signout-link"
+                    >
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Account selection screen
+    return (
+        <div className="auth-container">
+            <div className="auth-card linking-card">
+                <h1>Link Your Alumni Email</h1>
+                <p className="auth-email">
+                    Signing in as <strong>{user?.email}</strong>
+                </p>
+                {user.displayName && (
+                    <p className="auth-email" style={{ fontSize: '0.9em', marginTop: '-8px' }}>
+                        Google account name: <strong>{user.displayName}</strong>
+                    </p>
+                )}
+
+                {error && (
+                    <div className="error-banner">
+                        {error}
+                    </div>
+                )}
+
+                {filteredMatches.length > 0 ? (
+                    <>
+                        <p className="linking-instructions">
+                            Below are Second Chances accounts that match your name and haven't been linked with an alumni email. If you see your name, click it to link your account.
+                        </p>
+
+                        <div className="account-matches-grid">
+                            {filteredMatches.map((match) => (
+                                <button
+                                    key={match.id}
+                                    onClick={() => handleSelectMatch(match)}
+                                    className="account-match-card"
+                                >
+                                    <div className="match-name">{match.name}</div>
+                                    <div className="match-email">{match.email}</div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="help-notice">
+                            {hasHighConfidenceMatch
+                                ? <>Don't see your account but can't create a new one? We found a strong match to your name. If none of these are yours, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                                : <>Don't see your account but certain you had one? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
+                            }
+                        </div>
+
+                        {!hasHighConfidenceMatch && (
+                            <div className="divider">
+                                <span>OR</span>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <p className="linking-instructions">
+                            We couldn't find any existing accounts that match your name.
+                        </p>
+                        <div className="help-notice">
+                            If you previously had an account, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a>
+                        </div>
+                    </>
+                )}
+
+                {!hasHighConfidenceMatch && (
+                    <button
+                        onClick={onStartNewAccount}
+                        className="new-account-btn"
+                    >
+                        Start New Account
+                    </button>
+                )}
+
+                <button
+                    onClick={logout}
+                    className="signout-link"
+                >
+                    Sign Out
+                </button>
+            </div>
+        </div>
+    );
+};
+
+export default AccountLinking;
+
+================
+File: src/hooks/useAdminData.ts
+================
+import { useState, useCallback, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { GSB_CLASS_NAMES } from '../data/names';
+import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
+import type { UserData, UserClass } from '../types';
+import { findUserByName, isAdminEmail } from '../utils/adminUtils';
+
+interface CrusherInfo {
+    name: string;
+    email: string;
+}
+
+interface InactiveUser extends UserData {
+    isInactive: boolean;
+}
+
+interface GhostUser extends UserData {
+    isGhost: boolean;
+}
+
+interface ClassAnalyticsData {
+    totalUsers: number;
+    totalClassSize: number;
+    totalMatches: number;
+    matchedPairs: string[];
+    totalCrushes: number;
+    peopleWithCrushes: number;
+    avgCrushes: number;
+    usersWithCrushes: number;
+    usersWithMatches: number;
+    participationRate: number;
+    classParticipationRate: number;
+    orphanedCrushes: string[];
+    topCrushReceivers: Array<{ name: string; count: number; crushers: string[] }>;
+    topCrushSenders: Array<{ name: string; count: number; crushNames: string[] }>;
+    inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }>;
+    activeUsersLast24h: number;
+}
+
+export const useAdminData = (user: any, currentClassView: UserClass, refreshKey: number) => {
+    const [allUsers, setAllUsers] = useState<(UserData | InactiveUser | GhostUser)[]>([]);
+    const [loadingUsers, setLoadingUsers] = useState(false);
+    const [currentAnalytics, setCurrentAnalytics] = useState<ClassAnalyticsData | null>(null);
+    const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+    const normalizeName = useCallback((name: string): string => {
+        if (!name || typeof name !== 'string') return '';
+
+        return name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }, []);
+
+    const calculateRealTime24hActiveUsers = useCallback((activeUsers: UserData[]): number => {
+        if (activeUsers.length === 0) return 0;
+
+        const twentyFourHoursAgo = new Date(Date.now() - (24 * 60 * 60 * 1000));
+        let recentlyActiveCount = 0;
+
+        activeUsers.forEach(user => {
+            if (user.lastLogin) {
+                let lastLoginDate;
+
+                if (user.lastLogin.toDate) {
+                    lastLoginDate = user.lastLogin.toDate();
+                } else if (user.lastLogin.seconds) {
+                    lastLoginDate = new Date(user.lastLogin.seconds * 1000);
+                } else {
+                    lastLoginDate = new Date(user.lastLogin);
+                }
+
+                if (lastLoginDate > twentyFourHoursAgo) {
+                    recentlyActiveCount++;
+                }
+            }
+        });
+
+        return Number((recentlyActiveCount / activeUsers.length * 100).toFixed(2));
+    }, []);
+
+    const calculateClassAnalytics = useCallback((targetClass: UserClass): ClassAnalyticsData => {
+        const realUsers = allUsers.filter(u =>
+            !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
+        ) as UserData[];
+
+        const classUsers = realUsers.filter(user => (user.userClass || 'gsb') === targetClass);
+
+        const totalClassSize = targetClass === 'gsb' ? GSB_CLASS_NAMES.length : UNDERGRAD_CLASS_NAMES.length;
+
+        const totalUsers = classUsers.length;
+
+        const classPairs = new Set<string>();
+
+        classUsers.forEach(user => {
+            const matches = user.matches || [];
+            if (Array.isArray(matches) && matches.length > 0) {
+                matches.forEach(match => {
+                    const matchName = match.name || match;
+                    const pair = [user.name, matchName].sort().join(' ↔ ');
+                    classPairs.add(pair);
+                });
+            }
+        });
+
+        const totalMatches = classPairs.size;
+        const matchedPairs = Array.from(classPairs).sort();
+
+        let totalCrushes = 0;
+
+        classUsers.forEach(user => {
+            const userCrushes = user.crushes || [];
+            totalCrushes += userCrushes.length;
+        });
+
+        const crushCounts = new Map<string, number>();
+        const crushersMap = new Map<string, string[]>();
+
+        classUsers.forEach(user => {
+            const userCrushes = user.crushes || [];
+            userCrushes.forEach(crushName => {
+                const targetUser = findUserByName(crushName, allUsers, targetClass);
+
+                if (targetUser) {
+                    const actualName = targetUser.name;
+                    if (actualName) {
+                        crushCounts.set(actualName, (crushCounts.get(actualName) || 0) + 1);
+                        if (!crushersMap.has(actualName)) {
+                            crushersMap.set(actualName, []);
+                        }
+                        crushersMap.get(actualName)!.push(user.name);
+                    }
+                } else {
+                    crushCounts.set(crushName, (crushCounts.get(crushName) || 0) + 1);
+                    if (!crushersMap.has(crushName)) {
+                        crushersMap.set(crushName, []);
+                    }
+                    crushersMap.get(crushName)!.push(user.name);
+                }
+            });
+        });
+
+        const peopleWithCrushes = Array.from(crushCounts.keys()).filter(name => crushCounts.get(name)! > 0).length;
+        const avgCrushes = totalUsers > 0 ? totalCrushes / totalUsers : 0;
+
+        const usersWithCrushes = classUsers.filter(user => user.crushes.length > 0).length;
+        const usersWithMatches = classUsers.filter(user => user.matches.length > 0).length;
+
+        const participationRate = totalUsers > 0 ? (usersWithCrushes / totalUsers * 100) : 0;
+        const classParticipationRate = totalClassSize > 0 ? (usersWithCrushes / totalClassSize * 100) : 0;
+
+        const orphanedCrushes: string[] = [];
+        const allCrushNames = new Set<string>();
+
+        classUsers.forEach(user => {
+            const userCrushes = user.crushes || [];
+            userCrushes.forEach(crushName => {
+                allCrushNames.add(crushName);
+            });
+        });
+
+        allCrushNames.forEach(crushName => {
+            const match = findUserByName(crushName, allUsers, targetClass);
+            if (!match) {
+                orphanedCrushes.push(crushName);
+            }
+        });
+
+        const topCrushReceivers = Array.from(crushCounts.entries())
+            .map(([name, count]) => ({
+                name,
+                count,
+                crushers: crushersMap.get(name) || []
+            }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 25);
+
+        const topCrushSenders = classUsers
+            .map(user => ({
+                name: user.name,
+                count: user.crushes.length,
+                crushNames: user.crushes
+            }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 25);
+
+        const inactiveReceivers: Array<{ name: string; email: string; crushCount: number; reason: string; crushers: CrusherInfo[] }> = [];
+
+        classUsers.forEach(user => {
+            if (user.crushCount > 0) {
+                const hasSubmittedCrushes = !!(user.crushes && user.crushes.length > 0);
+
+                if (!hasSubmittedCrushes) {
+                    const crushers: CrusherInfo[] = [];
+                    const targetName = user.name;
+                    const targetClass = user.userClass || 'gsb';
+
+                    if (targetName) {
+                        allUsers.forEach(u => {
+                            if (u.uid === user.uid || (u as InactiveUser).isInactive || (u as GhostUser).isGhost) return;
+
+                            const userClass = u.userClass || 'gsb';
+                            if (userClass !== targetClass) return;
+
+                            const userCrushes = u.crushes || [];
+                            if (userCrushes.includes(targetName)) {
+                                crushers.push({
+                                    name: u.name,
+                                    email: u.email
+                                });
+                            }
+                        });
+                    }
+
+                    inactiveReceivers.push({
+                        name: user.name || 'Unknown',
+                        email: user.email,
+                        crushCount: user.crushCount,
+                        reason: 'No crushes submitted',
+                        crushers
+                    });
+                }
+            }
+        });
+
+        inactiveReceivers.sort((a, b) => b.crushCount - a.crushCount);
+
+        return {
+            totalUsers,
+            totalClassSize,
+            totalMatches,
+            matchedPairs,
+            totalCrushes,
+            peopleWithCrushes,
+            avgCrushes: Number(avgCrushes.toFixed(2)),
+            usersWithCrushes,
+            usersWithMatches,
+            participationRate: Number(participationRate.toFixed(2)),
+            classParticipationRate: Number(classParticipationRate.toFixed(2)),
+            orphanedCrushes,
+            topCrushReceivers,
+            topCrushSenders,
+            inactiveReceivers,
+            activeUsersLast24h: calculateRealTime24hActiveUsers(classUsers)
+        };
+    }, [allUsers, calculateRealTime24hActiveUsers]);
+
+    const loadAllUsers = useCallback(async () => {
+        if (!isAdminEmail(user?.email)) {
+            return;
+        }
+
+        setLoadingUsers(true);
+        try {
+            const usersSnapshot = await getDocs(collection(db, 'users'));
+            const realUsers: UserData[] = [];
+
+            usersSnapshot.forEach(doc => {
+                const data = doc.data() as UserData;
+                realUsers.push({
+                    ...data,
+                    uid: doc.id,
+                    userClass: data.userClass || 'gsb'
+                });
+            });
+
+            const realUserNames = new Set(realUsers.map(u => u.name).filter(Boolean));
+            const inactiveUsers: InactiveUser[] = [];
+            const ghostUsers: GhostUser[] = [];
+
+            const currentClassNames = currentClassView === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+
+            currentClassNames.forEach(className => {
+                if (realUserNames.has(className)) {
+                    return;
+                }
+
+                let crushCount = 0;
+                realUsers.forEach(user => {
+                    if ((user.userClass || 'gsb') === currentClassView) {
+                        const userCrushes = user.crushes || [];
+                        if (userCrushes.includes(className)) {
+                            crushCount++;
+                        }
+                    }
+                });
+
+                const derivedEmail = `${className.toLowerCase().replace(/\s+/g, '.')}@stanford.edu`;
+
+                if (crushCount > 0) {
+                    const inactiveId = `inactive-${currentClassView}-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    inactiveUsers.push({
+                        uid: inactiveId,
+                        email: derivedEmail,
+                        name: className,
+                        photoURL: '/files/default-profile.png',
+                        crushes: [],
+                        lockedCrushes: [],
+                        matches: [],
+                        crushCount: crushCount,
+                        userClass: currentClassView,
+                        isInactive: true,
+                        createdAt: null,
+                        updatedAt: null,
+                        lastLogin: null
+                    });
+                } else {
+                    const ghostId = `ghost-${currentClassView}-${normalizeName(className).replace(/\s+/g, '-')}`;
+                    ghostUsers.push({
+                        uid: ghostId,
+                        email: derivedEmail,
+                        name: className,
+                        photoURL: '/files/default-profile.png',
+                        crushes: [],
+                        lockedCrushes: [],
+                        matches: [],
+                        crushCount: 0,
+                        userClass: currentClassView,
+                        isGhost: true,
+                        createdAt: null,
+                        updatedAt: null,
+                        lastLogin: null
+                    });
+                }
+            });
+
+            const currentClassRealUsers = realUsers.filter(user => (user.userClass || 'gsb') === currentClassView);
+            const allUsersArray = [...currentClassRealUsers, ...inactiveUsers, ...ghostUsers];
+
+            allUsersArray.sort((a, b) => {
+                const aIsInactive = (a as InactiveUser).isInactive || false;
+                const bIsInactive = (b as InactiveUser).isInactive || false;
+                const aIsGhost = (a as GhostUser).isGhost || false;
+                const bIsGhost = (b as GhostUser).isGhost || false;
+
+                if (!aIsInactive && !aIsGhost && (bIsInactive || bIsGhost)) return -1;
+                if ((aIsInactive || aIsGhost) && !bIsInactive && !bIsGhost) return 1;
+
+                if (aIsInactive && !bIsInactive && bIsGhost) return -1;
+                if (!aIsInactive && aIsGhost && bIsInactive) return 1;
+
+                const nameA = a.name || a.email || '';
+                const nameB = b.name || b.email || '';
+                return nameA.localeCompare(nameB);
+            });
+
+            setAllUsers(allUsersArray);
+
+        } catch (error: any) {
+            console.error('Error loading all users:', error);
+        } finally {
+            setLoadingUsers(false);
+        }
+    }, [normalizeName, user?.email, currentClassView]);
+
+    useEffect(() => {
+        if (isAdminEmail(user?.email)) {
+            loadAllUsers();
+        }
+    }, [user, loadAllUsers]);
+
+    useEffect(() => {
+        if (allUsers.length > 0 && isAdminEmail(user?.email)) {
+            setLoadingAnalytics(true);
+
+            const timeoutId = setTimeout(() => {
+                try {
+                    const analyticsData = calculateClassAnalytics(currentClassView);
+                    setCurrentAnalytics(analyticsData);
+                } finally {
+                    setLoadingAnalytics(false);
+                }
+            }, 300);
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [allUsers, calculateClassAnalytics, refreshKey, user?.email, currentClassView]);
+
+    return {
+        allUsers,
+        loadingUsers,
+        currentAnalytics,
+        loadingAnalytics,
+        loadAllUsers
+    };
+};
+
+================
+File: src/hooks/useAdminUtils.ts
+================
+import { useCallback } from 'react';
+import type { UserData } from '../types';
+
+interface CrusherInfo {
+    name: string;
+    email: string;
+}
+
+interface InactiveUser extends UserData {
+    isInactive: boolean;
+}
+
+interface GhostUser extends UserData {
+    isGhost: boolean;
+}
+
+export const useAdminUtils = (allUsers: (UserData | InactiveUser | GhostUser)[]) => {
+    const findCrushersForUser = useCallback((targetUser: UserData | InactiveUser | GhostUser): CrusherInfo[] => {
+        const crushers: CrusherInfo[] = [];
+        const targetName = targetUser.name;
+        const targetClass = targetUser.userClass || 'gsb';
+
+        if (!targetName) return crushers;
+
+        allUsers.forEach(u => {
+            if (u.uid === targetUser.uid || (u as InactiveUser).isInactive || (u as GhostUser).isGhost) return;
+
+            const userClass = u.userClass || 'gsb';
+            if (userClass !== targetClass) return;
+
+            const userCrushes = u.crushes || [];
+            if (userCrushes.includes(targetName)) {
+                crushers.push({
+                    name: u.name,
+                    email: u.email
+                });
+            }
+        });
+
+        return crushers;
+    }, [allUsers]);
+
+    return { findCrushersForUser };
+};
+
+================
+File: src/hooks/useUserDocumentManager.ts
+================
+import { useCallback } from 'react';
+import type { User } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import type { UserClass } from '../types';
+import { getClassNames } from '../utils';
+import { findUserByEmail, normalizeEmail, isAlumniEmail, getEmailPrefix, generateAlumniEmails } from '../utils/emailUtils';
+
+export const useUserDocumentManager = (
+    setNameOptions: (options: string[] | null) => void,
+    setPendingUserClass: (userClass: UserClass | null) => void,
+    setLastUsedClass: (userClass: UserClass) => void,
+    setNeedsAccountLinking: (needs: boolean) => void,
+    setLinkedDocId: (id: string | null) => void
+) => {
+    const createOrUpdateUserDocument = useCallback(async (user: User, userClass: UserClass) => {
+        try {
+            console.log('=== START createOrUpdateUserDocument ===');
+            console.log('createOrUpdateUserDocument called with:', {
+                email: user.email,
+                uid: user.uid,
+                userClass
+            });
+
+            if (!user.email) {
+                console.log('No email, returning early');
+                return;
+            }
+
+            const signInEmail = normalizeEmail(user.email);
+            console.log('Normalized email:', signInEmail);
+
+            console.log('About to call findUserByEmail...');
+            const lookupResult = await findUserByEmail(signInEmail);
+            console.log('Lookup result:', lookupResult);
+
+            if (lookupResult.docId && lookupResult.userData) {
+                console.log('Found existing user, updating lastLogin');
+                const userRef = doc(db, 'users', lookupResult.docId);
+                await setDoc(userRef, {
+                    lastLogin: serverTimestamp()
+                }, { merge: true });
+                console.log('Updated lastLogin successfully');
+
+                setLastUsedClass(lookupResult.userData.userClass || userClass);
+                setNeedsAccountLinking(false);
+                console.log('=== END createOrUpdateUserDocument (existing user) ===');
+                return;
+            }
+
+            console.log('No existing user found');
+            if (isAlumniEmail(signInEmail)) {
+                console.log('Is alumni email, setting needsAccountLinking');
+                setNeedsAccountLinking(true);
+                setPendingUserClass(userClass);
+                console.log('=== END createOrUpdateUserDocument (needs linking) ===');
+                return;
+            }
+
+            console.log('Is Stanford email, checking for existing doc');
+            let actualUid: string;
+            let userRef;
+
+            if (user.email === 'jpark22@stanford.edu') {
+                actualUid = `${user.uid}_${userClass}`;
+                userRef = doc(db, 'users', actualUid);
+                console.log('Test user, using UID:', actualUid);
+            } else {
+                actualUid = user.uid;
+                userRef = doc(db, 'users', actualUid);
+                console.log('Regular user, using UID:', actualUid);
+            }
+
+            console.log('Checking if user doc exists...');
+            const userDoc = await getDoc(userRef);
+            console.log('User doc exists?', userDoc.exists());
+
+            if (userDoc.exists()) {
+                console.log('Doc exists, updating lastLogin');
+                await setDoc(userRef, {
+                    lastLogin: serverTimestamp()
+                }, { merge: true });
+
+                setLastUsedClass(userClass);
+                console.log('=== END createOrUpdateUserDocument (existing doc) ===');
+                return;
+            }
+
+            console.log('Doc does not exist, getting class names');
+            const allNames = await getClassNames(userClass);
+            console.log('Got class names, count:', allNames.length);
+
+            const displayName = user.displayName || '';
+            console.log('Display name:', displayName);
+
+            const nameParts = displayName.trim().split(' ');
+            console.log('Name parts:', nameParts);
+
+            let matchingNames: string[] = [];
+
+            if (nameParts.length >= 2) {
+                const firstName = nameParts[0].toLowerCase();
+                const lastName = nameParts[nameParts.length - 1].toLowerCase();
+                console.log('Searching for first+last:', firstName, lastName);
+
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return lowerName.includes(firstName) && lowerName.includes(lastName);
+                });
+                console.log('First+last matches:', matchingNames.length);
+            }
+
+            if (matchingNames.length === 0) {
+                console.log('No first+last matches, trying partial match');
+                matchingNames = allNames.filter(name => {
+                    const lowerName = name.toLowerCase();
+                    return nameParts.some(part =>
+                        part.length > 2 && lowerName.includes(part.toLowerCase())
+                    );
+                });
+                console.log('Partial matches:', matchingNames.length);
+            }
+
+            if (matchingNames.length === 1) {
+                console.log('Exactly one match, creating doc with name:', matchingNames[0]);
+                await setDoc(userRef, {
+                    uid: user.uid,
+                    email: signInEmail,
+                    emailAlumni: '',
+                    emailAlumniGSB: '',
+                    name: matchingNames[0],
+                    photoURL: user.photoURL || '',
+                    crushes: [],
+                    lockedCrushes: [],
+                    matches: [],
+                    crushCount: 0,
+                    userClass: userClass,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    lastLogin: serverTimestamp()
+                });
+                console.log('Doc created successfully');
+
+                setLastUsedClass(userClass);
+                console.log('=== END createOrUpdateUserDocument (new doc created) ===');
+                return;
+            }
+
+            if (matchingNames.length > 1) {
+                console.log('Multiple matches, setting nameOptions');
+                setNameOptions(matchingNames);
+                setPendingUserClass(userClass);
+                console.log('=== END createOrUpdateUserDocument (multiple matches) ===');
+                return;
+            }
+
+            console.log('No matches, showing all names');
+            setNameOptions(allNames);
+            setPendingUserClass(userClass);
+            console.log('=== END createOrUpdateUserDocument (no matches, all names) ===');
+
+        } catch (error) {
+            console.error('!!! ERROR in createOrUpdateUserDocument !!!', error);
+            throw error;
+        }
+    }, [setNameOptions, setPendingUserClass, setLastUsedClass, setNeedsAccountLinking, setLinkedDocId]);
+
+    const createNewAccountWithAlumniEmail = useCallback(async (
+        user: User,
+        userClass: UserClass,
+        selectedName: string
+    ) => {
+        if (!user.email) return;
+
+        const signInEmail = normalizeEmail(user.email);
+        const prefix = getEmailPrefix(signInEmail);
+        const { emailAlumni, emailAlumniGSB } = generateAlumniEmails(prefix);
+
+        const actualUid = user.uid;
+        const userRef = doc(db, 'users', actualUid);
+
+        const userData: any = {
+            uid: user.uid,
+            name: selectedName,
+            photoURL: user.photoURL || '',
+            crushes: [],
+            lockedCrushes: [],
+            matches: [],
+            crushCount: 0,
+            userClass: userClass,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastLogin: serverTimestamp()
+        };
+
+        if (signInEmail.endsWith('@alumni.stanford.edu')) {
+            userData.email = '';
+            userData.emailAlumni = signInEmail;
+            userData.emailAlumniGSB = emailAlumniGSB;
+        } else if (signInEmail.endsWith('@alumni.gsb.stanford.edu')) {
+            userData.email = '';
+            userData.emailAlumni = emailAlumni;
+            userData.emailAlumniGSB = signInEmail;
+        } else {
+            userData.email = signInEmail;
+            userData.emailAlumni = '';
+            userData.emailAlumniGSB = '';
+        }
+
+        await setDoc(userRef, userData);
+        setLastUsedClass(userClass);
+    }, [setLastUsedClass]);
+
+    return {
+        createOrUpdateUserDocument,
+        createNewAccountWithAlumniEmail
+    };
+};
+
+================
+File: src/styles/dashboard/dashboard-photos.css
+================
+/* User Photo Styles */
+.user-photo {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid #e0e0e0;
+}
+
+.user-photo-clickable {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.user-photo-clickable:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.user-photo-small {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+}
+
+.user-photo-medium {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+}
+
+.user-photo-large {
+    width: 150px;
+    height: 150px;
+    font-size: 48px;
+}
+
+.user-photo-initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    user-select: none;
+}
+
+.user-photo-loading {
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-photo-spinner {
+    width: 50%;
+    height: 50%;
+    border: 2px solid #e0e0e0;
+    border-top-color: #666;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Update match-item to work with photos */
+.match-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.match-details {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Update name-chip to work with photos */
+.name-chip {
+    gap: 8px;
+}
+
+/* Update name-list-item to work with photos */
+.name-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Mobile responsive for photos */
+@media (max-width: 768px) {
+    .user-photo-large {
+        width: 120px;
+        height: 120px;
+        font-size: 38px;
+    }
+}
+
+================
+File: src/utils/index.ts
+================
+import type { User } from 'firebase/auth';
+import type { UserData, UserClass } from '../types';
+import { isAlumniEmail } from './emailUtils';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
+
+// This matches the logic in useAuthHelpers.ts for consistency
+export const getUserDocumentId = (user: User, userData: UserData | null): string => {
+    const email = user.email || '';
+
+    // FIRST: Check if signed in with alumni email (not @stanford.edu)
+    // This handles the case where admin signs in with alumni email
+    if (isAlumniEmail(email) && userData) {
+        // For alumni emails, use the uid from the loaded userData
+        // This is the actual document ID we found during account linking
+        return userData.uid;
+    }
+
+    // SECOND: Special handling for admin user with @stanford.edu
+    if (user.email === 'jpark22@stanford.edu') {
+        const userClass = userData?.userClass || 'gsb';
+        return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
+    }
+
+    // DEFAULT: Regular user with @stanford.edu
+    return user.uid;
+};
+
+export const formatTimestamp = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+};
+
+export const truncateText = (text: string, maxLength: number): string => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+};
+
+export const getClassNames = async (userClass: UserClass): Promise<string[]> => {
+    try {
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
+
+        const names: string[] = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.userClass === userClass && data.name) {
+                names.push(data.name);
+            }
+        });
+
+        return names.sort();
+    } catch (error) {
+        console.error('Error fetching class names:', error);
+        return [];
+    }
+};
+
+================
+File: package.json
+================
+{
+  "name": "secondchances",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "count-docs": "node scripts/countDocs.js",
+    "count-matches": "node scripts/countMatches.js",
+    "top-crushes": "node scripts/topCrushCounts.js",
+    "find-user": "node scripts/findUserInCrushes.js"
+  },
+  "dependencies": {
+    "@types/react-router-dom": "^5.3.3",
+    "chalk": "^5.6.2",
+    "firebase": "^11.2.0",
+    "firebase-admin": "^12.7.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.0",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "eslint": "^9.25.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^16.0.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.30.1",
+    "vite": "^6.3.5"
+  },
+  "description": "",
+  "main": "eslint.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jpslvtr/stanford-lastchances.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jpslvtr/stanford-lastchances/issues"
+  },
+  "homepage": "https://github.com/jpslvtr/stanford-lastchances#readme"
+}
+
+================
+File: vite.config.ts
+================
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  publicDir: 'public',
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    copyPublicDir: true,
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      input: './index.html',
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore']
+        }
+      }
+    }
+  },
+  server: {
+    port: 3000
+  }
+})
+
+================
+File: functions/src/index.ts
+================
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+import { UserData } from './types';
+import { getUserIdentityName } from './utils';
+import { processUpdatedCrushes, fixAllCrushCounts, processIncrementalUpdate } from './matchingEngine';
+
+export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
+
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
+
+const db = admin.firestore();
+
+// Enhanced function to find matches and update crush counts
+export const findMatches = functions.firestore
+    .document('users/{userId}')
+    .onUpdate(async (change, context) => {
+        const userId = context.params.userId;
+        const beforeData = change.before.data() as UserData;
+        const afterData = change.after.data() as UserData;
+
+        // Check if crushes were updated OR if name was updated
+        const beforeCrushes = beforeData?.crushes || [];
+        const afterCrushes = afterData?.crushes || [];
+        const beforeName = getUserIdentityName(beforeData as any);
+        const afterName = getUserIdentityName(afterData as any);
+
+        // Normalize arrays for comparison
+        const normalizedBefore = beforeCrushes.map(crush => crush.trim().toLowerCase()).sort();
+        const normalizedAfter = afterCrushes.map(crush => crush.trim().toLowerCase()).sort();
+
+        const crushesChanged = JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter);
+        const nameChanged = beforeName !== afterName;
+
+        console.log(`Checking update for user ${userId} (${afterName})`);
+        console.log(`Crushes changed: ${crushesChanged}, Name changed: ${nameChanged}`);
+
+        // Process if crushes changed OR if name changed
+        if (crushesChanged || nameChanged) {
+            console.log(`✅ Processing update for user ${userId} (${afterName})`);
+
+            // Validate that locked crushes are still present (only for crush changes)
+            if (crushesChanged) {
+                const lockedCrushes = beforeData?.lockedCrushes || [];
+                const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
+
+                if (missingLockedCrushes.length > 0) {
+                    console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
+                    // Restore the locked crushes
+                    const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
+
+                    const userRef = db.collection('users').doc(userId);
+                    await userRef.update({
+                        crushes: restoredCrushes,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    console.log(`✅ Restored locked crushes for user ${userId}`);
+                    return null;
+                }
+            }
+
+            // Use incremental update for crush changes, full recalc for name changes
+            if (crushesChanged && !nameChanged) {
+                const userClass = afterData.userClass || 'gsb';
+                await processIncrementalUpdate(userId, beforeCrushes, afterCrushes, afterName, userClass);
+            } else {
+                // Name changed - need full recalculation since it affects how others match
+                await processUpdatedCrushes();
+            }
+        } else {
+            console.log(`❌ No relevant changes detected for user ${userId} (${afterName}), skipping`);
+        }
+
+        return null;
+    });
+
+// Manual function to trigger complete recalculation
+export const recalculateAllMatches = functions.https.onRequest(async (req, res) => {
+    try {
+        await processUpdatedCrushes();
+        res.json({
+            success: true,
+            message: 'Successfully recalculated all matches and crush counts with enhanced name matching'
+        });
+    } catch (error) {
+        console.error('Error in recalculateAllMatches:', error);
+        res.status(500).json({ error: 'Failed to recalculate matches and crush counts' });
+    }
+});
+
+// Manual function to fix crush count discrepancies
+export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔧 Starting manual fix of crush count discrepancies...');
+        await fixAllCrushCounts();
+        res.json({
+            success: true,
+            message: 'Successfully fixed all crush count discrepancies'
+        });
+    } catch (error) {
+        console.error('❌ Error fixing crush count discrepancies:', error);
+        res.status(500).json({ error: 'Failed to fix crush count discrepancies' });
+    }
+});
+
+// One-time function to add timestamps to existing matches that don't have them
+export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
+    try {
+        console.log('🔄 Adding timestamps to existing matches...');
+
+        // Use current timestamp for all existing matches
+        const currentTimestamp = admin.firestore.Timestamp.now();
+
+        let updatedUsers = 0;
+        let totalMatchesUpdated = 0;
+
+        await db.runTransaction(async (transaction) => {
+            // Get all users
+            const usersSnapshot = await transaction.get(db.collection('users'));
+
+            usersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                const matches = userData.matches || [];
+
+                if (matches.length > 0) {
+                    // Check if any matches are missing timestamps
+                    let needsUpdate = false;
+                    const updatedMatches = matches.map((match: any) => {
+                        if (!match.matchedAt) {
+                            needsUpdate = true;
+                            totalMatchesUpdated++;
+                            return {
+                                ...match,
+                                matchedAt: currentTimestamp
+                            };
+                        }
+                        return match;
+                    });
+
+                    if (needsUpdate) {
+                        const userRef = db.collection('users').doc(doc.id);
+                        transaction.update(userRef, {
+                            matches: updatedMatches,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        updatedUsers++;
+
+                        console.log(`✅ Updated ${updatedMatches.filter((m: any) => m.matchedAt === currentTimestamp).length} matches for user: ${userData.name || userData.email}`);
+                    }
+                }
+            });
+
+            console.log(`\n🎉 Migration completed!`);
+            console.log(`📊 Updated ${updatedUsers} users`);
+            console.log(`💕 Added timestamps to ${totalMatchesUpdated} existing matches`);
+        });
+
+        res.json({
+            success: true,
+            message: `Successfully added timestamps to ${totalMatchesUpdated} existing matches across ${updatedUsers} users`
+        });
+    } catch (error) {
+        console.error('❌ Error adding timestamps to matches:', error);
+        res.status(500).json({ error: 'Failed to add timestamps to existing matches' });
+    }
+});
+
+================
 File: src/components/admin/AdminUsers.tsx
 ================
 import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import type { UserData, MatchInfo, UserClass } from '../../types/userTypes';
+import type { UserData, MatchInfo, UserClass } from '../../types';
 
 interface CrusherInfo {
     name: string;
@@ -4929,179 +5849,12 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
 export default AdminUsers;
 
 ================
-File: src/components/dashboard/SelectedNamesSection.tsx
-================
-import { useEffect, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import UserPhoto from '../shared/UserPhoto';
-
-interface SelectedNamesSectionProps {
-    selectedNames: string[];
-    savedNames: string[];
-    lockedCrushes: string[];
-    matches: Array<{ name: string; email: string }>;
-    onRemove: (name: string) => void;
-    userClass: string;
-}
-
-interface UserPhotoData {
-    name: string;
-    customPhotoURL?: string;
-}
-
-const SelectedNamesSection = ({
-    selectedNames,
-    savedNames,
-    lockedCrushes,
-    matches,
-    onRemove,
-    userClass
-}: SelectedNamesSectionProps) => {
-    const [photoCache, setPhotoCache] = useState<Map<string, string>>(new Map());
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const loadPhotos = async () => {
-            if (selectedNames.length === 0) {
-                setLoading(false);
-                return;
-            }
-
-            try {
-                const usersRef = collection(db, 'users');
-                const snapshot = await getDocs(usersRef);
-
-                const cache = new Map<string, string>();
-                snapshot.forEach(doc => {
-                    const data = doc.data() as UserPhotoData;
-                    if (data.customPhotoURL) {
-                        cache.set(data.name, data.customPhotoURL);
-                    }
-                });
-
-                setPhotoCache(cache);
-            } catch (error) {
-                console.error('Error loading photos:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadPhotos();
-    }, [selectedNames]);
-
-    const hasUnsavedChanges = JSON.stringify([...selectedNames].sort()) !== JSON.stringify([...savedNames].sort());
-    const matchedNames = new Set(matches.map(m => m.name));
-
-    const handleRemoveClick = (name: string) => {
-        if (lockedCrushes.includes(name)) {
-            return;
-        }
-        onRemove(name);
-    };
-
-    if (loading) {
-        return (
-            <div className="selected-section">
-                <h3>Your Selections ({selectedNames.length})</h3>
-                <div className="classmates-list">
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                        Loading...
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="selected-section">
-            <h3>Your Selections ({selectedNames.length})</h3>
-
-            {selectedNames.length === 0 ? (
-                <div className="classmates-list">
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
-                        No selections yet. Add classmates from below.
-                    </div>
-                </div>
-            ) : (
-                <div className="classmates-list">
-                    {selectedNames.map((name) => {
-                        const isLocked = lockedCrushes.includes(name);
-                        const isMatched = matchedNames.has(name);
-                        const photoURL = photoCache.get(name);
-
-                        return (
-                            <div
-                                key={name}
-                                className="classmate-item"
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                                    <UserPhoto
-                                        name={name}
-                                        userClass={userClass}
-                                        size="small"
-                                        photoUrl={photoURL}
-                                    />
-                                    <span style={{
-                                        flex: 1,
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {name}
-                                    </span>
-                                </div>
-
-                                {isLocked ? (
-                                    <button
-                                        className="action-btn locked"
-                                        disabled
-                                        title={isMatched ? "Matched!" : "Locked"}
-                                    >
-                                        🔒
-                                    </button>
-                                ) : (
-                                    <button
-                                        className="action-btn remove"
-                                        onClick={() => handleRemoveClick(name)}
-                                        title="Remove"
-                                    >
-                                        ×
-                                    </button>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {hasUnsavedChanges && selectedNames.length > 0 && (
-                <div style={{
-                    marginTop: '12px',
-                    padding: '8px 12px',
-                    background: '#fff3cd',
-                    border: '1px solid #ffc107',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    color: '#856404'
-                }}>
-                    You have unsaved changes. Click "Update Preferences" to save.
-                </div>
-            )}
-        </div>
-    );
-};
-
-export default SelectedNamesSection;
-
-================
 File: src/components/shared/Navbar.tsx
 ================
 import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from 'firebase/auth';
-import type { UserData } from '../../types/userTypes';
+import type { UserData } from '../../types';
 import { isAdminUser } from '../../utils/adminUtils';
 import { signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '../../config/firebase';
@@ -5317,919 +6070,6 @@ const Navbar: React.FC<NavbarProps> = ({
 export default Navbar;
 
 ================
-File: src/components/AccountLinking.tsx
-================
-import { useState, useEffect } from 'react';
-import type { User as FirebaseUser } from 'firebase/auth';
-import { collection, getDocs, doc, runTransaction } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { normalizeEmail, fuzzyNameMatch, isAlumniEmail } from '../utils/emailUtils';
-import type { UserClass } from '../types';
-
-interface AccountLinkingProps {
-    user: FirebaseUser;
-    userClass: UserClass;
-    onLinkingComplete: () => void;
-    onStartNewAccount: () => void;
-    logout: () => void;
-}
-
-interface PotentialMatch {
-    id: string;
-    name: string;
-    email: string;
-}
-
-const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount, logout }: AccountLinkingProps) => {
-    const [filteredMatches, setFilteredMatches] = useState<PotentialMatch[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [linking, setLinking] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [selectedMatch, setSelectedMatch] = useState<PotentialMatch | null>(null);
-
-    useEffect(() => {
-        loadPotentialMatches();
-    }, []);
-
-    useEffect(() => {
-        // Validate alumni email on component mount
-        if (user?.email && !isAlumniEmail(user.email)) {
-            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
-            setLoading(false);
-        }
-    }, [user?.email]);
-
-    const loadPotentialMatches = async () => {
-        try {
-            const usersRef = collection(db, 'users');
-            const snapshot = await getDocs(usersRef);
-
-            const matches: PotentialMatch[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                // Only show users with empty alumni email fields and matching userClass
-                if (data.userClass === userClass && !data.emailAlumni && !data.emailAlumniGSB) {
-                    matches.push({
-                        id: doc.id,
-                        name: data.name,
-                        email: data.email
-                    });
-                }
-            });
-            
-            // Apply fuzzy matching
-            const googleName = user.displayName || '';
-            if (googleName) {
-                const MIN_SCORE = 60;
-                const filtered = matches
-                    .map(u => ({
-                        ...u,
-                        score: fuzzyNameMatch(googleName, u.name)
-                    }))
-                    .filter(u => u.score >= MIN_SCORE)
-                    .sort((a, b) => b.score - a.score);
-
-                setFilteredMatches(filtered);
-            } else {
-                // If no Google name available, show all (fallback)
-                setFilteredMatches(matches.sort((a, b) => a.name.localeCompare(b.name)));
-            }
-        } catch (err) {
-            console.error('Error loading potential matches:', err);
-            setError('Failed to load account options');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Check if we have a high-confidence match (score >= 75)
-    const hasHighConfidenceMatch = filteredMatches.length > 0 &&
-        filteredMatches.some(m => (m as any).score >= 75);
-
-    const handleSelectMatch = (match: PotentialMatch) => {
-        setSelectedMatch(match);
-        setError(null);
-    };
-
-    const handleConfirmLink = async () => {
-        if (!user?.email || !selectedMatch || linking) return;
-
-        // Validate alumni email before linking
-        if (!isAlumniEmail(user.email)) {
-            setError('Invalid email domain. Please use @alumni.stanford.edu or @alumni.gsb.stanford.edu');
-            return;
-        }
-
-        setLinking(true);
-        setError(null);
-
-        try {
-            const alumniEmail = normalizeEmail(user.email);
-            const base = alumniEmail.split('@')[0];
-            const alumniStanford = `${base}@alumni.stanford.edu`;
-            const alumniGSB = `${base}@alumni.gsb.stanford.edu`;
-
-            // First check outside transaction if these emails are already in use
-            const usersRef = collection(db, 'users');
-            const usersSnapshot = await getDocs(usersRef);
-
-            for (const doc of usersSnapshot.docs) {
-                if (doc.id === selectedMatch.id) continue;
-
-                const data = doc.data();
-                const emailMatch = (data.emailAlumni && normalizeEmail(data.emailAlumni) === alumniEmail) ||
-                    (data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === alumniEmail);
-
-                if (emailMatch) {
-                    throw new Error('This alumni email is already linked to another account');
-                }
-            }
-
-            const userRef = doc(db, 'users', selectedMatch.id);
-
-            // Use transaction to prevent race conditions
-            await runTransaction(db, async (transaction) => {
-                const userDoc = await transaction.get(userRef);
-
-                if (!userDoc.exists()) {
-                    throw new Error('Selected account no longer exists');
-                }
-
-                const userData = userDoc.data();
-
-                // Verify the account still has empty alumni emails
-                if (userData.emailAlumni || userData.emailAlumniGSB) {
-                    throw new Error('This account has already been linked to another alumni email');
-                }
-
-                // Verify it's the correct class
-                if (userData.userClass !== userClass) {
-                    throw new Error(`Can only link to ${userClass} accounts`);
-                }
-
-                // Update both alumni email fields atomically
-                transaction.update(userRef, {
-                    emailAlumni: alumniStanford,
-                    emailAlumniGSB: alumniGSB,
-                    updatedAt: new Date()
-                });
-            });
-
-            console.log('Account linked successfully');
-            onLinkingComplete();
-        } catch (err) {
-            console.error('Error linking account:', err);
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError('Failed to link account. Please try again.');
-            }
-            await loadPotentialMatches();
-            setSelectedMatch(null);
-        } finally {
-            setLinking(false);
-        }
-    };
-
-    const handleGoBack = () => {
-        setSelectedMatch(null);
-        setError(null);
-    };
-
-    if (loading) {
-        return (
-            <div className="auth-container">
-                <div className="auth-card">
-                    <div className="loading">Loading...</div>
-                </div>
-            </div>
-        );
-    }
-
-    // Confirmation screen
-    if (selectedMatch) {
-        return (
-            <div className="auth-container">
-                <div className="auth-card">
-                    <h1>Confirm Account Link</h1>
-                    <p className="auth-email">
-                        Signing in as <strong>{user?.email}</strong>
-                    </p>
-
-                    {error && (
-                        <div className="error-banner">
-                            {error}
-                        </div>
-                    )}
-
-                    {linking && (
-                        <div className="linking-banner">
-                            Linking account...
-                        </div>
-                    )}
-
-                    <div className="confirmation-box">
-                        <p className="confirmation-question">Are you sure you want to link your alumni email to this account?</p>
-                        <div className="selected-account-display">
-                            <div className="selected-name">{selectedMatch.name}</div>
-                            <div className="selected-email">{selectedMatch.email}</div>
-                        </div>
-                    </div>
-
-                    <div className="confirmation-buttons">
-                        <button
-                            onClick={handleConfirmLink}
-                            disabled={linking}
-                            className="confirm-btn"
-                        >
-                            Yes, Link Account
-                        </button>
-                        <button
-                            onClick={handleGoBack}
-                            disabled={linking}
-                            className="cancel-btn"
-                        >
-                            Go Back
-                        </button>
-                    </div>
-
-                    <button
-                        onClick={logout}
-                        disabled={linking}
-                        className="signout-link"
-                    >
-                        Sign Out
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    // Account selection screen
-    return (
-        <div className="auth-container">
-            <div className="auth-card linking-card">
-                <h1>Link Your Alumni Email</h1>
-                <p className="auth-email">
-                    Signing in as <strong>{user?.email}</strong>
-                </p>
-                {user.displayName && (
-                    <p className="auth-email" style={{ fontSize: '0.9em', marginTop: '-8px' }}>
-                        Google account name: <strong>{user.displayName}</strong>
-                    </p>
-                )}
-
-                {error && (
-                    <div className="error-banner">
-                        {error}
-                    </div>
-                )}
-
-                {filteredMatches.length > 0 ? (
-                    <>
-                        <p className="linking-instructions">
-                            Below are Second Chances accounts that match your name and haven't been linked with an alumni email. If you see your name, click it to link your account.
-                        </p>
-
-                        <div className="account-matches-grid">
-                            {filteredMatches.map((match) => (
-                                <button
-                                    key={match.id}
-                                    onClick={() => handleSelectMatch(match)}
-                                    className="account-match-card"
-                                >
-                                    <div className="match-name">{match.name}</div>
-                                    <div className="match-email">{match.email}</div>
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="help-notice">
-                            {hasHighConfidenceMatch
-                                ? <>Don't see your account but can't create a new one? We found a strong match to your name. If none of these are yours, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
-                                : <>Don't see your account but certain you had one? Email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a></>
-                            }
-                        </div>
-
-                        {!hasHighConfidenceMatch && (
-                            <div className="divider">
-                                <span>OR</span>
-                            </div>
-                        )}
-                    </>
-                ) : (
-                    <>
-                        <p className="linking-instructions">
-                            We couldn't find any existing accounts that match your name.
-                        </p>
-                        <div className="help-notice">
-                            If you previously had an account, email <a href="mailto:jamespark@alumni.stanford.edu">jamespark@alumni.stanford.edu</a>
-                        </div>
-                    </>
-                )}
-
-                {!hasHighConfidenceMatch && (
-                    <button
-                        onClick={onStartNewAccount}
-                        className="new-account-btn"
-                    >
-                        Start New Account
-                    </button>
-                )}
-
-                <button
-                    onClick={logout}
-                    className="signout-link"
-                >
-                    Sign Out
-                </button>
-            </div>
-        </div>
-    );
-};
-
-export default AccountLinking;
-
-================
-File: src/hooks/useAuthHelpers.ts
-================
-import { useCallback } from 'react';
-import type { User } from 'firebase/auth';
-import type { MatchInfo, UserClass } from '../types/userTypes';
-
-export const useAuthHelpers = () => {
-    const normalizeMatches = useCallback((matches: any[]): MatchInfo[] => {
-        if (!matches || !Array.isArray(matches)) return [];
-
-        return matches.map(match => {
-            if (typeof match === 'string') {
-                return {
-                    name: match,
-                    email: match.toLowerCase().replace(/\s+/g, '.') + '@stanford.edu'
-                };
-            } else if (match && typeof match === 'object' && match.name && match.email) {
-                return {
-                    name: match.name,
-                    email: match.email,
-                    matchedAt: match.matchedAt
-                };
-            } else {
-                return {
-                    name: 'Unknown',
-                    email: 'unknown@stanford.edu'
-                };
-            }
-        });
-    }, []);
-
-    const getUserDocumentId = useCallback((user: User, userClass: UserClass): string => {
-        if (user.email === 'jpark22@stanford.edu' ||
-            user.email === 'jamespark@alumni.stanford.edu' ||
-            user.email === 'jamespark@alumni.gsb.stanford.edu') {
-            return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
-        }
-        return user.uid;
-    }, []);
-
-    const getLastUsedClass = useCallback((): UserClass | null => {
-        try {
-            return localStorage.getItem('lastUsedClass') as UserClass | null;
-        } catch {
-            return null;
-        }
-    }, []);
-
-    const setLastUsedClass = useCallback((userClass: UserClass) => {
-        try {
-            localStorage.setItem('lastUsedClass', userClass);
-        } catch {
-            // Ignore localStorage errors
-        }
-    }, []);
-
-    return {
-        normalizeMatches,
-        getUserDocumentId,
-        getLastUsedClass,
-        setLastUsedClass
-    };
-};
-
-================
-File: src/styles/dashboard/dashboard-photos.css
-================
-/* User Photo Styles */
-.user-photo {
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-    border: 2px solid #e0e0e0;
-}
-
-.user-photo-clickable {
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.user-photo-clickable:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.user-photo-small {
-    width: 32px;
-    height: 32px;
-    font-size: 13px;
-}
-
-.user-photo-medium {
-    width: 48px;
-    height: 48px;
-    font-size: 18px;
-}
-
-.user-photo-large {
-    width: 150px;
-    height: 150px;
-    font-size: 48px;
-}
-
-.user-photo-initials {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 600;
-    user-select: none;
-}
-
-.user-photo-loading {
-    background-color: #f0f0f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.user-photo-spinner {
-    width: 50%;
-    height: 50%;
-    border: 2px solid #e0e0e0;
-    border-top-color: #666;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* Update match-item to work with photos */
-.match-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.match-details {
-    flex: 1;
-    min-width: 0;
-}
-
-/* Update name-chip to work with photos */
-.name-chip {
-    gap: 8px;
-}
-
-/* Update name-list-item to work with photos */
-.name-list-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-/* Mobile responsive for photos */
-@media (max-width: 768px) {
-    .user-photo-large {
-        width: 120px;
-        height: 120px;
-        font-size: 38px;
-    }
-}
-
-================
-File: src/utils/adminUtils.ts
-================
-import type { User } from 'firebase/auth';
-import type { UserData, UserClass } from '../types/userTypes';
-
-const ADMIN_EMAILS = [
-    'jpark22@stanford.edu',
-    'jamespark@alumni.stanford.edu',
-    'jamespark@alumni.gsb.stanford.edu'
-];
-
-export const isAdminUser = (user: User | null, userData: UserData | null): boolean => {
-    if (!user) return false;
-
-    const currentEmail = user.email?.toLowerCase() || '';
-
-    if (ADMIN_EMAILS.includes(currentEmail)) {
-        return true;
-    }
-
-    if (userData) {
-        const dbEmail = userData.email?.toLowerCase() || '';
-        const dbEmailAlumni = userData.emailAlumni?.toLowerCase() || '';
-        const dbEmailAlumniGSB = userData.emailAlumniGSB?.toLowerCase() || '';
-
-        return ADMIN_EMAILS.includes(dbEmail) ||
-            ADMIN_EMAILS.includes(dbEmailAlumni) ||
-            ADMIN_EMAILS.includes(dbEmailAlumniGSB);
-    }
-
-    return false;
-};
-
-export const isAdminEmail = (email: string | undefined | null): boolean => {
-    if (!email) return false;
-
-    const normalized = email.toLowerCase();
-    return ADMIN_EMAILS.includes(normalized);
-};
-
-interface InactiveUser extends UserData {
-    isInactive: boolean;
-}
-
-interface GhostUser extends UserData {
-    isGhost: boolean;
-}
-
-function normalizeName(name: string): string {
-    if (!name || typeof name !== 'string') return '';
-
-    return name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-export function findUserByName(
-    crushName: string,
-    allUsers: (UserData | InactiveUser | GhostUser)[],
-    userClass?: UserClass
-): UserData | InactiveUser | GhostUser | null {
-    if (!crushName || !crushName.trim()) return null;
-
-    const normalizedCrush = normalizeName(crushName);
-
-    const filteredUsers = userClass
-        ? allUsers.filter(user => (user.userClass || 'gsb') === userClass)
-        : allUsers;
-
-    let match = filteredUsers.find(user =>
-        user.name &&
-        normalizeName(user.name) === normalizedCrush
-    );
-
-    if (!match) {
-        const words = normalizedCrush.split(/\s+/);
-        if (words.length >= 2) {
-            const reversed = [...words].reverse().join(' ');
-            match = filteredUsers.find(user =>
-                user.name &&
-                normalizeName(user.name) === reversed
-            );
-        }
-    }
-
-    return match || null;
-}
-
-================
-File: src/utils/index.ts
-================
-import type { User } from 'firebase/auth';
-import type { UserData, UserClass } from '../types';
-import { isAlumniEmail } from './emailUtils';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
-
-// This matches the logic in useAuthHelpers.ts for consistency
-export const getUserDocumentId = (user: User, userData: UserData | null): string => {
-    const email = user.email || '';
-
-    // FIRST: Check if signed in with alumni email (not @stanford.edu)
-    // This handles the case where admin signs in with alumni email
-    if (isAlumniEmail(email) && userData) {
-        // For alumni emails, use the uid from the loaded userData
-        // This is the actual document ID we found during account linking
-        return userData.uid;
-    }
-
-    // SECOND: Special handling for admin user with @stanford.edu
-    if (user.email === 'jpark22@stanford.edu') {
-        const userClass = userData?.userClass || 'gsb';
-        return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
-    }
-
-    // DEFAULT: Regular user with @stanford.edu
-    return user.uid;
-};
-
-export const formatTimestamp = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
-};
-
-export const truncateText = (text: string, maxLength: number): string => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-};
-
-export const getClassNames = async (userClass: UserClass): Promise<string[]> => {
-    try {
-        const usersRef = collection(db, 'users');
-        const snapshot = await getDocs(usersRef);
-
-        const names: string[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data.userClass === userClass && data.name) {
-                names.push(data.name);
-            }
-        });
-
-        return names.sort();
-    } catch (error) {
-        console.error('Error fetching class names:', error);
-        return [];
-    }
-};
-
-================
-File: package.json
-================
-{
-  "name": "secondchances",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "count-docs": "node scripts/countDocs.js",
-    "count-matches": "node scripts/countMatches.js",
-    "top-crushes": "node scripts/topCrushCounts.js",
-    "find-user": "node scripts/findUserInCrushes.js"
-  },
-  "dependencies": {
-    "@types/react-router-dom": "^5.3.3",
-    "chalk": "^5.6.2",
-    "firebase": "^11.2.0",
-    "firebase-admin": "^12.7.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-router-dom": "^7.6.2"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.25.0",
-    "@types/react": "^19.1.2",
-    "@types/react-dom": "^19.1.2",
-    "@vitejs/plugin-react": "^4.4.1",
-    "eslint": "^9.25.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.19",
-    "globals": "^16.0.0",
-    "typescript": "~5.8.3",
-    "typescript-eslint": "^8.30.1",
-    "vite": "^6.3.5"
-  },
-  "description": "",
-  "main": "eslint.config.js",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/jpslvtr/stanford-lastchances.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/jpslvtr/stanford-lastchances/issues"
-  },
-  "homepage": "https://github.com/jpslvtr/stanford-lastchances#readme"
-}
-
-================
-File: vite.config.ts
-================
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-  plugins: [react()],
-  publicDir: 'public',
-  build: {
-    outDir: 'dist',
-    assetsDir: 'assets',
-    copyPublicDir: true,
-    emptyOutDir: true,
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      input: './index.html',
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore']
-        }
-      }
-    }
-  },
-  server: {
-    port: 3000
-  }
-})
-
-================
-File: functions/src/index.ts
-================
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
-import { UserData } from './types';
-import { getUserIdentityName } from './utils';
-import { processUpdatedCrushes, fixAllCrushCounts, processIncrementalUpdate } from './matchingEngine';
-
-export { scheduledAnalytics, runAnalyticsNow } from './scheduledAnalytics';
-
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-    admin.initializeApp();
-}
-
-const db = admin.firestore();
-
-// Enhanced function to find matches and update crush counts
-export const findMatches = functions.firestore
-    .document('users/{userId}')
-    .onUpdate(async (change, context) => {
-        const userId = context.params.userId;
-        const beforeData = change.before.data() as UserData;
-        const afterData = change.after.data() as UserData;
-
-        // Check if crushes were updated OR if name was updated
-        const beforeCrushes = beforeData?.crushes || [];
-        const afterCrushes = afterData?.crushes || [];
-        const beforeName = getUserIdentityName(beforeData as any);
-        const afterName = getUserIdentityName(afterData as any);
-
-        // Normalize arrays for comparison
-        const normalizedBefore = beforeCrushes.map(crush => crush.trim().toLowerCase()).sort();
-        const normalizedAfter = afterCrushes.map(crush => crush.trim().toLowerCase()).sort();
-
-        const crushesChanged = JSON.stringify(normalizedBefore) !== JSON.stringify(normalizedAfter);
-        const nameChanged = beforeName !== afterName;
-
-        console.log(`Checking update for user ${userId} (${afterName})`);
-        console.log(`Crushes changed: ${crushesChanged}, Name changed: ${nameChanged}`);
-
-        // Process if crushes changed OR if name changed
-        if (crushesChanged || nameChanged) {
-            console.log(`✅ Processing update for user ${userId} (${afterName})`);
-
-            // Validate that locked crushes are still present (only for crush changes)
-            if (crushesChanged) {
-                const lockedCrushes = beforeData?.lockedCrushes || [];
-                const missingLockedCrushes = lockedCrushes.filter(locked => !afterCrushes.includes(locked));
-
-                if (missingLockedCrushes.length > 0) {
-                    console.log(`❌ User ${userId} tried to remove locked crushes: ${missingLockedCrushes.join(', ')}`);
-                    // Restore the locked crushes
-                    const restoredCrushes = [...new Set([...afterCrushes, ...lockedCrushes])];
-
-                    const userRef = db.collection('users').doc(userId);
-                    await userRef.update({
-                        crushes: restoredCrushes,
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    console.log(`✅ Restored locked crushes for user ${userId}`);
-                    return null;
-                }
-            }
-
-            // Use incremental update for crush changes, full recalc for name changes
-            if (crushesChanged && !nameChanged) {
-                const userClass = afterData.userClass || 'gsb';
-                await processIncrementalUpdate(userId, beforeCrushes, afterCrushes, afterName, userClass);
-            } else {
-                // Name changed - need full recalculation since it affects how others match
-                await processUpdatedCrushes();
-            }
-        } else {
-            console.log(`❌ No relevant changes detected for user ${userId} (${afterName}), skipping`);
-        }
-
-        return null;
-    });
-
-// Manual function to trigger complete recalculation
-export const recalculateAllMatches = functions.https.onRequest(async (req, res) => {
-    try {
-        await processUpdatedCrushes();
-        res.json({
-            success: true,
-            message: 'Successfully recalculated all matches and crush counts with enhanced name matching'
-        });
-    } catch (error) {
-        console.error('Error in recalculateAllMatches:', error);
-        res.status(500).json({ error: 'Failed to recalculate matches and crush counts' });
-    }
-});
-
-// Manual function to fix crush count discrepancies
-export const fixCrushCountDiscrepancies = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔧 Starting manual fix of crush count discrepancies...');
-        await fixAllCrushCounts();
-        res.json({
-            success: true,
-            message: 'Successfully fixed all crush count discrepancies'
-        });
-    } catch (error) {
-        console.error('❌ Error fixing crush count discrepancies:', error);
-        res.status(500).json({ error: 'Failed to fix crush count discrepancies' });
-    }
-});
-
-// One-time function to add timestamps to existing matches that don't have them
-export const addTimestampsToMatches = functions.https.onRequest(async (req, res) => {
-    try {
-        console.log('🔄 Adding timestamps to existing matches...');
-
-        // Use current timestamp for all existing matches
-        const currentTimestamp = admin.firestore.Timestamp.now();
-
-        let updatedUsers = 0;
-        let totalMatchesUpdated = 0;
-
-        await db.runTransaction(async (transaction) => {
-            // Get all users
-            const usersSnapshot = await transaction.get(db.collection('users'));
-
-            usersSnapshot.forEach(doc => {
-                const userData = doc.data();
-                const matches = userData.matches || [];
-
-                if (matches.length > 0) {
-                    // Check if any matches are missing timestamps
-                    let needsUpdate = false;
-                    const updatedMatches = matches.map((match: any) => {
-                        if (!match.matchedAt) {
-                            needsUpdate = true;
-                            totalMatchesUpdated++;
-                            return {
-                                ...match,
-                                matchedAt: currentTimestamp
-                            };
-                        }
-                        return match;
-                    });
-
-                    if (needsUpdate) {
-                        const userRef = db.collection('users').doc(doc.id);
-                        transaction.update(userRef, {
-                            matches: updatedMatches,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                        });
-                        updatedUsers++;
-
-                        console.log(`✅ Updated ${updatedMatches.filter((m: any) => m.matchedAt === currentTimestamp).length} matches for user: ${userData.name || userData.email}`);
-                    }
-                }
-            });
-
-            console.log(`\n🎉 Migration completed!`);
-            console.log(`📊 Updated ${updatedUsers} users`);
-            console.log(`💕 Added timestamps to ${totalMatchesUpdated} existing matches`);
-        });
-
-        res.json({
-            success: true,
-            message: `Successfully added timestamps to ${totalMatchesUpdated} existing matches across ${updatedUsers} users`
-        });
-    } catch (error) {
-        console.error('❌ Error adding timestamps to matches:', error);
-        res.status(500).json({ error: 'Failed to add timestamps to existing matches' });
-    }
-});
-
-================
 File: src/components/Terms.tsx
 ================
 import React from 'react';
@@ -6374,6 +6214,71 @@ googleProvider.setCustomParameters({
 });
 
 auth.useDeviceLanguage();
+
+================
+File: src/hooks/useAuthHelpers.ts
+================
+import { useCallback } from 'react';
+import type { User } from 'firebase/auth';
+import type { MatchInfo, UserClass } from '../types';
+
+export const useAuthHelpers = () => {
+    const normalizeMatches = useCallback((matches: any[]): MatchInfo[] => {
+        if (!matches || !Array.isArray(matches)) return [];
+
+        return matches.map(match => {
+            if (typeof match === 'string') {
+                return {
+                    name: match,
+                    email: match.toLowerCase().replace(/\s+/g, '.') + '@stanford.edu'
+                };
+            } else if (match && typeof match === 'object' && match.name && match.email) {
+                return {
+                    name: match.name,
+                    email: match.email,
+                    matchedAt: match.matchedAt
+                };
+            } else {
+                return {
+                    name: 'Unknown',
+                    email: 'unknown@stanford.edu'
+                };
+            }
+        });
+    }, []);
+
+    const getUserDocumentId = useCallback((user: User, userClass: UserClass): string => {
+        if (user.email === 'jpark22@stanford.edu' ||
+            user.email === 'jamespark@alumni.stanford.edu' ||
+            user.email === 'jamespark@alumni.gsb.stanford.edu') {
+            return userClass === 'gsb' ? `${user.uid}_gsb` : `${user.uid}_undergrad`;
+        }
+        return user.uid;
+    }, []);
+
+    const getLastUsedClass = useCallback((): UserClass | null => {
+        try {
+            return localStorage.getItem('lastUsedClass') as UserClass | null;
+        } catch {
+            return null;
+        }
+    }, []);
+
+    const setLastUsedClass = useCallback((userClass: UserClass) => {
+        try {
+            localStorage.setItem('lastUsedClass', userClass);
+        } catch {
+            // Ignore localStorage errors
+        }
+    }, []);
+
+    return {
+        normalizeMatches,
+        getUserDocumentId,
+        getLastUsedClass,
+        setLastUsedClass
+    };
+};
 
 ================
 File: src/styles/dashboard/dashboard-components.css
@@ -7734,6 +7639,100 @@ File: src/styles/auth.css
 }
 
 ================
+File: src/utils/adminUtils.ts
+================
+import type { User } from 'firebase/auth';
+import type { UserData, UserClass } from '../types';
+
+const ADMIN_EMAILS = [
+    'jpark22@stanford.edu',
+    'jamespark@alumni.stanford.edu',
+    'jamespark@alumni.gsb.stanford.edu'
+];
+
+export const isAdminUser = (user: User | null, userData: UserData | null): boolean => {
+    if (!user) return false;
+
+    const currentEmail = user.email?.toLowerCase() || '';
+
+    if (ADMIN_EMAILS.includes(currentEmail)) {
+        return true;
+    }
+
+    if (userData) {
+        const dbEmail = userData.email?.toLowerCase() || '';
+        const dbEmailAlumni = userData.emailAlumni?.toLowerCase() || '';
+        const dbEmailAlumniGSB = userData.emailAlumniGSB?.toLowerCase() || '';
+
+        return ADMIN_EMAILS.includes(dbEmail) ||
+            ADMIN_EMAILS.includes(dbEmailAlumni) ||
+            ADMIN_EMAILS.includes(dbEmailAlumniGSB);
+    }
+
+    return false;
+};
+
+export const isAdminEmail = (email: string | undefined | null): boolean => {
+    if (!email) return false;
+
+    const normalized = email.toLowerCase();
+    return ADMIN_EMAILS.includes(normalized);
+};
+
+interface InactiveUser extends UserData {
+    isInactive: boolean;
+}
+
+interface GhostUser extends UserData {
+    isGhost: boolean;
+}
+
+function normalizeName(name: string): string {
+    if (!name || typeof name !== 'string') return '';
+
+    return name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+export function findUserByName(
+    crushName: string,
+    allUsers: (UserData | InactiveUser | GhostUser)[],
+    userClass?: UserClass
+): UserData | InactiveUser | GhostUser | null {
+    if (!crushName || !crushName.trim()) return null;
+
+    const normalizedCrush = normalizeName(crushName);
+
+    const filteredUsers = userClass
+        ? allUsers.filter(user => (user.userClass || 'gsb') === userClass)
+        : allUsers;
+
+    let match = filteredUsers.find(user =>
+        user.name &&
+        normalizeName(user.name) === normalizedCrush
+    );
+
+    if (!match) {
+        const words = normalizedCrush.split(/\s+/);
+        if (words.length >= 2) {
+            const reversed = [...words].reverse().join(' ');
+            match = filteredUsers.find(user =>
+                user.name &&
+                normalizeName(user.name) === reversed
+            );
+        }
+    }
+
+    return match || null;
+}
+
+================
 File: src/components/Privacy.tsx
 ================
 import React from 'react';
@@ -8180,210 +8179,6 @@ const App: React.FC = () => {
 export default App;
 
 ================
-File: src/components/AdminView.tsx
-================
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import AdminAnalytics from './admin/AdminAnalytics';
-import AdminUsers from './admin/AdminUsers';
-import { useAdminData } from '../hooks/useAdminData';
-import { useAdminUtils } from '../hooks/useAdminUtils';
-import type { UserData, UserClass } from '../types/userTypes';
-import { isAdminUser } from '../utils/adminUtils';
-
-type ViewMode = 'analytics' | 'users';
-type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
-
-interface AdminViewProps {
-    user: any;
-    userData: UserData | null;
-}
-
-const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
-    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
-    const [adminSearchTerm, setAdminSearchTerm] = useState('');
-    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
-    const [userFilter, setUserFilter] = useState<UserFilter>('all');
-    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
-    const [refreshKey, setRefreshKey] = useState(0);
-
-    const currentClassView: UserClass = userData?.userClass || 'gsb';
-    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
-
-    const {
-        allUsers,
-        loadingUsers,
-        currentAnalytics,
-        loadingAnalytics,
-        loadAllUsers
-    } = useAdminData(user, currentClassView, refreshKey);
-
-    const { findCrushersForUser } = useAdminUtils(allUsers || []);
-
-    // Admin access control
-    useEffect(() => {
-        if (!isAdminUser(user, userData)) {
-            setAdminAccessDenied(true);
-            return;
-        }
-        setAdminAccessDenied(false);
-    }, [user, userData]);
-
-    // Early return for non-admin users
-    if (adminAccessDenied) {
-        return (
-            <div className="admin-access-denied">
-                <div className="access-denied-card">
-                    <h2>Access Denied</h2>
-                    <p>You do not have permission to view this page.</p>
-                    <p>Admin access is restricted to authorized personnel only.</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Double-check admin status
-    if (!isAdminUser(user, userData)) {
-        return (
-            <div className="admin-loading">
-                Verifying admin access...
-            </div>
-        );
-    }
-
-    // Set up real-time listener for analytics with error handling
-    useEffect(() => {
-        if (!isAdminUser(user, userData)) return;
-
-        const analyticsQuery = query(
-            collection(db, 'analytics'),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-        );
-
-        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                console.log('Live analytics updated');
-                setRefreshKey(prev => prev + 1);
-            }
-        }, (error) => {
-            console.error('Error listening to analytics:', error);
-            if (error.code === 'permission-denied') {
-                setAdminAccessDenied(true);
-            }
-        });
-
-        return () => unsubscribe();
-    }, [user, userData]);
-
-    const currentClassStats = useMemo(() => {
-        if (!allUsers || !Array.isArray(allUsers)) {
-            return {
-                activeUsers: 0,
-                inactiveUsers: 0,
-                ghostUsers: 0,
-                total: 0
-            };
-        }
-
-        const realUsers = allUsers.filter(u => !(u as any).isInactive && !(u as any).isGhost);
-        const inactiveUsers = allUsers.filter(u => (u as any).isInactive);
-        const ghostUsers = allUsers.filter(u => (u as any).isGhost);
-
-        return {
-            activeUsers: realUsers.length,
-            inactiveUsers: inactiveUsers.length,
-            ghostUsers: ghostUsers.length,
-            total: allUsers.length
-        };
-    }, [allUsers]);
-
-    const handleViewUser = useCallback((userId: string) => {
-        setViewingUserId(viewingUserId === userId ? null : userId);
-    }, [viewingUserId]);
-
-    const handleRefresh = useCallback(async () => {
-        setRefreshKey(prev => prev + 1);
-        await loadAllUsers();
-    }, [loadAllUsers]);
-
-    if (!allUsers && loadingUsers) {
-        return (
-            <div className="admin-loading">
-                Loading {classDisplayName} admin data...
-            </div>
-        );
-    }
-
-    return (
-        <div className="admin-section">
-            <div className="admin-header-section">
-                <div className="admin-title-row">
-                    <h3>{classDisplayName} Admin Dashboard</h3>
-                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
-                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
-                    </button>
-                </div>
-
-                <div className="admin-definitions">
-                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
-                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
-                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
-                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
-                </div>
-            </div>
-
-            <div className="admin-nav">
-                <button
-                    onClick={() => setViewMode('analytics')}
-                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
-                    disabled={loadingAnalytics}
-                >
-                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
-                </button>
-                <button
-                    onClick={() => setViewMode('users')}
-                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
-                    disabled={loadingUsers}
-                >
-                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
-                </button>
-            </div>
-
-            <div className="admin-content">
-                {viewMode === 'analytics' && (
-                    <AdminAnalytics
-                        analytics={currentAnalytics}
-                        classView={currentClassView}
-                        classDisplayName={classDisplayName}
-                        allUsers={allUsers || []}
-                    />
-                )}
-                {viewMode === 'users' && (
-                    <AdminUsers
-                        allUsers={allUsers || []}
-                        loadingUsers={loadingUsers}
-                        adminSearchTerm={adminSearchTerm}
-                        setAdminSearchTerm={setAdminSearchTerm}
-                        userFilter={userFilter}
-                        setUserFilter={setUserFilter}
-                        viewingUserId={viewingUserId}
-                        handleViewUser={handleViewUser}
-                        findCrushersForUser={findCrushersForUser}
-                        userStats={currentClassStats}
-                        classView={currentClassView}
-                        classDisplayName={classDisplayName}
-                    />
-                )}
-            </div>
-        </div>
-    );
-};
-
-export default AdminView;
-
-================
 File: src/types/index.ts
 ================
 export type UserClass = 'gsb' | 'undergrad';
@@ -8439,51 +8234,6 @@ export interface GhostUser extends UserData {
 export interface CrusherInfo {
     name: string;
     email: string;
-}
-
-================
-File: src/types/userTypes.ts
-================
-export type UserClass = 'gsb' | 'undergrad';
-
-export interface MatchInfo {
-    name: string;
-    email: string;
-    matchedAt?: any;
-}
-
-export interface PublicContact {
-    cell: string;
-    instagram: string;
-    x: string;
-    linkedin: string;
-    other: string;
-    preferred: 'cell' | 'instagram' | 'x' | 'linkedin' | 'other' | '';
-}
-
-export interface UserData {
-    uid: string;
-    email: string;
-    emailAlumni?: string;
-    emailAlumniGSB?: string;
-    name: string;
-    photoURL: string;
-    customPhotoURL?: string;
-    crushes: string[];
-    lockedCrushes: string[];
-    matches: MatchInfo[];
-    crushCount: number;
-    userClass: UserClass;
-    createdAt: any;
-    updatedAt: any;
-    lastLogin: any;
-    location?: string;
-    about?: string;
-    publicContact?: PublicContact;
-}
-
-export interface UserWithId extends UserData {
-    id: string;
 }
 
 ================
@@ -8697,6 +8447,210 @@ service cloud.firestore {
 }
 
 ================
+File: src/components/AdminView.tsx
+================
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import AdminAnalytics from './admin/AdminAnalytics';
+import AdminUsers from './admin/AdminUsers';
+import { useAdminData } from '../hooks/useAdminData';
+import { useAdminUtils } from '../hooks/useAdminUtils';
+import type { UserData, UserClass } from '../types';
+import { isAdminUser } from '../utils/adminUtils';
+
+type ViewMode = 'analytics' | 'users';
+type UserFilter = 'all' | 'active' | 'inactive' | 'ghost';
+
+interface AdminViewProps {
+    user: any;
+    userData: UserData | null;
+}
+
+const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
+    const [adminAccessDenied, setAdminAccessDenied] = useState(false);
+    const [adminSearchTerm, setAdminSearchTerm] = useState('');
+    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+    const [userFilter, setUserFilter] = useState<UserFilter>('all');
+    const [viewMode, setViewMode] = useState<ViewMode>('analytics');
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const currentClassView: UserClass = userData?.userClass || 'gsb';
+    const classDisplayName = currentClassView === 'gsb' ? 'GSB MBA' : 'Undergraduate';
+
+    const {
+        allUsers,
+        loadingUsers,
+        currentAnalytics,
+        loadingAnalytics,
+        loadAllUsers
+    } = useAdminData(user, currentClassView, refreshKey);
+
+    const { findCrushersForUser } = useAdminUtils(allUsers || []);
+
+    // Admin access control
+    useEffect(() => {
+        if (!isAdminUser(user, userData)) {
+            setAdminAccessDenied(true);
+            return;
+        }
+        setAdminAccessDenied(false);
+    }, [user, userData]);
+
+    // Early return for non-admin users
+    if (adminAccessDenied) {
+        return (
+            <div className="admin-access-denied">
+                <div className="access-denied-card">
+                    <h2>Access Denied</h2>
+                    <p>You do not have permission to view this page.</p>
+                    <p>Admin access is restricted to authorized personnel only.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Double-check admin status
+    if (!isAdminUser(user, userData)) {
+        return (
+            <div className="admin-loading">
+                Verifying admin access...
+            </div>
+        );
+    }
+
+    // Set up real-time listener for analytics with error handling
+    useEffect(() => {
+        if (!isAdminUser(user, userData)) return;
+
+        const analyticsQuery = query(
+            collection(db, 'analytics'),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+        );
+
+        const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
+            if (!snapshot.empty) {
+                console.log('Live analytics updated');
+                setRefreshKey(prev => prev + 1);
+            }
+        }, (error) => {
+            console.error('Error listening to analytics:', error);
+            if (error.code === 'permission-denied') {
+                setAdminAccessDenied(true);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user, userData]);
+
+    const currentClassStats = useMemo(() => {
+        if (!allUsers || !Array.isArray(allUsers)) {
+            return {
+                activeUsers: 0,
+                inactiveUsers: 0,
+                ghostUsers: 0,
+                total: 0
+            };
+        }
+
+        const realUsers = allUsers.filter(u => !(u as any).isInactive && !(u as any).isGhost);
+        const inactiveUsers = allUsers.filter(u => (u as any).isInactive);
+        const ghostUsers = allUsers.filter(u => (u as any).isGhost);
+
+        return {
+            activeUsers: realUsers.length,
+            inactiveUsers: inactiveUsers.length,
+            ghostUsers: ghostUsers.length,
+            total: allUsers.length
+        };
+    }, [allUsers]);
+
+    const handleViewUser = useCallback((userId: string) => {
+        setViewingUserId(viewingUserId === userId ? null : userId);
+    }, [viewingUserId]);
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshKey(prev => prev + 1);
+        await loadAllUsers();
+    }, [loadAllUsers]);
+
+    if (!allUsers && loadingUsers) {
+        return (
+            <div className="admin-loading">
+                Loading {classDisplayName} admin data...
+            </div>
+        );
+    }
+
+    return (
+        <div className="admin-section">
+            <div className="admin-header-section">
+                <div className="admin-title-row">
+                    <h3>{classDisplayName} Admin Dashboard</h3>
+                    <button onClick={handleRefresh} className="admin-refresh-btn" disabled={loadingUsers || loadingAnalytics}>
+                        {loadingUsers || loadingAnalytics ? '↻ Loading...' : '↻ Refresh'}
+                    </button>
+                </div>
+
+                <div className="admin-definitions">
+                    <p><strong>Current View:</strong> You are viewing data for the {classDisplayName} class only. Switch to a different class account to view other class data.</p>
+                    <p><strong>Active Users:</strong> {classDisplayName} students who have signed up and can match within their class.</p>
+                    <p><strong>Inactive Users:</strong> {classDisplayName} students from the class roster who haven't signed up yet but are receiving crushes.</p>
+                    <p><strong>Ghost Users:</strong> {classDisplayName} students from the class roster with zero engagement.</p>
+                </div>
+            </div>
+
+            <div className="admin-nav">
+                <button
+                    onClick={() => setViewMode('analytics')}
+                    className={`admin-nav-btn ${viewMode === 'analytics' ? 'active' : ''}`}
+                    disabled={loadingAnalytics}
+                >
+                    {classDisplayName} Analytics {loadingAnalytics && '(Loading...)'}
+                </button>
+                <button
+                    onClick={() => setViewMode('users')}
+                    className={`admin-nav-btn ${viewMode === 'users' ? 'active' : ''}`}
+                    disabled={loadingUsers}
+                >
+                    {classDisplayName} Users ({currentClassStats.total}) {loadingUsers && '(Loading...)'}
+                </button>
+            </div>
+
+            <div className="admin-content">
+                {viewMode === 'analytics' && (
+                    <AdminAnalytics
+                        analytics={currentAnalytics}
+                        classView={currentClassView}
+                        classDisplayName={classDisplayName}
+                        allUsers={allUsers || []}
+                    />
+                )}
+                {viewMode === 'users' && (
+                    <AdminUsers
+                        allUsers={allUsers || []}
+                        loadingUsers={loadingUsers}
+                        adminSearchTerm={adminSearchTerm}
+                        setAdminSearchTerm={setAdminSearchTerm}
+                        userFilter={userFilter}
+                        setUserFilter={setUserFilter}
+                        viewingUserId={viewingUserId}
+                        handleViewUser={handleViewUser}
+                        findCrushersForUser={findCrushersForUser}
+                        userStats={currentClassStats}
+                        classView={currentClassView}
+                        classDisplayName={classDisplayName}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default AdminView;
+
+================
 File: src/components/UserDashboard.tsx
 ================
 import React from 'react';
@@ -8705,7 +8659,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData } from '../types/userTypes';
+import type { UserData } from '../types';
 import UserPhoto from './shared/UserPhoto';
 
 const SaveIcon = () => (
@@ -10230,6 +10184,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             customPhotoURL: '',
             location: '',
             about: '',
+            publicContact: [],
             crushes: [],
             lockedCrushes: [],
             matches: [],
@@ -10433,6 +10388,884 @@ const Login = () => {
 export default Login;
 
 ================
+File: src/styles/profile.css
+================
+/* Profile page styles */
+.profile-container {
+    padding: 30px;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.profile-header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding-bottom: 30px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.profile-section-divider {
+    height: 2px;
+    background: #e9ecef;
+    margin: 40px 0 30px 0;
+}
+
+.account-information {
+    margin-top: 30px;
+}
+
+.account-information h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 8px;
+}
+
+.account-info-subtitle {
+    font-size: 13px;
+    color: #6c757d;
+    font-style: italic;
+    margin-bottom: 24px;
+}
+
+.profile-info-section {
+    margin-bottom: 40px;
+    padding: 0 20px;
+    width: 100%;
+}
+
+.info-row {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    gap: 16px;
+    width: 100%;
+}
+
+.info-row label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+    min-width: 140px;
+    flex-shrink: 0;
+    padding-top: 6px;
+}
+
+.location-row {
+    position: relative;
+}
+
+.profile-photo-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+.photo-edit-overlay {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: #8C1515;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s;
+}
+
+.photo-edit-overlay:hover {
+    background: #a01a1a;
+    transform: scale(1.05);
+}
+
+.profile-header h2 {
+    margin: 0 0 20px 0;
+    font-size: 28px;
+    font-weight: 600;
+    color: #212529;
+}
+
+.profile-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+
+.edit-btn, .save-btn, .cancel-btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.edit-btn {
+    background: #8C1515;
+    color: white;
+}
+
+.edit-btn:hover {
+    background: #a01a1a;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.2);
+}
+
+.save-btn {
+    background: #8C1515;
+    color: white;
+}
+
+.save-btn:hover:not(:disabled) {
+    background: #a01a1a;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.2);
+}
+
+.save-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.cancel-btn {
+    background: #6c757d;
+    color: white;
+}
+
+.cancel-btn:hover:not(:disabled) {
+    background: #5a6268;
+}
+
+.cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.profile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.email-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.info-value-plain {
+    font-size: 14px;
+    color: #212529;
+    padding: 2px 0;
+    line-height: 1.6;
+    word-break: break-word;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+.info-value-plain.current-email {
+    color: #8C1515;
+    font-weight: 600;
+}
+
+.info-input-inline {
+    flex: 1;
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #212529;
+    transition: all 0.2s;
+    background: white;
+    width: 100%;
+}
+
+.info-input-inline:focus {
+    outline: none;
+    border-color: #8C1515;
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+}
+
+.info-input-inline.error {
+    border-color: #dc3545;
+}
+
+.info-textarea {
+    flex: 1;
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #212529;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 100px;
+    transition: all 0.2s;
+}
+
+.info-textarea:focus {
+    outline: none;
+    border-color: #8C1515;
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+}
+
+.edit-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* Contact Styles - Plain Version (like Location/About) */
+.contact-fields-plain {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 8px;
+    flex: 1;
+}
+
+.contact-field-plain {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.contact-field-plain:last-child {
+    margin-bottom: 0;
+}
+
+.contact-field-plain > label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.contact-input-with-star {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    }
+
+/* Phone Input Group Styles */
+.phone-input-group {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+}
+
+.country-code-select {
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #212529;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 140px;
+    flex-shrink: 0;
+}
+
+.country-code-select:focus {
+    outline: none;
+    border-color: #8C1515;
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+}
+
+.phone-number-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #212529;
+    transition: all 0.2s;
+    background: white;
+}
+
+.phone-number-input:focus {
+    outline: none;
+    border-color: #8C1515;
+    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
+}
+
+.phone-number-input.error {
+    border-color: #dc3545;
+}
+
+.preferred-star {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 2px solid #e9ecef;
+    background: white;
+    color: #6c757d;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.preferred-star:hover:not(:disabled) {
+    border-color: #8C1515;
+    background: #fff5f5;
+    color: #8C1515;
+}
+
+.preferred-star.active {
+    border-color: #8C1515;
+    background: #8C1515;
+    color: white;
+}
+
+.preferred-star:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.contact-error {
+    font-size: 12px;
+    color: #dc3545;
+    margin-top: 4px;
+}
+
+.contact-error.general-error {
+    margin-top: 12px;
+    text-align: center;
+}
+
+.contact-display-plain {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    flex: 1;
+}
+
+/* Hide empty contact fields */
+.contact-display-plain .info-value-plain:empty {
+    display: none;
+}
+
+.contact-display-plain .info-value-plain:has(> :only-child:empty) {
+    display: none;
+}
+
+.contact-link-plain {
+    color: #212529;
+    text-decoration: none;
+    font-weight: 400;
+}
+
+.contact-link-plain:hover {
+    text-decoration: underline;
+}
+
+.info-value-plain.preferred .contact-link-plain {
+    color: #8C1515;
+}
+
+.preferred-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8C1515;
+    background: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid #8C1515;
+    margin-left: 8px;
+}
+
+/* Location autocomplete styles */
+.location-row {
+    position: relative;
+}
+
+.location-suggestions {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 156px;
+    right: 20px;
+    background: white;
+    border: 2px solid #8C1515;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    max-height: 240px;
+    overflow-y: auto;
+    margin-top: -2px;
+}
+
+.suggestion-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #212529;
+    transition: background-color 0.15s;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #fff5f5;
+}
+
+/* Crop Modal Styles */
+.crop-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
+.crop-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.crop-modal h3 {
+    margin: 0 0 8px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #212529;
+    text-align: center;
+}
+
+.crop-instructions {
+    margin: 0 0 24px 0;
+    font-size: 13px;
+    color: #6c757d;
+    text-align: center;
+}
+
+.crop-preview-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+    touch-action: none;
+}
+
+.crop-preview-circle {
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    position: relative;
+}
+
+.crop-preview-circle img {
+    transition: none;
+}
+
+.zoom-control {
+    margin-bottom: 24px;
+}
+
+.zoom-control label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+}
+
+.zoom-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #e9ecef;
+    outline: none;
+    cursor: pointer;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8C1515;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.zoom-slider::-webkit-slider-thumb:hover {
+    background: #a01a1a;
+    transform: scale(1.1);
+}
+
+.zoom-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8C1515;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.zoom-slider::-moz-range-thumb:hover {
+    background: #a01a1a;
+    transform: scale(1.1);
+}
+
+.crop-modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* Mobile Responsive */
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .profile-container {
+        padding: 20px;
+    }
+
+    .profile-header {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+    }
+
+    .profile-header h2 {
+        font-size: 24px;
+    }
+
+    .profile-info-section {
+        padding: 0 10px;
+    }
+
+    .info-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .info-row label {
+        min-width: unset;
+    }
+
+    .info-row > div {
+        width: 100%;
+    }
+
+    .info-input-inline,
+    .info-textarea {
+        width: 100%;
+    }
+
+    .phone-input-group {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .country-code-select {
+        width: 100%;
+        min-width: unset;
+    }
+
+    .phone-number-input {
+        width: 100%;
+    }
+
+    .contact-input-with-star {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .crop-modal {
+        padding: 20px;
+    }
+
+    .crop-preview-circle {
+        width: 250px;
+        height: 250px;
+    }
+
+    .location-suggestions {
+        left: 10px;
+        right: 10px;
+    }
+
+    .edit-actions {
+        flex-direction: row;
+    }
+
+    .edit-btn, .save-btn, .cancel-btn {
+        width: auto;
+        flex: 1;
+    }
+}
+
+@media (max-width: 480px) {
+    .crop-preview-circle {
+        width: 200px;
+        height: 200px;
+    }
+
+    .crop-modal h3 {
+        font-size: 18px;
+    }
+}
+
+================
+File: src/components/Home.tsx
+================
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import AdminView from '../components/AdminView';
+import UserDashboard from '../components/UserDashboard';
+import Navbar from '../components/shared/Navbar';
+import { db } from '../config/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { isAdminUser } from '../utils/adminUtils';
+import { getUserDocumentId } from '../utils';
+
+const Home = () => {
+    const { user, userData, updateUserDataOptimistically } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedNames, setSelectedNames] = useState<string[]>([]);
+    const [savedNames, setSavedNames] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [updating, setUpdating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isAdminMode, setIsAdminMode] = useState(false);
+
+    const isAdmin = isAdminUser(user, userData);
+
+    // Check for admin query parameter on mount
+    useEffect(() => {
+        if (searchParams.get('admin') === 'true' && isAdmin) {
+            setIsAdminMode(true);
+            // Remove the query parameter from URL
+            setSearchParams({});
+        }
+    }, [searchParams, setSearchParams, isAdmin]);
+
+    const loadUserSelections = useCallback(() => {
+        if (!userData) return;
+
+        const crushes = userData.crushes && Array.isArray(userData.crushes) ? userData.crushes : [];
+        setSelectedNames(crushes);
+        setSavedNames(crushes);
+    }, [userData]);
+
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                setError(null);
+                if (user && userData) {
+                    loadUserSelections();
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+                setError('Failed to load your data. Please refresh the page.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadData();
+    }, [user, userData, loadUserSelections]);
+
+    const handleNameToggle = useCallback((name: string) => {
+        if (updating) return;
+
+        setSelectedNames(prev => {
+            const currentNames = prev || [];
+            if (currentNames.includes(name)) {
+                return currentNames.filter(n => n !== name);
+            }
+
+            // Add new name at the top, but after locked crushes
+            const lockedCrushes = userData?.lockedCrushes || [];
+            const locked = currentNames.filter(n => lockedCrushes.includes(n));
+            const unlocked = currentNames.filter(n => !lockedCrushes.includes(n));
+
+            return [...locked, name, ...unlocked];
+        });
+    }, [updating, userData?.lockedCrushes]);
+
+    const handleRemoveSelected = useCallback((nameToRemove: string) => {
+        if (updating) return;
+
+        const lockedCrushes = userData?.lockedCrushes || [];
+        if (lockedCrushes.includes(nameToRemove)) {
+            return;
+        }
+
+        setSelectedNames(prev => (prev || []).filter(name => name !== nameToRemove));
+    }, [updating, userData?.lockedCrushes]);
+
+    const handleUpdatePreferences = useCallback(async () => {
+        if (!user || !userData || updating) return;
+
+        const lockedCrushes = userData?.lockedCrushes || [];
+        const currentSelectedNames = selectedNames || [];
+        const missingLockedCrushes = lockedCrushes.filter(locked => !currentSelectedNames.includes(locked));
+
+        if (missingLockedCrushes.length > 0) {
+            const restoredNames = [...new Set([...currentSelectedNames, ...lockedCrushes])];
+            setSelectedNames(restoredNames);
+        }
+
+        setUpdating(true);
+        setError(null);
+
+        try {
+            const actualUid = getUserDocumentId(user, userData);
+            const userRef = doc(db, 'users', actualUid);
+            const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
+            const now = new Date();
+
+            // Optimistic update - update all local state immediately
+            setSelectedNames(finalCrushes);
+            setSavedNames(finalCrushes);
+            updateUserDataOptimistically({
+                crushes: finalCrushes,
+                updatedAt: now
+            });
+
+            // Show success message immediately
+            const successDiv = document.createElement('div');
+            successDiv.textContent = 'Preferences updated successfully!';
+            successDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        `;
+            document.body.appendChild(successDiv);
+
+            setTimeout(() => {
+                if (document.body.contains(successDiv)) {
+                    document.body.removeChild(successDiv);
+                }
+            }, 3000);
+
+            // Fire and forget - update Firestore in background
+            updateDoc(userRef, {
+                crushes: finalCrushes,
+                updatedAt: now
+            }).catch(error => {
+                console.error('Error updating preferences:', error);
+                // Revert optimistic updates on error
+                setSelectedNames(savedNames);
+                setError('Failed to update preferences. Please try again.');
+            });
+
+        } catch (error) {
+            console.error('Error updating preferences:', error);
+            setError('Failed to update preferences. Please try again.');
+
+            // Revert optimistic update on error
+            setSelectedNames(savedNames);
+        } finally {
+            setUpdating(false);
+        }
+    }, [user, userData, updating, selectedNames, savedNames, updateUserDataOptimistically]);
+
+    const handleAdminToggle = useCallback(() => {
+        setIsAdminMode(prev => !prev);
+    }, []);
+
+    if (loading) {
+        return <div className="loading">Loading...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="loading">
+                <p style={{ color: 'red' }}>{error}</p>
+                <button onClick={() => window.location.reload()}>Refresh Page</button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="dashboard-container">
+            <div className="dashboard-card">
+                <Navbar
+                    user={user}
+                    userData={userData}
+                    isAdminMode={isAdminMode}
+                    onAdminToggle={handleAdminToggle}
+                />
+
+                <div className="dashboard-content">
+                    {isAdminMode && isAdmin ? (
+                        <AdminView user={user} userData={userData} />
+                    ) : (
+                        <UserDashboard
+                            userData={userData!}
+                            searchTerm={searchTerm}
+                            setSearchTerm={setSearchTerm}
+                            selectedNames={selectedNames || []}
+                            savedNames={savedNames || []}
+                            updating={updating}
+                            error={error}
+                            handleNameToggle={handleNameToggle}
+                            handleRemoveSelected={handleRemoveSelected}
+                            handleUpdatePreferences={handleUpdatePreferences}
+                        />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Home;
+
+================
 File: src/components/Profile.tsx
 ================
 import { useAuth } from '../contexts/AuthContext';
@@ -10447,7 +11280,7 @@ import { db, storage } from '../config/firebase';
 import { getUserDocumentId } from '../utils';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData, PublicContact } from '../types/userTypes';
+import type { UserData, PublicContact } from '../types';
 import '../styles/profile.css';
 
 const hashName = (name: string): string => {
@@ -11773,884 +12606,6 @@ const Profile = () => {
 };
 
 export default Profile;
-
-================
-File: src/styles/profile.css
-================
-/* Profile page styles */
-.profile-container {
-    padding: 30px;
-    max-width: 800px;
-    margin: 0 auto;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.profile-header {
-    text-align: center;
-    margin-bottom: 40px;
-    padding-bottom: 30px;
-    border-bottom: 2px solid #e9ecef;
-}
-
-.profile-section-divider {
-    height: 2px;
-    background: #e9ecef;
-    margin: 40px 0 30px 0;
-}
-
-.account-information {
-    margin-top: 30px;
-}
-
-.account-information h3 {
-    font-size: 20px;
-    font-weight: 600;
-    color: #212529;
-    margin-bottom: 8px;
-}
-
-.account-info-subtitle {
-    font-size: 13px;
-    color: #6c757d;
-    font-style: italic;
-    margin-bottom: 24px;
-}
-
-.profile-info-section {
-    margin-bottom: 40px;
-    padding: 0 20px;
-    width: 100%;
-}
-
-.info-row {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 16px;
-    gap: 16px;
-    width: 100%;
-}
-
-.info-row label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #495057;
-    min-width: 140px;
-    flex-shrink: 0;
-    padding-top: 6px;
-}
-
-.location-row {
-    position: relative;
-}
-
-.profile-photo-wrapper {
-    position: relative;
-    display: inline-block;
-    margin-bottom: 20px;
-    cursor: pointer;
-}
-
-.photo-edit-overlay {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    background: #8C1515;
-    color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    border: 3px solid white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s;
-}
-
-.photo-edit-overlay:hover {
-    background: #a01a1a;
-    transform: scale(1.05);
-}
-
-.profile-header h2 {
-    margin: 0 0 20px 0;
-    font-size: 28px;
-    font-weight: 600;
-    color: #212529;
-}
-
-.profile-actions {
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-}
-
-.edit-btn, .save-btn, .cancel-btn {
-    padding: 10px 24px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-}
-
-.edit-btn {
-    background: #8C1515;
-    color: white;
-}
-
-.edit-btn:hover {
-    background: #a01a1a;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.2);
-}
-
-.save-btn {
-    background: #8C1515;
-    color: white;
-}
-
-.save-btn:hover:not(:disabled) {
-    background: #a01a1a;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(140, 21, 21, 0.2);
-}
-
-.save-btn:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.cancel-btn {
-    background: #6c757d;
-    color: white;
-}
-
-.cancel-btn:hover:not(:disabled) {
-    background: #5a6268;
-}
-
-.cancel-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.profile-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-}
-
-.email-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex: 1;
-}
-
-.info-value-plain {
-    font-size: 14px;
-    color: #212529;
-    padding: 2px 0;
-    line-height: 1.6;
-    word-break: break-word;
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-}
-
-.info-value-plain.current-email {
-    color: #8C1515;
-    font-weight: 600;
-}
-
-.info-input-inline {
-    flex: 1;
-    padding: 8px 12px;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    font-size: 14px;
-    color: #212529;
-    transition: all 0.2s;
-    background: white;
-    width: 100%;
-}
-
-.info-input-inline:focus {
-    outline: none;
-    border-color: #8C1515;
-    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
-}
-
-.info-input-inline.error {
-    border-color: #dc3545;
-}
-
-.info-textarea {
-    flex: 1;
-    padding: 8px 12px;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    font-size: 14px;
-    color: #212529;
-    font-family: inherit;
-    resize: vertical;
-    min-height: 100px;
-    transition: all 0.2s;
-}
-
-.info-textarea:focus {
-    outline: none;
-    border-color: #8C1515;
-    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
-}
-
-.edit-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-}
-
-/* Contact Styles - Plain Version (like Location/About) */
-.contact-fields-plain {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    margin-top: 8px;
-    flex: 1;
-}
-
-.contact-field-plain {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 16px;
-}
-
-.contact-field-plain:last-child {
-    margin-bottom: 0;
-}
-
-.contact-field-plain > label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #495057;
-}
-
-.contact-input-with-star {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    }
-
-/* Phone Input Group Styles */
-.phone-input-group {
-    display: flex;
-    gap: 8px;
-    flex: 1;
-}
-
-.country-code-select {
-    padding: 8px 12px;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    font-size: 14px;
-    color: #212529;
-    background: white;
-    cursor: pointer;
-    transition: all 0.2s;
-    min-width: 140px;
-    flex-shrink: 0;
-}
-
-.country-code-select:focus {
-    outline: none;
-    border-color: #8C1515;
-    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
-}
-
-.phone-number-input {
-    flex: 1;
-    padding: 8px 12px;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    font-size: 14px;
-    color: #212529;
-    transition: all 0.2s;
-    background: white;
-}
-
-.phone-number-input:focus {
-    outline: none;
-    border-color: #8C1515;
-    box-shadow: 0 0 0 3px rgba(140, 21, 21, 0.1);
-}
-
-.phone-number-input.error {
-    border-color: #dc3545;
-}
-
-.preferred-star {
-    width: 36px;
-    height: 36px;
-    border-radius: 6px;
-    border: 2px solid #e9ecef;
-    background: white;
-    color: #6c757d;
-    cursor: pointer;
-    font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    flex-shrink: 0;
-}
-
-.preferred-star:hover:not(:disabled) {
-    border-color: #8C1515;
-    background: #fff5f5;
-    color: #8C1515;
-}
-
-.preferred-star.active {
-    border-color: #8C1515;
-    background: #8C1515;
-    color: white;
-}
-
-.preferred-star:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-}
-
-.contact-error {
-    font-size: 12px;
-    color: #dc3545;
-    margin-top: 4px;
-}
-
-.contact-error.general-error {
-    margin-top: 12px;
-    text-align: center;
-}
-
-.contact-display-plain {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 8px;
-    flex: 1;
-}
-
-/* Hide empty contact fields */
-.contact-display-plain .info-value-plain:empty {
-    display: none;
-}
-
-.contact-display-plain .info-value-plain:has(> :only-child:empty) {
-    display: none;
-}
-
-.contact-link-plain {
-    color: #212529;
-    text-decoration: none;
-    font-weight: 400;
-}
-
-.contact-link-plain:hover {
-    text-decoration: underline;
-}
-
-.info-value-plain.preferred .contact-link-plain {
-    color: #8C1515;
-}
-
-.preferred-badge {
-    font-size: 11px;
-    font-weight: 700;
-    color: #8C1515;
-    background: white;
-    padding: 4px 10px;
-    border-radius: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border: 1px solid #8C1515;
-    margin-left: 8px;
-}
-
-/* Location autocomplete styles */
-.location-row {
-    position: relative;
-}
-
-.location-suggestions {
-    position: absolute;
-    top: calc(100% + 2px);
-    left: 156px;
-    right: 20px;
-    background: white;
-    border: 2px solid #8C1515;
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
-    max-height: 240px;
-    overflow-y: auto;
-    margin-top: -2px;
-}
-
-.suggestion-item {
-    padding: 12px 16px;
-    cursor: pointer;
-    font-size: 14px;
-    color: #212529;
-    transition: background-color 0.15s;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.suggestion-item:last-child {
-    border-bottom: none;
-}
-
-.suggestion-item:hover {
-    background-color: #fff5f5;
-}
-
-/* Crop Modal Styles */
-.crop-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.75);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    padding: 20px;
-}
-
-.crop-modal {
-    background: white;
-    border-radius: 12px;
-    padding: 30px;
-    max-width: 500px;
-    width: 100%;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-}
-
-.crop-modal h3 {
-    margin: 0 0 8px 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: #212529;
-    text-align: center;
-}
-
-.crop-instructions {
-    margin: 0 0 24px 0;
-    font-size: 13px;
-    color: #6c757d;
-    text-align: center;
-}
-
-.crop-preview-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 24px;
-    touch-action: none;
-}
-
-.crop-preview-circle {
-    width: 300px;
-    height: 300px;
-    border-radius: 50%;
-    overflow: hidden;
-    border: 3px solid #e9ecef;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f8f9fa;
-    position: relative;
-}
-
-.crop-preview-circle img {
-    transition: none;
-}
-
-.zoom-control {
-    margin-bottom: 24px;
-}
-
-.zoom-control label {
-    display: block;
-    font-size: 14px;
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 8px;
-}
-
-.zoom-slider {
-    width: 100%;
-    height: 6px;
-    border-radius: 3px;
-    background: #e9ecef;
-    outline: none;
-    cursor: pointer;
-}
-
-.zoom-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #8C1515;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.zoom-slider::-webkit-slider-thumb:hover {
-    background: #a01a1a;
-    transform: scale(1.1);
-}
-
-.zoom-slider::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #8C1515;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s;
-}
-
-.zoom-slider::-moz-range-thumb:hover {
-    background: #a01a1a;
-    transform: scale(1.1);
-}
-
-.crop-modal-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-}
-
-/* Mobile Responsive */
-/* Mobile Responsive */
-@media (max-width: 768px) {
-    .profile-container {
-        padding: 20px;
-    }
-
-    .profile-header {
-        margin-bottom: 30px;
-        padding-bottom: 20px;
-    }
-
-    .profile-header h2 {
-        font-size: 24px;
-    }
-
-    .profile-info-section {
-        padding: 0 10px;
-    }
-
-    .info-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-    }
-
-    .info-row label {
-        min-width: unset;
-    }
-
-    .info-row > div {
-        width: 100%;
-    }
-
-    .info-input-inline,
-    .info-textarea {
-        width: 100%;
-    }
-
-    .phone-input-group {
-        flex-direction: column;
-        width: 100%;
-    }
-
-    .country-code-select {
-        width: 100%;
-        min-width: unset;
-    }
-
-    .phone-number-input {
-        width: 100%;
-    }
-
-    .contact-input-with-star {
-        flex-direction: row;
-        align-items: center;
-    }
-
-    .crop-modal {
-        padding: 20px;
-    }
-
-    .crop-preview-circle {
-        width: 250px;
-        height: 250px;
-    }
-
-    .location-suggestions {
-        left: 10px;
-        right: 10px;
-    }
-
-    .edit-actions {
-        flex-direction: row;
-    }
-
-    .edit-btn, .save-btn, .cancel-btn {
-        width: auto;
-        flex: 1;
-    }
-}
-
-@media (max-width: 480px) {
-    .crop-preview-circle {
-        width: 200px;
-        height: 200px;
-    }
-
-    .crop-modal h3 {
-        font-size: 18px;
-    }
-}
-
-================
-File: src/components/Home.tsx
-================
-import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import AdminView from '../components/AdminView';
-import UserDashboard from '../components/UserDashboard';
-import Navbar from '../components/shared/Navbar';
-import { db } from '../config/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import { isAdminUser } from '../utils/adminUtils';
-import { getUserDocumentId } from '../utils';
-
-const Home = () => {
-    const { user, userData, updateUserDataOptimistically } = useAuth();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedNames, setSelectedNames] = useState<string[]>([]);
-    const [savedNames, setSavedNames] = useState<string[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [updating, setUpdating] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [isAdminMode, setIsAdminMode] = useState(false);
-
-    const isAdmin = isAdminUser(user, userData);
-
-    // Check for admin query parameter on mount
-    useEffect(() => {
-        if (searchParams.get('admin') === 'true' && isAdmin) {
-            setIsAdminMode(true);
-            // Remove the query parameter from URL
-            setSearchParams({});
-        }
-    }, [searchParams, setSearchParams, isAdmin]);
-
-    const loadUserSelections = useCallback(() => {
-        if (!userData) return;
-
-        const crushes = userData.crushes && Array.isArray(userData.crushes) ? userData.crushes : [];
-        setSelectedNames(crushes);
-        setSavedNames(crushes);
-    }, [userData]);
-
-    useEffect(() => {
-        const loadData = async () => {
-            try {
-                setError(null);
-                if (user && userData) {
-                    loadUserSelections();
-                }
-            } catch (error) {
-                console.error('Error loading data:', error);
-                setError('Failed to load your data. Please refresh the page.');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadData();
-    }, [user, userData, loadUserSelections]);
-
-    const handleNameToggle = useCallback((name: string) => {
-        if (updating) return;
-
-        setSelectedNames(prev => {
-            const currentNames = prev || [];
-            if (currentNames.includes(name)) {
-                return currentNames.filter(n => n !== name);
-            }
-
-            // Add new name at the top, but after locked crushes
-            const lockedCrushes = userData?.lockedCrushes || [];
-            const locked = currentNames.filter(n => lockedCrushes.includes(n));
-            const unlocked = currentNames.filter(n => !lockedCrushes.includes(n));
-
-            return [...locked, name, ...unlocked];
-        });
-    }, [updating, userData?.lockedCrushes]);
-
-    const handleRemoveSelected = useCallback((nameToRemove: string) => {
-        if (updating) return;
-
-        const lockedCrushes = userData?.lockedCrushes || [];
-        if (lockedCrushes.includes(nameToRemove)) {
-            return;
-        }
-
-        setSelectedNames(prev => (prev || []).filter(name => name !== nameToRemove));
-    }, [updating, userData?.lockedCrushes]);
-
-    const handleUpdatePreferences = useCallback(async () => {
-        if (!user || !userData || updating) return;
-
-        const lockedCrushes = userData?.lockedCrushes || [];
-        const currentSelectedNames = selectedNames || [];
-        const missingLockedCrushes = lockedCrushes.filter(locked => !currentSelectedNames.includes(locked));
-
-        if (missingLockedCrushes.length > 0) {
-            const restoredNames = [...new Set([...currentSelectedNames, ...lockedCrushes])];
-            setSelectedNames(restoredNames);
-        }
-
-        setUpdating(true);
-        setError(null);
-
-        try {
-            const actualUid = getUserDocumentId(user, userData);
-            const userRef = doc(db, 'users', actualUid);
-            const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
-            const now = new Date();
-
-            // Optimistic update - update all local state immediately
-            setSelectedNames(finalCrushes);
-            setSavedNames(finalCrushes);
-            updateUserDataOptimistically({
-                crushes: finalCrushes,
-                updatedAt: now
-            });
-
-            // Show success message immediately
-            const successDiv = document.createElement('div');
-            successDiv.textContent = 'Preferences updated successfully!';
-            successDiv.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #28a745;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            z-index: 1000;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        `;
-            document.body.appendChild(successDiv);
-
-            setTimeout(() => {
-                if (document.body.contains(successDiv)) {
-                    document.body.removeChild(successDiv);
-                }
-            }, 3000);
-
-            // Fire and forget - update Firestore in background
-            updateDoc(userRef, {
-                crushes: finalCrushes,
-                updatedAt: now
-            }).catch(error => {
-                console.error('Error updating preferences:', error);
-                // Revert optimistic updates on error
-                setSelectedNames(savedNames);
-                setError('Failed to update preferences. Please try again.');
-            });
-
-        } catch (error) {
-            console.error('Error updating preferences:', error);
-            setError('Failed to update preferences. Please try again.');
-
-            // Revert optimistic update on error
-            setSelectedNames(savedNames);
-        } finally {
-            setUpdating(false);
-        }
-    }, [user, userData, updating, selectedNames, savedNames, updateUserDataOptimistically]);
-
-    const handleAdminToggle = useCallback(() => {
-        setIsAdminMode(prev => !prev);
-    }, []);
-
-    if (loading) {
-        return <div className="loading">Loading...</div>;
-    }
-
-    if (error) {
-        return (
-            <div className="loading">
-                <p style={{ color: 'red' }}>{error}</p>
-                <button onClick={() => window.location.reload()}>Refresh Page</button>
-            </div>
-        );
-    }
-
-    return (
-        <div className="dashboard-container">
-            <div className="dashboard-card">
-                <Navbar
-                    user={user}
-                    userData={userData}
-                    isAdminMode={isAdminMode}
-                    onAdminToggle={handleAdminToggle}
-                />
-
-                <div className="dashboard-content">
-                    {isAdminMode && isAdmin ? (
-                        <AdminView user={user} userData={userData} />
-                    ) : (
-                        <UserDashboard
-                            userData={userData!}
-                            searchTerm={searchTerm}
-                            setSearchTerm={setSearchTerm}
-                            selectedNames={selectedNames || []}
-                            savedNames={savedNames || []}
-                            updating={updating}
-                            error={error}
-                            handleNameToggle={handleNameToggle}
-                            handleRemoveSelected={handleRemoveSelected}
-                            handleUpdatePreferences={handleUpdatePreferences}
-                        />
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default Home;
 
 ================
 File: index.html
