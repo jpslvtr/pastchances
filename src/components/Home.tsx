@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import AdminView from '../components/AdminView';
-import UserDashboard from '../components/UserDashboard';
-import Navbar from '../components/shared/Navbar';
-import { db } from '../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { isAdminUser } from '../utils/adminUtils';
+import { db } from '../config/firebase';
+import { useAuth } from '../contexts/AuthContext';
+import AdminView from './AdminView';
+import UserDashboard from './UserDashboard';
+import Navbar from './shared/Navbar';
 import { getUserDocumentId } from '../utils';
+import { isAdminUser } from '../utils/adminUtils';
+import { EngagementStats } from './dashboard/EngagementStats';
 
 const Home = () => {
     const { user, userData, updateUserDataOptimistically } = useAuth();
@@ -188,6 +189,8 @@ const Home = () => {
                 />
 
                 <div className="dashboard-content">
+                    {!isAdminMode && <EngagementStats />}
+
                     {isAdminMode && isAdmin ? (
                         <AdminView user={user} userData={userData} />
                     ) : (
