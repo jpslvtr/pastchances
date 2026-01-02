@@ -10388,6 +10388,223 @@ const Login = () => {
 export default Login;
 
 ================
+File: src/components/Home.tsx
+================
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import AdminView from '../components/AdminView';
+import UserDashboard from '../components/UserDashboard';
+import Navbar from '../components/shared/Navbar';
+import { db } from '../config/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { isAdminUser } from '../utils/adminUtils';
+import { getUserDocumentId } from '../utils';
+
+const Home = () => {
+    const { user, userData, updateUserDataOptimistically } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedNames, setSelectedNames] = useState<string[]>([]);
+    const [savedNames, setSavedNames] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [updating, setUpdating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isAdminMode, setIsAdminMode] = useState(false);
+
+    const isAdmin = isAdminUser(user, userData);
+
+    // Check for admin query parameter on mount
+    useEffect(() => {
+        if (searchParams.get('admin') === 'true' && isAdmin) {
+            setIsAdminMode(true);
+            // Remove the query parameter from URL
+            setSearchParams({});
+        }
+    }, [searchParams, setSearchParams, isAdmin]);
+
+    const loadUserSelections = useCallback(() => {
+        if (!userData) return;
+
+        const crushes = userData.crushes && Array.isArray(userData.crushes) ? userData.crushes : [];
+        setSelectedNames(crushes);
+        setSavedNames(crushes);
+    }, [userData]);
+
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                setError(null);
+                if (user && userData) {
+                    loadUserSelections();
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+                setError('Failed to load your data. Please refresh the page.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadData();
+    }, [user, userData, loadUserSelections]);
+
+    const handleNameToggle = useCallback((name: string) => {
+        if (updating) return;
+
+        setSelectedNames(prev => {
+            const currentNames = prev || [];
+            if (currentNames.includes(name)) {
+                return currentNames.filter(n => n !== name);
+            }
+
+            // Add new name at the top, but after locked crushes
+            const lockedCrushes = userData?.lockedCrushes || [];
+            const locked = currentNames.filter(n => lockedCrushes.includes(n));
+            const unlocked = currentNames.filter(n => !lockedCrushes.includes(n));
+
+            return [...locked, name, ...unlocked];
+        });
+    }, [updating, userData?.lockedCrushes]);
+
+    const handleRemoveSelected = useCallback((nameToRemove: string) => {
+        if (updating) return;
+
+        const lockedCrushes = userData?.lockedCrushes || [];
+        if (lockedCrushes.includes(nameToRemove)) {
+            return;
+        }
+
+        setSelectedNames(prev => (prev || []).filter(name => name !== nameToRemove));
+    }, [updating, userData?.lockedCrushes]);
+
+    const handleUpdatePreferences = useCallback(async () => {
+        if (!user || !userData || updating) return;
+
+        const lockedCrushes = userData?.lockedCrushes || [];
+        const currentSelectedNames = selectedNames || [];
+        const missingLockedCrushes = lockedCrushes.filter(locked => !currentSelectedNames.includes(locked));
+
+        if (missingLockedCrushes.length > 0) {
+            const restoredNames = [...new Set([...currentSelectedNames, ...lockedCrushes])];
+            setSelectedNames(restoredNames);
+        }
+
+        setUpdating(true);
+        setError(null);
+
+        try {
+            const actualUid = getUserDocumentId(user, userData);
+            const userRef = doc(db, 'users', actualUid);
+            const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
+            const now = new Date();
+
+            // Optimistic update - update all local state immediately
+            setSelectedNames(finalCrushes);
+            setSavedNames(finalCrushes);
+            updateUserDataOptimistically({
+                crushes: finalCrushes,
+                updatedAt: now
+            });
+
+            // Show success message immediately
+            const successDiv = document.createElement('div');
+            successDiv.textContent = 'Preferences updated successfully!';
+            successDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        `;
+            document.body.appendChild(successDiv);
+
+            setTimeout(() => {
+                if (document.body.contains(successDiv)) {
+                    document.body.removeChild(successDiv);
+                }
+            }, 3000);
+
+            // Fire and forget - update Firestore in background
+            updateDoc(userRef, {
+                crushes: finalCrushes,
+                updatedAt: now
+            }).catch(error => {
+                console.error('Error updating preferences:', error);
+                // Revert optimistic updates on error
+                setSelectedNames(savedNames);
+                setError('Failed to update preferences. Please try again.');
+            });
+
+        } catch (error) {
+            console.error('Error updating preferences:', error);
+            setError('Failed to update preferences. Please try again.');
+
+            // Revert optimistic update on error
+            setSelectedNames(savedNames);
+        } finally {
+            setUpdating(false);
+        }
+    }, [user, userData, updating, selectedNames, savedNames, updateUserDataOptimistically]);
+
+    const handleAdminToggle = useCallback(() => {
+        setIsAdminMode(prev => !prev);
+    }, []);
+
+    if (loading) {
+        return <div className="loading">Loading...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="loading">
+                <p style={{ color: 'red' }}>{error}</p>
+                <button onClick={() => window.location.reload()}>Refresh Page</button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="dashboard-container">
+            <div className="dashboard-card">
+                <Navbar
+                    user={user}
+                    userData={userData}
+                    isAdminMode={isAdminMode}
+                    onAdminToggle={handleAdminToggle}
+                />
+
+                <div className="dashboard-content">
+                    {isAdminMode && isAdmin ? (
+                        <AdminView user={user} userData={userData} />
+                    ) : (
+                        <UserDashboard
+                            userData={userData!}
+                            searchTerm={searchTerm}
+                            setSearchTerm={setSearchTerm}
+                            selectedNames={selectedNames || []}
+                            savedNames={savedNames || []}
+                            updating={updating}
+                            error={error}
+                            handleNameToggle={handleNameToggle}
+                            handleRemoveSelected={handleRemoveSelected}
+                            handleUpdatePreferences={handleUpdatePreferences}
+                        />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Home;
+
+================
 File: src/styles/profile.css
 ================
 /* Profile page styles */
@@ -10500,7 +10717,10 @@ File: src/styles/profile.css
     gap: 12px;
 }
 
-.edit-btn, .save-btn, .cancel-btn {
+.profile-container .edit-btn,
+.profile-container .save-btn,
+.profile-container .cancel-btn {
+
     padding: 10px 24px;
     border-radius: 8px;
     font-size: 14px;
@@ -10510,44 +10730,44 @@ File: src/styles/profile.css
     border: none;
 }
 
-.edit-btn {
+.profile-container .edit-btn {
     background: #8C1515;
     color: white;
 }
 
-.edit-btn:hover {
+.profile-container .edit-btn:hover {
     background: #a01a1a;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(140, 21, 21, 0.2);
 }
 
-.save-btn {
+.profile-container .save-btn {
     background: #8C1515;
     color: white;
 }
 
-.save-btn:hover:not(:disabled) {
+.profile-container .save-btn:hover:not(:disabled) {
     background: #a01a1a;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(140, 21, 21, 0.2);
 }
 
-.save-btn:disabled {
+.profile-container .save-btn:disabled {
     background: #ccc;
     cursor: not-allowed;
     opacity: 0.6;
 }
 
-.cancel-btn {
+.profile-container .cancel-btn {
     background: #6c757d;
     color: white;
 }
 
-.cancel-btn:hover:not(:disabled) {
+.profile-container .cancel-btn:hover:not(:disabled) {
     background: #5a6268;
 }
 
-.cancel-btn:disabled {
+.profile-container .cancel-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
@@ -11031,7 +11251,9 @@ File: src/styles/profile.css
         flex-direction: row;
     }
 
-    .edit-btn, .save-btn, .cancel-btn {
+        .profile-container .edit-btn,
+        .profile-container .save-btn,
+        .profile-container .cancel-btn {
         width: auto;
         flex: 1;
     }
@@ -11049,221 +11271,44 @@ File: src/styles/profile.css
 }
 
 ================
-File: src/components/Home.tsx
+File: index.html
 ================
-import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import AdminView from '../components/AdminView';
-import UserDashboard from '../components/UserDashboard';
-import Navbar from '../components/shared/Navbar';
-import { db } from '../config/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import { isAdminUser } from '../utils/adminUtils';
-import { getUserDocumentId } from '../utils';
+<!doctype html>
+<html lang="en">
 
-const Home = () => {
-    const { user, userData, updateUserDataOptimistically } = useAuth();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedNames, setSelectedNames] = useState<string[]>([]);
-    const [savedNames, setSavedNames] = useState<string[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [updating, setUpdating] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [isAdminMode, setIsAdminMode] = useState(false);
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/logo-rounded.png" />
+  <link rel="apple-touch-icon" href="/logo-rounded.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Second Chances</title>
 
-    const isAdmin = isAdminUser(user, userData);
+  <!-- Open Graph Meta Tags (no image) -->
+  <meta property="og:title" content="Second Chances" />
+  <meta property="og:description" content="Share your crushes anonymously and see if there's a mutual connection." />
+  <meta property="og:url" content="https://secondchances.app" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Second Chances" />
 
-    // Check for admin query parameter on mount
-    useEffect(() => {
-        if (searchParams.get('admin') === 'true' && isAdmin) {
-            setIsAdminMode(true);
-            // Remove the query parameter from URL
-            setSearchParams({});
-        }
-    }, [searchParams, setSearchParams, isAdmin]);
+  <!-- Twitter Card Meta Tags (no image) -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Second Chances" />
+  <meta name="twitter:description" content="Share your crushes anonymously and see if there's a mutual connection." />
 
-    const loadUserSelections = useCallback(() => {
-        if (!userData) return;
+  <!-- Standard Meta Tags -->
+  <meta name="description" content="Share your crushes anonymously and see if there's a mutual connection." />
+  <meta name="author" content="Second Chances" />
 
-        const crushes = userData.crushes && Array.isArray(userData.crushes) ? userData.crushes : [];
-        setSelectedNames(crushes);
-        setSavedNames(crushes);
-    }, [userData]);
+  <!-- Preload critical images -->
+  <link rel="preload" as="image" href="/logo-rounded.png" />
+</head>
 
-    useEffect(() => {
-        const loadData = async () => {
-            try {
-                setError(null);
-                if (user && userData) {
-                    loadUserSelections();
-                }
-            } catch (error) {
-                console.error('Error loading data:', error);
-                setError('Failed to load your data. Please refresh the page.');
-            } finally {
-                setLoading(false);
-            }
-        };
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
 
-        loadData();
-    }, [user, userData, loadUserSelections]);
-
-    const handleNameToggle = useCallback((name: string) => {
-        if (updating) return;
-
-        setSelectedNames(prev => {
-            const currentNames = prev || [];
-            if (currentNames.includes(name)) {
-                return currentNames.filter(n => n !== name);
-            }
-
-            // Add new name at the top, but after locked crushes
-            const lockedCrushes = userData?.lockedCrushes || [];
-            const locked = currentNames.filter(n => lockedCrushes.includes(n));
-            const unlocked = currentNames.filter(n => !lockedCrushes.includes(n));
-
-            return [...locked, name, ...unlocked];
-        });
-    }, [updating, userData?.lockedCrushes]);
-
-    const handleRemoveSelected = useCallback((nameToRemove: string) => {
-        if (updating) return;
-
-        const lockedCrushes = userData?.lockedCrushes || [];
-        if (lockedCrushes.includes(nameToRemove)) {
-            return;
-        }
-
-        setSelectedNames(prev => (prev || []).filter(name => name !== nameToRemove));
-    }, [updating, userData?.lockedCrushes]);
-
-    const handleUpdatePreferences = useCallback(async () => {
-        if (!user || !userData || updating) return;
-
-        const lockedCrushes = userData?.lockedCrushes || [];
-        const currentSelectedNames = selectedNames || [];
-        const missingLockedCrushes = lockedCrushes.filter(locked => !currentSelectedNames.includes(locked));
-
-        if (missingLockedCrushes.length > 0) {
-            const restoredNames = [...new Set([...currentSelectedNames, ...lockedCrushes])];
-            setSelectedNames(restoredNames);
-        }
-
-        setUpdating(true);
-        setError(null);
-
-        try {
-            const actualUid = getUserDocumentId(user, userData);
-            const userRef = doc(db, 'users', actualUid);
-            const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
-            const now = new Date();
-
-            // Optimistic update - update all local state immediately
-            setSelectedNames(finalCrushes);
-            setSavedNames(finalCrushes);
-            updateUserDataOptimistically({
-                crushes: finalCrushes,
-                updatedAt: now
-            });
-
-            // Show success message immediately
-            const successDiv = document.createElement('div');
-            successDiv.textContent = 'Preferences updated successfully!';
-            successDiv.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #28a745;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            z-index: 1000;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        `;
-            document.body.appendChild(successDiv);
-
-            setTimeout(() => {
-                if (document.body.contains(successDiv)) {
-                    document.body.removeChild(successDiv);
-                }
-            }, 3000);
-
-            // Fire and forget - update Firestore in background
-            updateDoc(userRef, {
-                crushes: finalCrushes,
-                updatedAt: now
-            }).catch(error => {
-                console.error('Error updating preferences:', error);
-                // Revert optimistic updates on error
-                setSelectedNames(savedNames);
-                setError('Failed to update preferences. Please try again.');
-            });
-
-        } catch (error) {
-            console.error('Error updating preferences:', error);
-            setError('Failed to update preferences. Please try again.');
-
-            // Revert optimistic update on error
-            setSelectedNames(savedNames);
-        } finally {
-            setUpdating(false);
-        }
-    }, [user, userData, updating, selectedNames, savedNames, updateUserDataOptimistically]);
-
-    const handleAdminToggle = useCallback(() => {
-        setIsAdminMode(prev => !prev);
-    }, []);
-
-    if (loading) {
-        return <div className="loading">Loading...</div>;
-    }
-
-    if (error) {
-        return (
-            <div className="loading">
-                <p style={{ color: 'red' }}>{error}</p>
-                <button onClick={() => window.location.reload()}>Refresh Page</button>
-            </div>
-        );
-    }
-
-    return (
-        <div className="dashboard-container">
-            <div className="dashboard-card">
-                <Navbar
-                    user={user}
-                    userData={userData}
-                    isAdminMode={isAdminMode}
-                    onAdminToggle={handleAdminToggle}
-                />
-
-                <div className="dashboard-content">
-                    {isAdminMode && isAdmin ? (
-                        <AdminView user={user} userData={userData} />
-                    ) : (
-                        <UserDashboard
-                            userData={userData!}
-                            searchTerm={searchTerm}
-                            setSearchTerm={setSearchTerm}
-                            selectedNames={selectedNames || []}
-                            savedNames={savedNames || []}
-                            updating={updating}
-                            error={error}
-                            handleNameToggle={handleNameToggle}
-                            handleRemoveSelected={handleRemoveSelected}
-                            handleUpdatePreferences={handleUpdatePreferences}
-                        />
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default Home;
+</html>
 
 ================
 File: src/components/Profile.tsx
@@ -11305,7 +11350,7 @@ interface CountryCode {
 const COUNTRY_CODES: CountryCode[] = [
     {
         code: '+1',
-        country: 'US/Canada',
+        country: 'United States/Canada',
         format: (digits: string) => {
             if (digits.length === 0) return '';
             if (digits.length <= 3) return digits;
@@ -11316,16 +11361,286 @@ const COUNTRY_CODES: CountryCode[] = [
         maxDigits: 10
     },
     {
-        code: '+44',
-        country: 'UK',
+        code: '+93',
+        country: 'Afghanistan',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+355',
+        country: 'Albania',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 7) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+213',
+        country: 'Algeria',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+376',
+        country: 'Andorra',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)}`;
+        },
+        minDigits: 6,
+        maxDigits: 9
+    },
+    {
+        code: '+244',
+        country: 'Angola',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+54',
+        country: 'Argentina',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 11
+    },
+    {
+        code: '+374',
+        country: 'Armenia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+61',
+        country: 'Australia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+43',
+        country: 'Austria',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 10,
+        maxDigits: 13
+    },
+    {
+        code: '+994',
+        country: 'Azerbaijan',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+973',
+        country: 'Bahrain',
         format: (digits: string) => {
             if (digits.length === 0) return '';
             if (digits.length <= 4) return digits;
-            if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 10)}`;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+880',
+        country: 'Bangladesh',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 10)}`;
         },
         minDigits: 10,
         maxDigits: 10
+    },
+    {
+        code: '+375',
+        country: 'Belarus',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+32',
+        country: 'Belgium',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+501',
+        country: 'Belize',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
+        },
+        minDigits: 7,
+        maxDigits: 7
+    },
+    {
+        code: '+591',
+        country: 'Bolivia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+387',
+        country: 'Bosnia and Herzegovina',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+267',
+        country: 'Botswana',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
+        },
+        minDigits: 7,
+        maxDigits: 7
+    },
+    {
+        code: '+55',
+        country: 'Brazil',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 7) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 7)} ${digits.slice(7, 11)}`;
+        },
+        minDigits: 11,
+        maxDigits: 11
+    },
+    {
+        code: '+673',
+        country: 'Brunei',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
+        },
+        minDigits: 7,
+        maxDigits: 7
+    },
+    {
+        code: '+359',
+        country: 'Bulgaria',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+855',
+        country: 'Cambodia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+237',
+        country: 'Cameroon',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+56',
+        country: 'Chile',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
     },
     {
         code: '+86',
@@ -11340,38 +11655,178 @@ const COUNTRY_CODES: CountryCode[] = [
         maxDigits: 11
     },
     {
-        code: '+91',
-        country: 'India',
+        code: '+57',
+        country: 'Colombia',
         format: (digits: string) => {
             if (digits.length === 0) return '';
-            if (digits.length <= 5) return digits;
-            return `${digits.slice(0, 5)} ${digits.slice(5, 10)}`;
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
         },
         minDigits: 10,
         maxDigits: 10
     },
     {
-        code: '+81',
-        country: 'Japan',
+        code: '+506',
+        country: 'Costa Rica',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+385',
+        country: 'Croatia',
         format: (digits: string) => {
             if (digits.length === 0) return '';
             if (digits.length <= 2) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+53',
+        country: 'Cuba',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+357',
+        country: 'Cyprus',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+420',
+        country: 'Czech Republic',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+45',
+        country: 'Denmark',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)} ${digits.slice(6, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+1',
+        country: 'Dominican Republic',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
         },
         minDigits: 10,
         maxDigits: 10
     },
     {
-        code: '+82',
-        country: 'South Korea',
+        code: '+593',
+        country: 'Ecuador',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+20',
+        country: 'Egypt',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+503',
+        country: 'El Salvador',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+372',
+        country: 'Estonia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
+        },
+        minDigits: 7,
+        maxDigits: 8
+    },
+    {
+        code: '+251',
+        country: 'Ethiopia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+679',
+        country: 'Fiji',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
+        },
+        minDigits: 7,
+        maxDigits: 7
+    },
+    {
+        code: '+358',
+        country: 'Finland',
         format: (digits: string) => {
             if (digits.length === 0) return '';
             if (digits.length <= 2) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
         },
-        minDigits: 10,
+        minDigits: 9,
         maxDigits: 10
     },
     {
@@ -11389,6 +11844,18 @@ const COUNTRY_CODES: CountryCode[] = [
         maxDigits: 9
     },
     {
+        code: '+995',
+        country: 'Georgia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
         code: '+49',
         country: 'Germany',
         format: (digits: string) => {
@@ -11401,28 +11868,320 @@ const COUNTRY_CODES: CountryCode[] = [
         maxDigits: 11
     },
     {
-        code: '+61',
-        country: 'Australia',
+        code: '+233',
+        country: 'Ghana',
         format: (digits: string) => {
             if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
         },
         minDigits: 9,
         maxDigits: 9
     },
     {
-        code: '+55',
-        country: 'Brazil',
+        code: '+30',
+        country: 'Greece',
         format: (digits: string) => {
             if (digits.length === 0) return '';
             if (digits.length <= 2) return digits;
-            if (digits.length <= 7) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 7)} ${digits.slice(7, 11)}`;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 10)}`;
         },
-        minDigits: 11,
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+502',
+        country: 'Guatemala',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+852',
+        country: 'Hong Kong',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+36',
+        country: 'Hungary',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+354',
+        country: 'Iceland',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
+        },
+        minDigits: 7,
+        maxDigits: 7
+    },
+    {
+        code: '+91',
+        country: 'India',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 5) return digits;
+            return `${digits.slice(0, 5)} ${digits.slice(5, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+62',
+        country: 'Indonesia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 9,
         maxDigits: 11
+    },
+    {
+        code: '+98',
+        country: 'Iran',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+964',
+        country: 'Iraq',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+353',
+        country: 'Ireland',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+972',
+        country: 'Israel',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+39',
+        country: 'Italy',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 10
+    },
+    {
+        code: '+81',
+        country: 'Japan',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+962',
+        country: 'Jordan',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+7',
+        country: 'Kazakhstan',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+254',
+        country: 'Kenya',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+965',
+        country: 'Kuwait',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+371',
+        country: 'Latvia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+961',
+        country: 'Lebanon',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
+        },
+        minDigits: 7,
+        maxDigits: 8
+    },
+    {
+        code: '+218',
+        country: 'Libya',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+370',
+        country: 'Lithuania',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+352',
+        country: 'Luxembourg',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+853',
+        country: 'Macau',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+60',
+        country: 'Malaysia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 10
+    },
+    {
+        code: '+960',
+        country: 'Maldives',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
+        },
+        minDigits: 7,
+        maxDigits: 7
+    },
+    {
+        code: '+356',
+        country: 'Malta',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
     },
     {
         code: '+52',
@@ -11437,6 +12196,303 @@ const COUNTRY_CODES: CountryCode[] = [
         maxDigits: 10
     },
     {
+        code: '+377',
+        country: 'Monaco',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)} ${digits.slice(6, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 9
+    },
+    {
+        code: '+976',
+        country: 'Mongolia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+382',
+        country: 'Montenegro',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+212',
+        country: 'Morocco',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+258',
+        country: 'Mozambique',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+95',
+        country: 'Myanmar',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 10
+    },
+    {
+        code: '+264',
+        country: 'Namibia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+977',
+        country: 'Nepal',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+31',
+        country: 'Netherlands',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+64',
+        country: 'New Zealand',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 10
+    },
+    {
+        code: '+234',
+        country: 'Nigeria',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+47',
+        country: 'Norway',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+968',
+        country: 'Oman',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+92',
+        country: 'Pakistan',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+507',
+        country: 'Panama',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+595',
+        country: 'Paraguay',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+51',
+        country: 'Peru',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+63',
+        country: 'Philippines',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+48',
+        country: 'Poland',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+351',
+        country: 'Portugal',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+974',
+        country: 'Qatar',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+40',
+        country: 'Romania',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+7',
+        country: 'Russia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+966',
+        country: 'Saudi Arabia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+381',
+        country: 'Serbia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
         code: '+65',
         country: 'Singapore',
         format: (digits: string) => {
@@ -11448,8 +12504,188 @@ const COUNTRY_CODES: CountryCode[] = [
         maxDigits: 8
     },
     {
+        code: '+421',
+        country: 'Slovakia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+386',
+        country: 'Slovenia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+27',
+        country: 'South Africa',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+82',
+        country: 'South Korea',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+34',
+        country: 'Spain',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+94',
+        country: 'Sri Lanka',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+46',
+        country: 'Sweden',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+41',
+        country: 'Switzerland',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+963',
+        country: 'Syria',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+886',
+        country: 'Taiwan',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+66',
+        country: 'Thailand',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+216',
+        country: 'Tunisia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+90',
+        country: 'Turkey',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+256',
+        country: 'Uganda',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+380',
+        country: 'Ukraine',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
         code: '+971',
-        country: 'UAE',
+        country: 'United Arab Emirates',
         format: (digits: string) => {
             if (digits.length === 0) return '';
             if (digits.length <= 1) return digits;
@@ -11457,6 +12693,102 @@ const COUNTRY_CODES: CountryCode[] = [
             return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
         },
         minDigits: 8,
+        maxDigits: 9
+    },
+    {
+        code: '+44',
+        country: 'United Kingdom',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 4) return digits;
+            if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+            return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+598',
+        country: 'Uruguay',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
+        },
+        minDigits: 8,
+        maxDigits: 8
+    },
+    {
+        code: '+998',
+        country: 'Uzbekistan',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+58',
+        country: 'Venezuela',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
+        },
+        minDigits: 10,
+        maxDigits: 10
+    },
+    {
+        code: '+84',
+        country: 'Vietnam',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 10
+    },
+    {
+        code: '+967',
+        country: 'Yemen',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+260',
+        country: 'Zambia',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 2) return digits;
+            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+        },
+        minDigits: 9,
+        maxDigits: 9
+    },
+    {
+        code: '+263',
+        country: 'Zimbabwe',
+        format: (digits: string) => {
+            if (digits.length === 0) return '';
+            if (digits.length <= 1) return digits;
+            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
+            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
+        },
+        minDigits: 9,
         maxDigits: 9
     }
 ];
@@ -12606,46 +13938,6 @@ const Profile = () => {
 };
 
 export default Profile;
-
-================
-File: index.html
-================
-<!doctype html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/logo-rounded.png" />
-  <link rel="apple-touch-icon" href="/logo-rounded.png" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Second Chances</title>
-
-  <!-- Open Graph Meta Tags (no image) -->
-  <meta property="og:title" content="Second Chances" />
-  <meta property="og:description" content="Share your crushes anonymously and see if there's a mutual connection." />
-  <meta property="og:url" content="https://secondchances.app" />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Second Chances" />
-
-  <!-- Twitter Card Meta Tags (no image) -->
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Second Chances" />
-  <meta name="twitter:description" content="Share your crushes anonymously and see if there's a mutual connection." />
-
-  <!-- Standard Meta Tags -->
-  <meta name="description" content="Share your crushes anonymously and see if there's a mutual connection." />
-  <meta name="author" content="Second Chances" />
-
-  <!-- Preload critical images -->
-  <link rel="preload" as="image" href="/logo-rounded.png" />
-</head>
-
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
-</body>
-
-</html>
 
 
 
