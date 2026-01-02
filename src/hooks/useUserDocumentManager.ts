@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import type { User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import type { UserClass } from '../types/userTypes';
+import type { UserClass } from '../types';
 import { getClassNames } from '../utils';
 import { findUserByEmail, normalizeEmail, isAlumniEmail, getEmailPrefix, generateAlumniEmails } from '../utils/emailUtils';
 

@@ -5,7 +5,7 @@ import AdminAnalytics from './admin/AdminAnalytics';
 import AdminUsers from './admin/AdminUsers';
 import { useAdminData } from '../hooks/useAdminData';
 import { useAdminUtils } from '../hooks/useAdminUtils';
-import type { UserData, UserClass } from '../types/userTypes';
+import type { UserData, UserClass } from '../types';
 import { isAdminUser } from '../utils/adminUtils';
 
 type ViewMode = 'analytics' | 'users';
