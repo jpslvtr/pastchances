@@ -272,7 +272,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                 />
                                 <div className="match-details">
                                     <div className="match-name">{match.name}</div>
-                                    <div className="match-email">{match.email}</div>
                                 </div>
                             </div>
                         ))}
