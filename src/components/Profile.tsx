@@ -2391,7 +2391,7 @@ const Profile = () => {
                                                 {viewingContact.cell ? (
                                                     <>
                                                         <strong>Cell: </strong>
-                                                        <a href={`tel:${viewingContact.cell.replace(/\s/g, '')}`} className="contact-link-plain">
+                                                        <a href={`sms:${viewingContact.cell.replace(/\s/g, '')}`} className="contact-link-plain">
                                                             {viewingContact.cell}
                                                         </a>
                                                     </>
@@ -2461,19 +2461,26 @@ const Profile = () => {
                                                 {viewingContact.preferred === 'linkedin' && viewingContact.linkedin && <span className="preferred-badge">Preferred</span>}
                                             </div>
                                         )}
-                                        {(isOwnProfile || viewingContact.other) && (
-                                            <div className={`info-value-plain ${viewingContact.preferred === 'other' ? 'preferred' : ''}`}>
-                                                {viewingContact.other ? (
-                                                    <>
-                                                        <strong>Other: </strong>
-                                                        {viewingContact.other}
-                                                    </>
-                                                ) : (
-                                                    ''
-                                                )}
-                                                {viewingContact.preferred === 'other' && viewingContact.other && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
+                                            {(isOwnProfile || viewingContact.other) && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'other' ? 'preferred' : ''}`}>
+                                                    {viewingContact.other ? (
+                                                        <>
+                                                            <strong>Other: </strong>
+
+                                                            <a href={viewingContact.other.startsWith('http') ? viewingContact.other : `https://${viewingContact.other}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                >
+                                                            {viewingContact.other}
+                                                        </a>
+                                                </>
+                                            ) : (
+                                            ''
+        )}
+                                            {viewingContact.preferred === 'other' && viewingContact.other && <span className="preferred-badge">Preferred</span>}
+                                        </div>
+)}
                                     </div>
                                 </div>
                             )}
@@ -2511,7 +2518,7 @@ const Profile = () => {
                                             </div>
                                         </div>
                                     )}
-
+                                    
                                     <div className="info-row">
                                         <label>Account Created:</label>
                                         <div className="info-value-plain">

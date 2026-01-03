@@ -382,7 +382,7 @@
 
 .contact-link-plain {
     color: #212529;
-    text-decoration: none;
+    text-decoration: underline;
     font-weight: 400;
 }
 
