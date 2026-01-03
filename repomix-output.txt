@@ -10795,6 +10795,46 @@ const Login = () => {
 export default Login;
 
 ================
+File: index.html
+================
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/logo-rounded.png" />
+  <link rel="apple-touch-icon" href="/logo-rounded.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Second Chances</title>
+
+  <!-- Open Graph Meta Tags (no image) -->
+  <meta property="og:title" content="Second Chances" />
+  <meta property="og:description" content="Share your crushes anonymously and see if there's a mutual connection." />
+  <meta property="og:url" content="https://secondchances.app" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Second Chances" />
+
+  <!-- Twitter Card Meta Tags (no image) -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Second Chances" />
+  <meta name="twitter:description" content="Share your crushes anonymously and see if there's a mutual connection." />
+
+  <!-- Standard Meta Tags -->
+  <meta name="description" content="Share your crushes anonymously and see if there's a mutual connection." />
+  <meta name="author" content="Second Chances" />
+
+  <!-- Preload critical images -->
+  <link rel="preload" as="image" href="/logo-rounded.png" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
+
+================
 File: src/styles/profile.css
 ================
 /* Profile page styles */
@@ -11181,7 +11221,7 @@ File: src/styles/profile.css
 
 .contact-link-plain {
     color: #212529;
-    text-decoration: none;
+    text-decoration: underline;
     font-weight: 400;
 }
 
@@ -11459,46 +11499,6 @@ File: src/styles/profile.css
         font-size: 18px;
     }
 }
-
-================
-File: index.html
-================
-<!doctype html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/logo-rounded.png" />
-  <link rel="apple-touch-icon" href="/logo-rounded.png" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Second Chances</title>
-
-  <!-- Open Graph Meta Tags (no image) -->
-  <meta property="og:title" content="Second Chances" />
-  <meta property="og:description" content="Share your crushes anonymously and see if there's a mutual connection." />
-  <meta property="og:url" content="https://secondchances.app" />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Second Chances" />
-
-  <!-- Twitter Card Meta Tags (no image) -->
-  <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Second Chances" />
-  <meta name="twitter:description" content="Share your crushes anonymously and see if there's a mutual connection." />
-
-  <!-- Standard Meta Tags -->
-  <meta name="description" content="Share your crushes anonymously and see if there's a mutual connection." />
-  <meta name="author" content="Second Chances" />
-
-  <!-- Preload critical images -->
-  <link rel="preload" as="image" href="/logo-rounded.png" />
-</head>
-
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
-</body>
-
-</html>
 
 ================
 File: src/components/Profile.tsx
@@ -13896,7 +13896,7 @@ const Profile = () => {
                                                 {viewingContact.cell ? (
                                                     <>
                                                         <strong>Cell: </strong>
-                                                        <a href={`tel:${viewingContact.cell.replace(/\s/g, '')}`} className="contact-link-plain">
+                                                        <a href={`sms:${viewingContact.cell.replace(/\s/g, '')}`} className="contact-link-plain">
                                                             {viewingContact.cell}
                                                         </a>
                                                     </>
@@ -13966,19 +13966,26 @@ const Profile = () => {
                                                 {viewingContact.preferred === 'linkedin' && viewingContact.linkedin && <span className="preferred-badge">Preferred</span>}
                                             </div>
                                         )}
-                                        {(isOwnProfile || viewingContact.other) && (
-                                            <div className={`info-value-plain ${viewingContact.preferred === 'other' ? 'preferred' : ''}`}>
-                                                {viewingContact.other ? (
-                                                    <>
-                                                        <strong>Other: </strong>
-                                                        {viewingContact.other}
-                                                    </>
-                                                ) : (
-                                                    ''
-                                                )}
-                                                {viewingContact.preferred === 'other' && viewingContact.other && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
+                                            {(isOwnProfile || viewingContact.other) && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'other' ? 'preferred' : ''}`}>
+                                                    {viewingContact.other ? (
+                                                        <>
+                                                            <strong>Other: </strong>
+
+                                                            <a href={viewingContact.other.startsWith('http') ? viewingContact.other : `https://${viewingContact.other}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="contact-link-plain"
+                >
+                                                            {viewingContact.other}
+                                                        </a>
+                                                </>
+                                            ) : (
+                                            ''
+        )}
+                                            {viewingContact.preferred === 'other' && viewingContact.other && <span className="preferred-badge">Preferred</span>}
+                                        </div>
+)}
                                     </div>
                                 </div>
                             )}
@@ -14016,7 +14023,7 @@ const Profile = () => {
                                             </div>
                                         </div>
                                     )}
-
+                                    
                                     <div className="info-row">
                                         <label>Account Created:</label>
                                         <div className="info-value-plain">
