@@ -136,9 +136,12 @@ service cloud.firestore {
     
     // Users collection
     match /users/{userId} {
-      // Allow any authenticated user to read public profile fields (name, photoURL, customPhotoURL, location, about)
-      // Full document access only for own profile, admin, or users with matching email
-      allow read: if request.auth != null;
+      // Allow GSB users to read all GSB user documents
+      // Undergrad users cannot read GSB documents
+      allow read: if request.auth != null && 
+        (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+        request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+        request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
       
       // Allow users to create their own document
       allow create: if request.auth != null 
