@@ -3,24 +3,28 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     // Profile photos
-    // We rely on Firestore rules for the real security - users can only update 
-    // customPhotoURL in their own document. Storage just ensures the user is authenticated
-    // and the file is a valid image under 5MB.
+    // Only allow GSB users to read GSB profile photos
+    // Users can only upload to their own photo location
     match /profile-photos/{userId} {
-      // Allow any authenticated user to read profile photos
-      allow read: if request.auth != null;
+      // Allow reading profile photos only if the user is a GSB user
+      // We check this by verifying their email domain
+      allow read: if request.auth != null && 
+        (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+         request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+         request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
       
-      // Allow any authenticated user to upload
-      // Real security is in Firestore - users can only update their own document's customPhotoURL
-      allow write: if request.auth != null 
-        && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$')
-        && request.resource.size < 5 * 1024 * 1024  // Max 5MB
-        && request.resource.contentType.matches('image/.*');  // Only images
+      // Allow users to upload/update/delete only their own photo
+      // The userId in the path must match their auth UID
+      allow write: if request.auth != null && 
+        request.auth.uid == userId &&
+        (request.auth.token.email.matches('.*@stanford\\.edu$') ||
+         request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
+         request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$')) &&
+        request.resource.size < 5 * 1024 * 1024 && // Max 5MB
+        request.resource.contentType.matches('image/.*');
       
-      // Allow any authenticated user to delete
-      // This is needed when updating photos (delete old, upload new)
-      allow delete: if request.auth != null 
-        && request.auth.token.email.matches('.*@(stanford\\.edu|alumni\\.stanford\\.edu|alumni\\.gsb\\.stanford\\.edu)$');
+      allow delete: if request.auth != null && 
+        request.auth.uid == userId;
     }
   }
 }

@@ -2447,12 +2447,12 @@ const Profile = () => {
                                                     <>
                                                         <strong>LinkedIn: </strong>
                                                         <a
-                                                            href={`https://www.linkedin.com/in/${viewingContact.linkedin}/`}
+                                                            href={`https://www.linkedin.com/in/${viewingContact.linkedin.replace(/\/+$/, '')}/`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="contact-link-plain"
                                                         >
-                                                            https://www.linkedin.com/in/{viewingContact.linkedin}{viewingContact.linkedin.endsWith('/') ? '' : '/'}
+                                                            https://www.linkedin.com/in/{viewingContact.linkedin.replace(/\/+$/, '')}/
                                                         </a>
                                                     </>
                                                 ) : (
