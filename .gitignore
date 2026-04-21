@@ -27,3 +27,4 @@ scripts/.vercel/
 repomix.config.json
 repomix-output.txt
 .vercel
+.env*.local
