@@ -7,7 +7,7 @@ import {
     signOut as firebaseSignOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, setDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { isValidStanfordRelatedEmail, isAlumniEmail, normalizeEmail } from '../utils/emailUtils';
 import type { UserData, UserClass } from '../types';
@@ -107,18 +107,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         try {
             const normalizedEmail = normalizeEmail(email);
             const usersRef = collection(db, 'users');
-            const usersSnapshot = await getDocs(usersRef);
 
-            for (const docSnap of usersSnapshot.docs) {
-                const data = docSnap.data();
+            const [snap1, snap2] = await Promise.all([
+                getDocs(query(usersRef, where('emailAlumni', '==', normalizedEmail))),
+                getDocs(query(usersRef, where('emailAlumniGSB', '==', normalizedEmail)))
+            ]);
 
-                const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
-                const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
-
-                if (alumniMatch || alumniGSBMatch) {
-                    console.log('Found existing user by alumni email:', docSnap.id);
-                    return docSnap.id;
-                }
+            if (!snap1.empty) {
+                console.log('Found existing user by emailAlumni:', snap1.docs[0].id);
+                return snap1.docs[0].id;
+            }
+            if (!snap2.empty) {
+                console.log('Found existing user by emailAlumniGSB:', snap2.docs[0].id);
+                return snap2.docs[0].id;
             }
 
             console.log('No existing user found with alumni email');
@@ -241,7 +242,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const handleNewStanfordUser = async (firebaseUser: FirebaseUser, userClass: UserClass) => {
         try {
-            const allNames = await getClassNames(userClass);
+            const allNames = getClassNames(userClass);
             const displayName = firebaseUser.displayName || '';
             const nameParts = displayName.trim().split(' ');
 

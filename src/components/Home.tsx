@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import AdminView from './AdminView';
@@ -20,8 +20,30 @@ const Home = () => {
     const [updating, setUpdating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isAdminMode, setIsAdminMode] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const isAdmin = isAdminUser(user, userData);
+    const hasUnsavedChanges = JSON.stringify([...selectedNames].sort()) !== JSON.stringify([...savedNames].sort());
+
+    useEffect(() => {
+        return () => {
+            if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+        };
+    }, []);
+
+    // Warn before closing/refreshing the tab with unsaved selections
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [hasUnsavedChanges]);
+
 
     // Check for admin query parameter on mount
     useEffect(() => {
@@ -106,55 +128,35 @@ const Home = () => {
             const actualUid = getUserDocumentId(user, userData);
             const userRef = doc(db, 'users', actualUid);
             const finalCrushes = [...new Set([...currentSelectedNames, ...lockedCrushes])];
-            const now = new Date();
+            const previousCrushes = userData.crushes || [];
 
-            // Optimistic update - update all local state immediately
+            // Optimistic update
             setSelectedNames(finalCrushes);
             setSavedNames(finalCrushes);
-            updateUserDataOptimistically({
-                crushes: finalCrushes,
-                updatedAt: now
-            });
+            updateUserDataOptimistically({ crushes: finalCrushes });
 
-            // Show success message immediately
-            const successDiv = document.createElement('div');
-            successDiv.textContent = 'Preferences updated successfully!';
-            successDiv.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #28a745;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            z-index: 1000;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        `;
-            document.body.appendChild(successDiv);
+            // Show success immediately (optimistic)
+            if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+            setSuccessMessage('Preferences updated successfully!');
+            successTimeoutRef.current = setTimeout(() => setSuccessMessage(null), 3000);
 
-            setTimeout(() => {
-                if (document.body.contains(successDiv)) {
-                    document.body.removeChild(successDiv);
-                }
-            }, 3000);
-
-            // Fire and forget - update Firestore in background
+            // Fire and forget — revert everything on failure
             updateDoc(userRef, {
                 crushes: finalCrushes,
-                updatedAt: now
+                updatedAt: serverTimestamp()
             }).catch(error => {
                 console.error('Error updating preferences:', error);
-                // Revert optimistic updates on error
-                setSelectedNames(savedNames);
+                setSelectedNames(previousCrushes);
+                setSavedNames(previousCrushes);
+                updateUserDataOptimistically({ crushes: previousCrushes });
+                if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+                setSuccessMessage(null);
                 setError('Failed to update preferences. Please try again.');
             });
 
         } catch (error) {
             console.error('Error updating preferences:', error);
             setError('Failed to update preferences. Please try again.');
-
-            // Revert optimistic update on error
             setSelectedNames(savedNames);
         } finally {
             setUpdating(false);
@@ -179,6 +181,24 @@ const Home = () => {
     }
 
     return (
+        <>
+        {successMessage && (
+            <div style={{
+                position: 'fixed',
+                top: 'max(20px, env(safe-area-inset-top))',
+                right: '20px',
+                background: '#28a745',
+                color: 'white',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                zIndex: 1000,
+                fontWeight: 500,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                pointerEvents: 'none'
+            }}>
+                {successMessage}
+            </div>
+        )}
         <div className="dashboard-container">
             <div className="dashboard-card">
                 <Navbar
@@ -210,6 +230,7 @@ const Home = () => {
                 </div>
             </div>
         </div>
+        </>
     );
 };
 

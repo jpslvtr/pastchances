@@ -12,8 +12,6 @@ src/assets/
 .firebase/
 firebase.json
 firestore.indexes.json
-# rules-database.txt
-# rules-storage.txt
 scripts
 
 functions/src/serviceAccountKey.json

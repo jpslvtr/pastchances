@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import type { ReactNode } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import Home from './components/Home';
@@ -11,6 +11,14 @@ import AccountLinking from './components/AccountLinking';
 import Privacy from './components/Privacy';
 import Terms from './components/Terms';
 import './App.css';
+
+const ScrollToTop = () => {
+    const { pathname } = useLocation();
+    useLayoutEffect(() => {
+        window.scrollTo(0, 0);
+    }, [pathname]);
+    return null;
+};
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -59,6 +67,7 @@ const App: React.FC = () => {
   return (
     <Router>
       <AuthProvider>
+        <ScrollToTop />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/privacy" element={<Privacy />} />

@@ -72,6 +72,20 @@
     font-family: 'Courier New', monospace;
     word-break: break-all;
   }
+
+  .match-date {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .match-date-absolute {
+    font-size: 11px;
+    color: #adb5bd;
+  }
   
   .no-matches {
     margin-top: 8px;
@@ -436,6 +450,25 @@
     justify-content: center;
     background: rgba(40, 167, 69, 0.1);
     flex-shrink: 0;
+  }
+
+  .lock-label {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .lock-label-matched {
+    color: #155724;
+    background: rgba(40, 167, 69, 0.15);
+  }
+
+  .lock-label-locked {
+    color: #856404;
+    background: rgba(255, 193, 7, 0.2);
   }
 
   .remove-btn-icon {

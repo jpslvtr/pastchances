@@ -39,6 +39,10 @@ service cloud.firestore {
         && existingData.crushCount == newData.crushCount
         && existingData.userClass == newData.userClass
         && existingData.createdAt == newData.createdAt
+        && (!('customPhotoURL' in existingData) || existingData.customPhotoURL == newData.customPhotoURL)
+        && (!('location' in existingData) || existingData.location == newData.location)
+        && (!('about' in existingData) || existingData.about == newData.about)
+        && (!('publicContact' in existingData) || existingData.publicContact == newData.publicContact)
         && newData.emailAlumni is string
         && newData.emailAlumniGSB is string
         && (newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$') ||
@@ -104,9 +108,11 @@ service cloud.firestore {
     
     function validateUserCreation(newData) {
       return newData.uid is string
+        && newData.name is string
+        && newData.name.size() > 0
         && (
           (newData.email is string && newData.email.matches('.*@stanford\\.edu$')) ||
-          (newData.email is string && newData.email == '' && 
+          (newData.email is string && newData.email == '' &&
            (('emailAlumni' in newData && newData.emailAlumni is string && newData.emailAlumni.matches('.*@alumni\\.stanford\\.edu$')) ||
             ('emailAlumniGSB' in newData && newData.emailAlumniGSB is string && newData.emailAlumniGSB.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))))
         )
@@ -162,12 +168,14 @@ service cloud.firestore {
         && validateAdminUnlinkingClaim(resource.data, request.resource.data);
       
       // Allow linking alumni emails to accounts with empty alumni email fields
-      // IMPORTANT: This prevents hijacking by requiring emails to be empty before linking
+      // Requires the linked email to match the signed-in user's own email
       allow update: if request.auth != null
         && (request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
             request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'))
         && resource.data.emailAlumni == ''
         && resource.data.emailAlumniGSB == ''
+        && (request.resource.data.emailAlumni == request.auth.token.email ||
+            request.resource.data.emailAlumniGSB == request.auth.token.email)
         && validateAlumniLinking(resource.data, request.resource.data);
       
       // Allow users to update documents where their email matches any email field

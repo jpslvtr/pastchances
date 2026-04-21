@@ -56,11 +56,7 @@ const Navbar: React.FC<NavbarProps> = ({
     }, [userData?.photoURL, userData?.customPhotoURL, failedImageUrls]);
 
     const handleLogoClick = useCallback(() => {
-        if (window.location.pathname === '/') {
-            window.location.reload();
-        } else {
-            navigate('/');
-        }
+        navigate('/');
     }, [navigate]);
 
     const handleLogout = useCallback(async () => {
@@ -74,20 +70,25 @@ const Navbar: React.FC<NavbarProps> = ({
 
     const currentImageUrl = getProfileImageUrl();
 
-    // Close dropdown when clicking outside
+    // Close dropdown when clicking outside or pressing Escape
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setDropdownOpen(false);
             }
         };
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setDropdownOpen(false);
+        };
 
         if (dropdownOpen) {
             document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('keydown', handleKeyDown);
         }
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
         };
     }, [dropdownOpen]);
 

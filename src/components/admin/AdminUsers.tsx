@@ -64,6 +64,7 @@ interface AdminUsersProps {
     };
     classView: 'gsb' | 'undergrad';
     classDisplayName: string;
+    onRefresh: () => void;
 }
 
 // Helper function to format match timestamp for admin view
@@ -195,7 +196,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
     handleViewUser,
     findCrushersForUser,
     userStats,
-    classDisplayName
+    classDisplayName,
+    onRefresh
 }) => {
     const searchInputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -306,15 +308,8 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
                 return;
             }
 
-            // Auto-hide success message after 3 seconds
-            setTimeout(() => {
-                setUnlinkSuccess(null);
-            }, 3000);
-
-            // Refresh the page to show updated data
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
+            setTimeout(() => setUnlinkSuccess(null), 3000);
+            onRefresh();
 
         } catch (error) {
             console.error('Error unlinking account:', error);
@@ -327,16 +322,11 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
 
     // Use the exact same filtering logic as normal search with better debugging
     const filteredUsers = useMemo(() => {
-        console.log('Admin filtering - Search term:', `"${adminSearchTerm}"`, 'Filter:', userFilter, 'All users count:', allUsers.length);
-
         let users = allUsers;
 
-        // Apply user type filter first
         switch (userFilter) {
             case 'active':
-                users = users.filter(u =>
-                    !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost
-                );
+                users = users.filter(u => !(u as InactiveUser).isInactive && !(u as GhostUser).isGhost);
                 break;
             case 'inactive':
                 users = users.filter(u => (u as InactiveUser).isInactive);
@@ -344,48 +334,24 @@ const AdminUsers: React.FC<AdminUsersProps> = ({
             case 'ghost':
                 users = users.filter(u => (u as GhostUser).isGhost);
                 break;
-            case 'all':
-            default:
-                break;
         }
 
-        console.log('After filter:', users.length, 'users');
-
-        // Apply search filter - key fix: explicit empty string check
         const trimmedSearch = adminSearchTerm.trim();
-        if (trimmedSearch === '') {
-            console.log('Empty search, returning all filtered users');
-            return users;
-        }
+        if (trimmedSearch === '') return users;
 
-        console.log('Applying search for:', `"${trimmedSearch}"`);
-
-        const matchedUsers = users
+        return users
             .map(user => {
-                // Search in both name and email
-                const searchableTexts = [
-                    user.name || '',
-                    user.email || ''
-                ].filter(Boolean);
-
+                const searchableTexts = [user.name || '', user.email || ''].filter(Boolean);
                 let bestMatch = { matches: false, score: 0 };
-
-                // Test each searchable text and take the best match
                 for (const text of searchableTexts) {
                     const result = matchesSearchTerm(text, trimmedSearch);
-                    if (result.matches && result.score > bestMatch.score) {
-                        bestMatch = result;
-                    }
+                    if (result.matches && result.score > bestMatch.score) bestMatch = result;
                 }
-
                 return { user, ...bestMatch };
             })
             .filter(item => item.matches)
             .sort((a, b) => b.score - a.score)
             .map(item => item.user);
-
-        console.log('Search results:', matchedUsers.length, 'users');
-        return matchedUsers;
     }, [allUsers, adminSearchTerm, userFilter]);
 
     const UserItem = React.memo(({ u }: { u: UserData | InactiveUser | GhostUser }) => {

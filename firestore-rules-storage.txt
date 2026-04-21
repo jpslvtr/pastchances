@@ -3,28 +3,26 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     // Profile photos
-    // Only allow GSB users to read GSB profile photos
-    // Users can only upload to their own photo location
-    match /profile-photos/{userId} {
-      // Allow reading profile photos only if the user is a GSB user
-      // We check this by verifying their email domain
-      allow read: if request.auth != null && 
+    // Filename format: {firebase_auth_uid}_{timestamp}.jpg
+    match /profile-photos/{fileName} {
+      // Allow reading profile photos only if the user is a GSB/Stanford user
+      allow read: if request.auth != null &&
         (request.auth.token.email.matches('.*@stanford\\.edu$') ||
          request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
          request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$'));
-      
-      // Allow users to upload/update/delete only their own photo
-      // The userId in the path must match their auth UID
-      allow write: if request.auth != null && 
-        request.auth.uid == userId &&
+
+      // Allow users to upload only files named with their own Firebase auth UID
+      allow write: if request.auth != null &&
+        fileName.matches(request.auth.uid + '_[0-9]+\\.jpg') &&
         (request.auth.token.email.matches('.*@stanford\\.edu$') ||
          request.auth.token.email.matches('.*@alumni\\.stanford\\.edu$') ||
          request.auth.token.email.matches('.*@alumni\\.gsb\\.stanford\\.edu$')) &&
-        request.resource.size < 5 * 1024 * 1024 && // Max 5MB
+        request.resource.size < 5 * 1024 * 1024 &&
         request.resource.contentType.matches('image/.*');
-      
-      allow delete: if request.auth != null && 
-        request.auth.uid == userId;
+
+      // Allow users to delete only their own photos
+      allow delete: if request.auth != null &&
+        fileName.matches(request.auth.uid + '_[0-9]+\\.jpg');
     }
   }
 }

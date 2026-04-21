@@ -46,29 +46,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
         setAdminAccessDenied(false);
     }, [user, userData]);
 
-    // Early return for non-admin users
-    if (adminAccessDenied) {
-        return (
-            <div className="admin-access-denied">
-                <div className="access-denied-card">
-                    <h2>Access Denied</h2>
-                    <p>You do not have permission to view this page.</p>
-                    <p>Admin access is restricted to authorized personnel only.</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Double-check admin status
-    if (!isAdminUser(user, userData)) {
-        return (
-            <div className="admin-loading">
-                Verifying admin access...
-            </div>
-        );
-    }
-
-    // Set up real-time listener for analytics with error handling
+    // Real-time listener for analytics — must be declared before any early returns
     useEffect(() => {
         if (!isAdminUser(user, userData)) return;
 
@@ -80,7 +58,6 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
 
         const unsubscribe = onSnapshot(analyticsQuery, (snapshot) => {
             if (!snapshot.empty) {
-                console.log('Live analytics updated');
                 setRefreshKey(prev => prev + 1);
             }
         }, (error) => {
@@ -123,6 +100,26 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
         setRefreshKey(prev => prev + 1);
         await loadAllUsers();
     }, [loadAllUsers]);
+
+    if (adminAccessDenied) {
+        return (
+            <div className="admin-access-denied">
+                <div className="access-denied-card">
+                    <h2>Access Denied</h2>
+                    <p>You do not have permission to view this page.</p>
+                    <p>Admin access is restricted to authorized personnel only.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAdminUser(user, userData)) {
+        return (
+            <div className="admin-loading">
+                Verifying admin access...
+            </div>
+        );
+    }
 
     if (!allUsers && loadingUsers) {
         return (
@@ -190,6 +187,7 @@ const AdminView: React.FC<AdminViewProps> = ({ user, userData }) => {
                         userStats={currentClassStats}
                         classView={currentClassView}
                         classDisplayName={classDisplayName}
+                        onRefresh={handleRefresh}
                     />
                 )}
             </div>

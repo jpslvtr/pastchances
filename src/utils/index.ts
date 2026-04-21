@@ -1,8 +1,7 @@
 import type { User } from 'firebase/auth';
 import type { UserData, UserClass } from '../types';
 import { isAlumniEmail } from './emailUtils';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { GSB_CLASS_NAMES } from '../data/names';
 
 // This matches the logic in useAuthHelpers.ts for consistency
 export const getUserDocumentId = (user: User, userData: UserData | null): string => {
@@ -36,22 +35,6 @@ export const truncateText = (text: string, maxLength: number): string => {
     return text.substring(0, maxLength) + '...';
 };
 
-export const getClassNames = async (userClass: UserClass): Promise<string[]> => {
-    try {
-        const usersRef = collection(db, 'users');
-        const snapshot = await getDocs(usersRef);
-
-        const names: string[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data.userClass === userClass && data.name) {
-                names.push(data.name);
-            }
-        });
-
-        return names.sort();
-    } catch (error) {
-        console.error('Error fetching class names:', error);
-        return [];
-    }
+export const getClassNames = (_userClass: UserClass): string[] => {
+    return [...GSB_CLASS_NAMES].sort();
 };

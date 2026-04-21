@@ -1,4 +1,19 @@
 /* Profile page styles */
+.back-btn {
+    background: none;
+    border: none;
+    color: #8C1515;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 0 0 20px 0;
+    display: block;
+}
+
+.back-btn:hover {
+    text-decoration: underline;
+}
+
 .profile-container {
     padding: 30px;
     max-width: 800px;
@@ -564,6 +579,25 @@
     display: flex;
     gap: 12px;
     justify-content: center;
+}
+
+.char-count {
+    font-size: 11px;
+    color: #adb5bd;
+    text-align: right;
+    margin-top: 4px;
+}
+
+.char-count.near-limit {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.contact-url-hint {
+    font-size: 12px;
+    font-weight: 400;
+    color: #6c757d;
+    font-family: monospace;
 }
 
 /* Mobile Responsive */
