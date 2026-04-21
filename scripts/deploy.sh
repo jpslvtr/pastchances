@@ -95,9 +95,52 @@ fi
 echo "Firebase deploy..."
 firebase deploy --only functions,firestore,storage
 
+# Prepare Vercel prebuilt output so the server-side build is skipped.
+# src/data/ is gitignored, so Vercel's cloud build can't compile the TypeScript.
+# --prebuilt tells Vercel to serve .vercel/output/static directly.
+echo "Preparing Vercel prebuilt output..."
+rm -rf .vercel/output
+mkdir -p .vercel/output/static
+cp -r dist/. .vercel/output/static/
+cat > .vercel/output/config.json << 'VERCEL_CONFIG'
+{
+  "version": 3,
+  "routes": [
+    {
+      "src": "/[^/]+\\.png",
+      "headers": {
+        "Content-Type": "image/png",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=3600"
+      },
+      "continue": true
+    },
+    {
+      "src": "/[^/]+\\.svg",
+      "headers": {
+        "Content-Type": "image/svg+xml",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=3600"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*)",
+      "headers": {
+        "X-Frame-Options": "SAMEORIGIN",
+        "X-Content-Type-Options": "nosniff"
+      },
+      "continue": true
+    },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
+VERCEL_CONFIG
+
 # Deploy to Vercel
 echo "Vercel deploy..."
-npx vercel --prod --yes
+npx vercel deploy --prod --yes --prebuilt
 
 # Get the latest deployment URL
 echo "Getting latest deployment URL..."
