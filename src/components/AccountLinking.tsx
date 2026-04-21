@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { collection, getDocs, doc, runTransaction } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { normalizeEmail, fuzzyNameMatch, isAlumniEmail } from '../utils/emailUtils';
 import type { UserClass } from '../types';
@@ -41,13 +41,13 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
     const loadPotentialMatches = async () => {
         try {
             const usersRef = collection(db, 'users');
-            const snapshot = await getDocs(usersRef);
+            const snapshot = await getDocs(query(usersRef, where('userClass', '==', userClass)));
 
             const matches: PotentialMatch[] = [];
             snapshot.forEach((doc) => {
                 const data = doc.data();
-                // Only show users with empty alumni email fields and matching userClass
-                if (data.userClass === userClass && !data.emailAlumni && !data.emailAlumniGSB) {
+                // Only show users with empty alumni email fields
+                if (!data.emailAlumni && !data.emailAlumniGSB) {
                     matches.push({
                         id: doc.id,
                         name: data.name,
@@ -110,18 +110,17 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
 
             // First check outside transaction if these emails are already in use
             const usersRef = collection(db, 'users');
-            const usersSnapshot = await getDocs(usersRef);
+            const [snap1, snap2] = await Promise.all([
+                getDocs(query(usersRef, where('emailAlumni', '==', alumniEmail))),
+                getDocs(query(usersRef, where('emailAlumniGSB', '==', alumniEmail)))
+            ]);
 
-            for (const doc of usersSnapshot.docs) {
-                if (doc.id === selectedMatch.id) continue;
+            const alreadyLinked =
+                snap1.docs.some(d => d.id !== selectedMatch.id) ||
+                snap2.docs.some(d => d.id !== selectedMatch.id);
 
-                const data = doc.data();
-                const emailMatch = (data.emailAlumni && normalizeEmail(data.emailAlumni) === alumniEmail) ||
-                    (data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === alumniEmail);
-
-                if (emailMatch) {
-                    throw new Error('This alumni email is already linked to another account');
-                }
+            if (alreadyLinked) {
+                throw new Error('This alumni email is already linked to another account');
             }
 
             const userRef = doc(db, 'users', selectedMatch.id);
@@ -150,7 +149,7 @@ const AccountLinking = ({ user, userClass, onLinkingComplete, onStartNewAccount,
                 transaction.update(userRef, {
                     emailAlumni: alumniStanford,
                     emailAlumniGSB: alumniGSB,
-                    updatedAt: new Date()
+                    updatedAt: serverTimestamp()
                 });
             });
 

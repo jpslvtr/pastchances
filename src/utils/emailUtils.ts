@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { UserData } from '../types';
 
@@ -41,22 +41,16 @@ export const findUserByEmail = async (email: string): Promise<EmailLookupResult>
     try {
         const normalizedEmail = normalizeEmail(email);
         const usersRef = collection(db, 'users');
-        const snapshot = await getDocs(usersRef);
 
-        for (const doc of snapshot.docs) {
-            const data = doc.data() as UserData;
+        const [snap1, snap2, snap3] = await Promise.all([
+            getDocs(query(usersRef, where('email', '==', normalizedEmail))),
+            getDocs(query(usersRef, where('emailAlumni', '==', normalizedEmail))),
+            getDocs(query(usersRef, where('emailAlumniGSB', '==', normalizedEmail)))
+        ]);
 
-            // Check all three email fields with case-insensitive comparison
-            const emailMatch = data.email && normalizeEmail(data.email) === normalizedEmail;
-            const alumniMatch = data.emailAlumni && normalizeEmail(data.emailAlumni) === normalizedEmail;
-            const alumniGSBMatch = data.emailAlumniGSB && normalizeEmail(data.emailAlumniGSB) === normalizedEmail;
-
-            if (emailMatch || alumniMatch || alumniGSBMatch) {
-                return {
-                    docId: doc.id,
-                    userData: data
-                };
-            }
+        const found = [snap1, snap2, snap3].find(snap => !snap.empty);
+        if (found) {
+            return { docId: found.docs[0].id, userData: found.docs[0].data() as UserData };
         }
 
         return { docId: null, userData: null };

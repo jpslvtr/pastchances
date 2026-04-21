@@ -4,1483 +4,21 @@ import Navbar from './shared/Navbar';
 import UserPhoto from './shared/UserPhoto';
 import PhotoModal from './shared/PhotoModal';
 import { useState, useEffect, useRef } from 'react';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { getUserDocumentId } from '../utils';
+import { hashName } from '../utils/hashName';
+import { COUNTRY_CODES } from '../data/countryCodes';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
 import type { UserData, PublicContact } from '../types';
 import '../styles/profile.css';
 
-const hashName = (name: string): string => {
-    let hash = 0;
-    const normalized = name.toLowerCase().trim();
-    for (let i = 0; i < normalized.length; i++) {
-        const char = normalized.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-    }
-    return Math.abs(hash).toString(36);
-};
-
-interface CountryCode {
-    code: string;
-    country: string;
-    format: (digits: string) => string;
-    minDigits: number;
-    maxDigits: number;
-}
-
-const COUNTRY_CODES: CountryCode[] = [
-    {
-        code: '+1',
-        country: 'United States/Canada',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+93',
-        country: 'Afghanistan',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+355',
-        country: 'Albania',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 7) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+213',
-        country: 'Algeria',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+376',
-        country: 'Andorra',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)}`;
-        },
-        minDigits: 6,
-        maxDigits: 9
-    },
-    {
-        code: '+244',
-        country: 'Angola',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+54',
-        country: 'Argentina',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 11
-    },
-    {
-        code: '+374',
-        country: 'Armenia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+61',
-        country: 'Australia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+43',
-        country: 'Austria',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 10,
-        maxDigits: 13
-    },
-    {
-        code: '+994',
-        country: 'Azerbaijan',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+973',
-        country: 'Bahrain',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+880',
-        country: 'Bangladesh',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+375',
-        country: 'Belarus',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+32',
-        country: 'Belgium',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+501',
-        country: 'Belize',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
-        },
-        minDigits: 7,
-        maxDigits: 7
-    },
-    {
-        code: '+591',
-        country: 'Bolivia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+387',
-        country: 'Bosnia and Herzegovina',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+267',
-        country: 'Botswana',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
-        },
-        minDigits: 7,
-        maxDigits: 7
-    },
-    {
-        code: '+55',
-        country: 'Brazil',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 7) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 7)} ${digits.slice(7, 11)}`;
-        },
-        minDigits: 11,
-        maxDigits: 11
-    },
-    {
-        code: '+673',
-        country: 'Brunei',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
-        },
-        minDigits: 7,
-        maxDigits: 7
-    },
-    {
-        code: '+359',
-        country: 'Bulgaria',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+855',
-        country: 'Cambodia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+237',
-        country: 'Cameroon',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+56',
-        country: 'Chile',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+86',
-        country: 'China',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 7) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7, 11)}`;
-        },
-        minDigits: 11,
-        maxDigits: 11
-    },
-    {
-        code: '+57',
-        country: 'Colombia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+506',
-        country: 'Costa Rica',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+385',
-        country: 'Croatia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+53',
-        country: 'Cuba',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+357',
-        country: 'Cyprus',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+420',
-        country: 'Czech Republic',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+45',
-        country: 'Denmark',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)} ${digits.slice(6, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+1',
-        country: 'Dominican Republic',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+593',
-        country: 'Ecuador',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+20',
-        country: 'Egypt',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+503',
-        country: 'El Salvador',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+372',
-        country: 'Estonia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
-        },
-        minDigits: 7,
-        maxDigits: 8
-    },
-    {
-        code: '+251',
-        country: 'Ethiopia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+679',
-        country: 'Fiji',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
-        },
-        minDigits: 7,
-        maxDigits: 7
-    },
-    {
-        code: '+358',
-        country: 'Finland',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 10
-    },
-    {
-        code: '+33',
-        country: 'France',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 3) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1, 3)} ${digits.slice(3)}`;
-            if (digits.length <= 7) return `${digits.slice(0, 1)} ${digits.slice(1, 3)} ${digits.slice(3, 5)} ${digits.slice(5)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+995',
-        country: 'Georgia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+49',
-        country: 'Germany',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 7) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7, 11)}`;
-        },
-        minDigits: 10,
-        maxDigits: 11
-    },
-    {
-        code: '+233',
-        country: 'Ghana',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+30',
-        country: 'Greece',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+502',
-        country: 'Guatemala',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+852',
-        country: 'Hong Kong',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+36',
-        country: 'Hungary',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+354',
-        country: 'Iceland',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
-        },
-        minDigits: 7,
-        maxDigits: 7
-    },
-    {
-        code: '+91',
-        country: 'India',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 5) return digits;
-            return `${digits.slice(0, 5)} ${digits.slice(5, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+62',
-        country: 'Indonesia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 9,
-        maxDigits: 11
-    },
-    {
-        code: '+98',
-        country: 'Iran',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+964',
-        country: 'Iraq',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+353',
-        country: 'Ireland',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+972',
-        country: 'Israel',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+39',
-        country: 'Italy',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 10
-    },
-    {
-        code: '+81',
-        country: 'Japan',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+962',
-        country: 'Jordan',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+7',
-        country: 'Kazakhstan',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+254',
-        country: 'Kenya',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+965',
-        country: 'Kuwait',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+371',
-        country: 'Latvia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+961',
-        country: 'Lebanon',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
-        },
-        minDigits: 7,
-        maxDigits: 8
-    },
-    {
-        code: '+218',
-        country: 'Libya',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+370',
-        country: 'Lithuania',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+352',
-        country: 'Luxembourg',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+853',
-        country: 'Macau',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+60',
-        country: 'Malaysia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 10
-    },
-    {
-        code: '+960',
-        country: 'Maldives',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 7)}`;
-        },
-        minDigits: 7,
-        maxDigits: 7
-    },
-    {
-        code: '+356',
-        country: 'Malta',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+52',
-        country: 'Mexico',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+377',
-        country: 'Monaco',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)} ${digits.slice(6, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 9
-    },
-    {
-        code: '+976',
-        country: 'Mongolia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+382',
-        country: 'Montenegro',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+212',
-        country: 'Morocco',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+258',
-        country: 'Mozambique',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+95',
-        country: 'Myanmar',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 10
-    },
-    {
-        code: '+264',
-        country: 'Namibia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+977',
-        country: 'Nepal',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+31',
-        country: 'Netherlands',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+64',
-        country: 'New Zealand',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 10
-    },
-    {
-        code: '+234',
-        country: 'Nigeria',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+47',
-        country: 'Norway',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+968',
-        country: 'Oman',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+92',
-        country: 'Pakistan',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+507',
-        country: 'Panama',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+595',
-        country: 'Paraguay',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+51',
-        country: 'Peru',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+63',
-        country: 'Philippines',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+48',
-        country: 'Poland',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+351',
-        country: 'Portugal',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+974',
-        country: 'Qatar',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+40',
-        country: 'Romania',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+7',
-        country: 'Russia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+966',
-        country: 'Saudi Arabia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+381',
-        country: 'Serbia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+65',
-        country: 'Singapore',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+421',
-        country: 'Slovakia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+386',
-        country: 'Slovenia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+27',
-        country: 'South Africa',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+82',
-        country: 'South Korea',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+34',
-        country: 'Spain',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+94',
-        country: 'Sri Lanka',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+46',
-        country: 'Sweden',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+41',
-        country: 'Switzerland',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+963',
-        country: 'Syria',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+886',
-        country: 'Taiwan',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+66',
-        country: 'Thailand',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+216',
-        country: 'Tunisia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+90',
-        country: 'Turkey',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+256',
-        country: 'Uganda',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+380',
-        country: 'Ukraine',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+971',
-        country: 'United Arab Emirates',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 9
-    },
-    {
-        code: '+44',
-        country: 'United Kingdom',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 4) return digits;
-            if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
-            return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+598',
-        country: 'Uruguay',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 8)}`;
-        },
-        minDigits: 8,
-        maxDigits: 8
-    },
-    {
-        code: '+998',
-        country: 'Uzbekistan',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+58',
-        country: 'Venezuela',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-            return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
-        },
-        minDigits: 10,
-        maxDigits: 10
-    },
-    {
-        code: '+84',
-        country: 'Vietnam',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 10
-    },
-    {
-        code: '+967',
-        country: 'Yemen',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+260',
-        country: 'Zambia',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 2) return digits;
-            if (digits.length <= 5) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-            return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    },
-    {
-        code: '+263',
-        country: 'Zimbabwe',
-        format: (digits: string) => {
-            if (digits.length === 0) return '';
-            if (digits.length <= 1) return digits;
-            if (digits.length <= 4) return `${digits.slice(0, 1)} ${digits.slice(1)}`;
-            return `${digits.slice(0, 1)} ${digits.slice(1, 4)} ${digits.slice(4, 7)}`;
-        },
-        minDigits: 9,
-        maxDigits: 9
-    }
-];
 
 const Profile = () => {
     const { userId: nameHash } = useParams<{ userId?: string }>();
-    const { user, userData: currentUserData, refreshUserData } = useAuth();
+    const { user, userData: currentUserData } = useAuth();
     const navigate = useNavigate();
     const [profileData, setProfileData] = useState<UserData | null>(null);
     const [profileName, setProfileName] = useState<string>('');
@@ -1508,18 +46,22 @@ const Profile = () => {
         preferred?: string;
     }>({});
     const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [saveSuccess, setSaveSuccess] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [showCropModal, setShowCropModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [zoom, setZoom] = useState(1);
+    const [baseScale, setBaseScale] = useState(1);
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [showPhotoModal, setShowPhotoModal] = useState(false);
-    const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const saveSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
@@ -1527,79 +69,82 @@ const Profile = () => {
 
     const isOwnProfile = !nameHash || (currentUserData && hashName(currentUserData.name) === nameHash);
 
+    // Effect 1: own profile — sync from currentUserData (real-time via AuthContext listener)
     useEffect(() => {
-        const loadProfile = async () => {
-            setLoadingProfile(true);
-            try {
-                if (isOwnProfile) {
-                    setProfileData(currentUserData);
-                    setProfileName(currentUserData?.name || '');
-                    setProfileUserClass(currentUserData?.userClass || 'gsb');
-                    setLocation(currentUserData?.location || '');
-                    setAbout(currentUserData?.about || '');
+        if (!isOwnProfile || !currentUserData) return;
 
-                    const contact: PublicContact = {
-                        cell: currentUserData?.publicContact?.cell || '',
-                        instagram: currentUserData?.publicContact?.instagram || '',
-                        x: currentUserData?.publicContact?.x || '',
-                        linkedin: currentUserData?.publicContact?.linkedin || '',
-                        other: currentUserData?.publicContact?.other || '',
-                        preferred: currentUserData?.publicContact?.preferred || ''
-                    };
+        setProfileData(currentUserData);
+        setProfileName(currentUserData.name || '');
+        setProfileUserClass(currentUserData.userClass || 'gsb');
+        setLoadingProfile(false);
 
-                    setPublicContact(contact);
+        // Only reset form fields when not actively editing — preserves in-progress edits
+        if (!isEditing) {
+            setLocation(currentUserData.location || '');
+            setAbout(currentUserData.about || '');
 
-                    // Parse existing cell phone into country code and number
-                    if (contact.cell) {
-                        const parsed = parsePhoneNumber(contact.cell);
-                        setCountryCode(parsed.countryCode);
-                        // Format the parsed number to include spaces
-                        const formatted = formatPhoneNumber(parsed.number.replace(/\D/g, ''), parsed.countryCode);
-                        setPhoneNumber(formatted);
-                    } else {
-                        setCountryCode('+1');
-                        setPhoneNumber('');
-                    }
-                } else if (nameHash) {
-                    const userClass = currentUserData?.userClass || 'gsb';
-                    const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+            const contact: PublicContact = {
+                cell: currentUserData.publicContact?.cell || '',
+                instagram: currentUserData.publicContact?.instagram || '',
+                x: currentUserData.publicContact?.x || '',
+                linkedin: currentUserData.publicContact?.linkedin || '',
+                other: currentUserData.publicContact?.other || '',
+                preferred: currentUserData.publicContact?.preferred || ''
+            };
+            setPublicContact(contact);
 
-                    const matchingName = classNames.find(name => hashName(name) === nameHash);
-
-                    if (!matchingName) {
-                        navigate('/');
-                        return;
-                    }
-
-                    setProfileName(matchingName);
-                    setProfileUserClass(userClass);
-
-                    const usersRef = collection(db, 'users');
-                    const q = query(
-                        usersRef,
-                        where('name', '==', matchingName),
-                        where('userClass', '==', userClass)
-                    );
-
-                    const snapshot = await getDocs(q);
-
-                    if (!snapshot.empty) {
-                        setProfileData(snapshot.docs[0].data() as UserData);
-                    } else {
-                        setProfileData(null);
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading profile:', error);
-            } finally {
-                setLoadingProfile(false);
+            if (contact.cell) {
+                const parsed = parsePhoneNumber(contact.cell);
+                setCountryCode(parsed.countryCode);
+                const formatted = formatPhoneNumber(parsed.number.replace(/\D/g, ''), parsed.countryCode);
+                setPhoneNumber(formatted);
+            } else {
+                setCountryCode('+1');
+                setPhoneNumber('');
             }
-        };
-
-        if (user && currentUserData) {
-            loadProfile();
         }
-    }, [nameHash, user, currentUserData, isOwnProfile, navigate]);
+    }, [isOwnProfile, currentUserData, isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Effect 2: other user's profile — real-time via onSnapshot
+    useEffect(() => {
+        if (isOwnProfile || !nameHash || !user || !currentUserData) return;
+
+        const userClass = currentUserData.userClass || 'gsb';
+        const classNames = userClass === 'gsb' ? GSB_CLASS_NAMES : UNDERGRAD_CLASS_NAMES;
+        const matchingName = classNames.find(name => hashName(name) === nameHash);
+
+        if (!matchingName) {
+            navigate('/');
+            return;
+        }
+
+        setProfileName(matchingName);
+        setProfileUserClass(userClass);
+        setLoadingProfile(true);
+
+        const q = query(
+            collection(db, 'users'),
+            where('name', '==', matchingName),
+            where('userClass', '==', userClass)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setProfileData(snapshot.empty ? null : snapshot.docs[0].data() as UserData);
+            setLoadingProfile(false);
+        }, (error) => {
+            console.error('Error loading profile:', error);
+            setLoadingProfile(false);
+        });
+
+        return () => unsubscribe();
+    }, [isOwnProfile, nameHash, user, currentUserData, navigate]);
+
+    useEffect(() => {
+        return () => {
+            if (debounceTimer.current) clearTimeout(debounceTimer.current);
+            if (saveSuccessTimeoutRef.current) clearTimeout(saveSuccessTimeoutRef.current);
+        };
+    }, []);
 
     const parsePhoneNumber = (fullNumber: string): { countryCode: string; number: string } => {
         const digits = fullNumber.replace(/\D/g, '');
@@ -1796,7 +341,7 @@ const Profile = () => {
     const handlePhotoClick = () => {
         if (isOwnProfile) {
             fileInputRef.current?.click();
-        } else {
+        } else if (profileData?.customPhotoURL) {
             setShowPhotoModal(true);
         }
     };
@@ -1860,6 +405,7 @@ const Profile = () => {
             setImageFile(file);
             setShowCropModal(true);
             setZoom(1);
+            setBaseScale(1);
             setPosition({ x: 0, y: 0 });
         } catch (error) {
             console.error('Error loading image:', error);
@@ -1929,7 +475,7 @@ const Profile = () => {
 
             const scale = targetSize / circleWidth;
 
-            const scaledZoom = zoom * scale;
+            const scaledZoom = zoom * baseScale * scale;
             const scaledX = position.x * scale;
             const scaledY = position.y * scale;
 
@@ -1947,41 +493,43 @@ const Profile = () => {
             ctx.drawImage(img, drawX, drawY, imgWidth, imgHeight);
             ctx.restore();
 
-            canvas.toBlob(async (blob) => {
-                if (!blob) {
-                    throw new Error('Failed to create blob from canvas');
+            // Wrap toBlob in a Promise so errors propagate and we can await completion
+            const blob = await new Promise<Blob>((resolve, reject) => {
+                canvas.toBlob(
+                    (b) => (b ? resolve(b) : reject(new Error('Canvas produced empty blob'))),
+                    'image/jpeg',
+                    0.9
+                );
+            });
+
+            const actualUid = getUserDocumentId(user!, currentUserData!);
+            const timestamp = Date.now();
+            const storageRef = ref(storage, `profile-photos/${user!.uid}_${timestamp}.jpg`);
+
+            await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(storageRef);
+
+            const userDocRef = doc(db, 'users', actualUid);
+            await updateDoc(userDocRef, {
+                customPhotoURL: downloadURL,
+                updatedAt: serverTimestamp()
+            });
+
+            if (currentUserData?.customPhotoURL) {
+                try {
+                    const oldPhotoRef = ref(storage, currentUserData.customPhotoURL);
+                    await deleteObject(oldPhotoRef);
+                } catch {
+                    // Old photo cleanup is non-critical
                 }
+            }
 
-                const actualUid = getUserDocumentId(user!, currentUserData!);
-                const timestamp = Date.now();
-                const storageRef = ref(storage, `profile-photos/${actualUid}_${timestamp}.jpg`);
-
-                await uploadBytes(storageRef, blob);
-                const downloadURL = await getDownloadURL(storageRef);
-
-                const userDocRef = doc(db, 'users', actualUid);
-                await updateDoc(userDocRef, {
-                    customPhotoURL: downloadURL,
-                    updatedAt: new Date()
-                });
-
-                if (currentUserData?.customPhotoURL) {
-                    try {
-                        const oldPhotoRef = ref(storage, currentUserData.customPhotoURL);
-                        await deleteObject(oldPhotoRef);
-                    } catch (error) {
-                        console.log('Could not delete old photo:', error);
-                    }
-                }
-
-                await refreshUserData();
-
-                setShowCropModal(false);
-                setSelectedImage(null);
-                setImageFile(null);
-                setZoom(1);
-                setPosition({ x: 0, y: 0 });
-            }, 'image/jpeg', 0.9);
+            setShowCropModal(false);
+            setSelectedImage(null);
+            setImageFile(null);
+            setZoom(1);
+            setBaseScale(1);
+            setPosition({ x: 0, y: 0 });
 
         } catch (error) {
             console.error('Error uploading photo:', error);
@@ -1996,6 +544,7 @@ const Profile = () => {
         setSelectedImage(null);
         setImageFile(null);
         setZoom(1);
+        setBaseScale(1);
         setPosition({ x: 0, y: 0 });
     };
 
@@ -2053,12 +602,12 @@ const Profile = () => {
         }
 
         setSaving(true);
+        setSaveError(null);
 
         try {
             const actualUid = getUserDocumentId(user!, currentUserData);
             const userDocRef = doc(db, 'users', actualUid);
 
-            // Combine country code and phone number for storage
             const fullPhoneNumber = phoneNumber ? `${countryCode} ${phoneNumber}` : '';
 
             await updateDoc(userDocRef, {
@@ -2068,15 +617,16 @@ const Profile = () => {
                     ...publicContact,
                     cell: fullPhoneNumber
                 },
-                updatedAt: new Date()
+                updatedAt: serverTimestamp()
             });
 
-            await refreshUserData();
-
             setIsEditing(false);
+            if (saveSuccessTimeoutRef.current) clearTimeout(saveSuccessTimeoutRef.current);
+            setSaveSuccess(true);
+            saveSuccessTimeoutRef.current = setTimeout(() => setSaveSuccess(false), 3000);
         } catch (error) {
             console.error('Error saving profile:', error);
-            alert('Failed to save profile. Please try again.');
+            setSaveError('Failed to save profile. Please try again.');
         } finally {
             setSaving(false);
         }
@@ -2121,18 +671,47 @@ const Profile = () => {
         preferred: profileData?.publicContact?.preferred || ''
     };
 
+    const hasAnyContact = !!(viewingContact.cell || viewingContact.instagram || viewingContact.x || viewingContact.linkedin || viewingContact.other);
+
     if (loadingProfile) {
         return <div className="loading">Loading...</div>;
     }
 
     return (
+        <>
+        {saveSuccess && (
+            <div style={{
+                position: 'fixed',
+                top: 'max(20px, env(safe-area-inset-top))',
+                right: '20px',
+                background: '#28a745',
+                color: 'white',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                zIndex: 1000,
+                fontWeight: 500,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                pointerEvents: 'none'
+            }}>
+                Profile updated!
+            </div>
+        )}
         <div className="dashboard-container">
             <div className="dashboard-card">
                 <Navbar user={user} userData={currentUserData} />
 
                 <div className="profile-container">
+                    {nameHash && (
+                        <button onClick={() => navigate('/')} className="back-btn">
+                            ← Classmates
+                        </button>
+                    )}
                     <div className="profile-header">
-                        <div className="profile-photo-wrapper" onClick={handlePhotoClick}>
+                        <div
+                            className="profile-photo-wrapper"
+                            onClick={handlePhotoClick}
+                            style={{ cursor: isOwnProfile || profileData?.customPhotoURL ? 'pointer' : 'default' }}
+                        >
                             <UserPhoto
                                 name={profileName}
                                 userClass={profileUserClass}
@@ -2157,20 +736,28 @@ const Profile = () => {
                                         Edit Profile
                                     </button>
                                 ) : (
-                                    <div className="edit-actions">
-                                        <button onClick={handleSave} disabled={saving} className="save-btn">
-                                            {saving ? 'Saving...' : 'Save'}
-                                        </button>
-                                        <button onClick={handleCancel} disabled={saving} className="cancel-btn">
-                                            Cancel
-                                        </button>
-                                    </div>
+                                    <>
+                                        <div className="edit-actions">
+                                            <button onClick={handleSave} disabled={saving} className="save-btn">
+                                                {saving ? 'Saving...' : 'Save'}
+                                            </button>
+                                            <button onClick={handleCancel} disabled={saving} className="cancel-btn">
+                                                Cancel
+                                            </button>
+                                        </div>
+                                        {saveError && (
+                                            <div className="error-message" style={{ marginTop: '8px', textAlign: 'center' }}>
+                                                {saveError}
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         )}
                     </div>
 
                     <div className="profile-info-section">
+                        {(isOwnProfile || profileData?.location) && (
                         <div className="info-row location-row">
                             <label>Location:</label>
                             {isOwnProfile && isEditing ? (
@@ -2200,11 +787,43 @@ const Profile = () => {
                                 </div>
                             ) : (
                                 <div style={{ flex: 1, width: '100%' }}>
-                                    <div className="info-value-plain">{profileData?.location || ''}</div>
+                                    <div className="info-value-plain">
+                                        {(isOwnProfile ? location : profileData?.location) || '—'}
+                                    </div>
                                 </div>
                             )}
                         </div>
+                        )}
 
+                        {(isOwnProfile || profileData?.about) && (
+                        <div className="info-row">
+                            <label>About:</label>
+                            {isOwnProfile && isEditing ? (
+                                <div style={{ flex: 1, width: '100%' }}>
+                                    <textarea
+                                        value={about}
+                                        onChange={(e) => setAbout(e.target.value)}
+                                        placeholder="Tell your classmates a bit about yourself..."
+                                        className="info-input-inline"
+                                        rows={3}
+                                        maxLength={500}
+                                        style={{ resize: 'vertical', width: '100%' }}
+                                    />
+                                    <div className={`char-count${about.length > 450 ? ' near-limit' : ''}`}>
+                                        {about.length}/500
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ flex: 1, width: '100%' }}>
+                                    <div className="info-value-plain" style={{ whiteSpace: 'pre-wrap' }}>
+                                        {(isOwnProfile ? about : profileData?.about) || '—'}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        )}
+
+                        {(isOwnProfile || hasAnyContact) && (
                         <div className="info-row">
                             <label>Contact:</label>
                             {isOwnProfile && isEditing ? (
@@ -2246,30 +865,16 @@ const Profile = () => {
                                     </div>
 
                                     <div className="contact-field-plain">
-                                        <label>Instagram:</label>
+                                        <label>Instagram: <span className="contact-url-hint">instagram.com/</span></label>
                                         <div className="contact-input-with-star">
-                                            <div style={{ position: 'relative', flex: 1 }}>
-                                                <span style={{
-                                                    position: 'absolute',
-                                                    left: '14px',
-                                                    top: '50%',
-                                                    transform: 'translateY(-50%)',
-                                                    color: '#6c757d',
-                                                    pointerEvents: 'none',
-                                                    fontSize: '14px',
-                                                    zIndex: 1
-                                                }}>
-                                                    https://www.instagram.com/
-                                                </span>
-                                                <input
-                                                    type="text"
-                                                    value={publicContact.instagram}
-                                                    onChange={(e) => handleContactChange('instagram', e.target.value)}
-                                                    placeholder=""
-                                                    className={`info-input-inline ${contactErrors.instagram ? 'error' : ''}`}
-                                                    style={{ paddingLeft: '196px', width: '100%' }}
-                                                />
-                                            </div>
+                                            <input
+                                                type="text"
+                                                value={publicContact.instagram}
+                                                onChange={(e) => handleContactChange('instagram', e.target.value)}
+                                                placeholder="username"
+                                                className={`info-input-inline ${contactErrors.instagram ? 'error' : ''}`}
+                                                style={{ flex: 1 }}
+                                            />
                                             <button
                                                 type="button"
                                                 className={`preferred-star ${publicContact.preferred === 'instagram' ? 'active' : ''}`}
@@ -2284,30 +889,16 @@ const Profile = () => {
                                     </div>
 
                                     <div className="contact-field-plain">
-                                        <label>X:</label>
+                                        <label>X: <span className="contact-url-hint">x.com/</span></label>
                                         <div className="contact-input-with-star">
-                                            <div style={{ position: 'relative', flex: 1 }}>
-                                                <span style={{
-                                                    position: 'absolute',
-                                                    left: '14px',
-                                                    top: '50%',
-                                                    transform: 'translateY(-50%)',
-                                                    color: '#6c757d',
-                                                    pointerEvents: 'none',
-                                                    fontSize: '14px',
-                                                    zIndex: 1
-                                                }}>
-                                                    https://x.com/
-                                                </span>
-                                                <input
-                                                    type="text"
-                                                    value={publicContact.x}
-                                                    onChange={(e) => handleContactChange('x', e.target.value)}
-                                                    placeholder=""
-                                                    className={`info-input-inline ${contactErrors.x ? 'error' : ''}`}
-                                                    style={{ paddingLeft: '103px', width: '100%' }}
-                                                />
-                                            </div>
+                                            <input
+                                                type="text"
+                                                value={publicContact.x}
+                                                onChange={(e) => handleContactChange('x', e.target.value)}
+                                                placeholder="username"
+                                                className={`info-input-inline ${contactErrors.x ? 'error' : ''}`}
+                                                style={{ flex: 1 }}
+                                            />
                                             <button
                                                 type="button"
                                                 className={`preferred-star ${publicContact.preferred === 'x' ? 'active' : ''}`}
@@ -2322,30 +913,16 @@ const Profile = () => {
                                     </div>
 
                                     <div className="contact-field-plain">
-                                        <label>LinkedIn:</label>
+                                        <label>LinkedIn: <span className="contact-url-hint">linkedin.com/in/</span></label>
                                         <div className="contact-input-with-star">
-                                            <div style={{ position: 'relative', flex: 1 }}>
-                                                <span style={{
-                                                    position: 'absolute',
-                                                    left: '14px',
-                                                    top: '50%',
-                                                    transform: 'translateY(-50%)',
-                                                    color: '#6c757d',
-                                                    pointerEvents: 'none',
-                                                    fontSize: '14px',
-                                                    zIndex: 1
-                                                }}>
-                                                    https://www.linkedin.com/in/
-                                                </span>
-                                                <input
-                                                    type="text"
-                                                    value={publicContact.linkedin}
-                                                    onChange={(e) => handleContactChange('linkedin', e.target.value)}
-                                                    placeholder=""
-                                                    className={`info-input-inline ${contactErrors.linkedin ? 'error' : ''}`}
-                                                    style={{ paddingLeft: '196px', width: '100%' }}
-                                                />
-                                            </div>
+                                            <input
+                                                type="text"
+                                                value={publicContact.linkedin}
+                                                onChange={(e) => handleContactChange('linkedin', e.target.value)}
+                                                placeholder="your-profile"
+                                                className={`info-input-inline ${contactErrors.linkedin ? 'error' : ''}`}
+                                                style={{ flex: 1 }}
+                                            />
                                             <button
                                                 type="button"
                                                 className={`preferred-star ${publicContact.preferred === 'linkedin' ? 'active' : ''}`}
@@ -2385,106 +962,85 @@ const Profile = () => {
                                 </div>
                             ) : (
                                 <div style={{ flex: 1 }}>
-                                    <div className="contact-display-plain">
-                                        {(isOwnProfile || viewingContact.cell) && (
-                                            <div className={`info-value-plain ${viewingContact.preferred === 'cell' ? 'preferred' : ''}`}>
-                                                {viewingContact.cell ? (
-                                                    <>
-                                                        <strong>Cell: </strong>
-                                                        <a href={`sms:${viewingContact.cell.replace(/\s/g, '')}`} className="contact-link-plain">
-                                                            {viewingContact.cell}
-                                                        </a>
-                                                    </>
-                                                ) : (
-                                                    ''
-                                                )}
-                                                {viewingContact.preferred === 'cell' && viewingContact.cell && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
-                                        {(isOwnProfile || viewingContact.instagram) && (
-                                            <div className={`info-value-plain ${viewingContact.preferred === 'instagram' ? 'preferred' : ''}`}>
-                                                {viewingContact.instagram ? (
-                                                    <>
-                                                        <strong>Instagram: </strong>
-                                                        <a
-                                                            href={`https://www.instagram.com/${viewingContact.instagram}/`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="contact-link-plain"
-                                                        >
-                                                            https://www.instagram.com/{viewingContact.instagram}{viewingContact.instagram.endsWith('/') ? '' : '/'}
-                                                        </a>
-                                                    </>
-                                                ) : (
-                                                    ''
-                                                )}
-                                                {viewingContact.preferred === 'instagram' && viewingContact.instagram && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
-                                        {(isOwnProfile || viewingContact.x) && (
-                                            <div className={`info-value-plain ${viewingContact.preferred === 'x' ? 'preferred' : ''}`}>
-                                                {viewingContact.x ? (
-                                                    <>
-                                                        <strong>X: </strong>
-                                                        <a
-                                                            href={`https://x.com/${viewingContact.x}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="contact-link-plain"
-                                                        >
-                                                                https://x.com/{viewingContact.x}{viewingContact.x.endsWith('/') ? '' : '/'}
-                                                        </a>
-                                                    </>
-                                                ) : (
-                                                    ''
-                                                )}
-                                                {viewingContact.preferred === 'x' && viewingContact.x && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
-                                        {(isOwnProfile || viewingContact.linkedin) && (
-                                            <div className={`info-value-plain ${viewingContact.preferred === 'linkedin' ? 'preferred' : ''}`}>
-                                                {viewingContact.linkedin ? (
-                                                    <>
-                                                        <strong>LinkedIn: </strong>
-                                                        <a
-                                                            href={`https://www.linkedin.com/in/${viewingContact.linkedin.replace(/\/+$/, '')}/`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="contact-link-plain"
-                                                        >
-                                                            https://www.linkedin.com/in/{viewingContact.linkedin.replace(/\/+$/, '')}/
-                                                        </a>
-                                                    </>
-                                                ) : (
-                                                    ''
-                                                )}
-                                                {viewingContact.preferred === 'linkedin' && viewingContact.linkedin && <span className="preferred-badge">Preferred</span>}
-                                            </div>
-                                        )}
-                                            {(isOwnProfile || viewingContact.other) && (
+                                    {hasAnyContact ? (
+                                        <div className="contact-display-plain">
+                                            {viewingContact.cell && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'cell' ? 'preferred' : ''}`}>
+                                                    <strong>Cell: </strong>
+                                                    <a href={`sms:${viewingContact.cell.replace(/\s/g, '')}`} className="contact-link-plain">
+                                                        {viewingContact.cell}
+                                                    </a>
+                                                    {viewingContact.preferred === 'cell' && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                            {viewingContact.instagram && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'instagram' ? 'preferred' : ''}`}>
+                                                    <strong>Instagram: </strong>
+                                                    <a
+                                                        href={`https://www.instagram.com/${viewingContact.instagram.replace(/\/+$/, '')}/`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="contact-link-plain"
+                                                    >
+                                                        https://www.instagram.com/{viewingContact.instagram.replace(/\/+$/, '')}/
+                                                    </a>
+                                                    {viewingContact.preferred === 'instagram' && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                            {viewingContact.x && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'x' ? 'preferred' : ''}`}>
+                                                    <strong>X: </strong>
+                                                    <a
+                                                        href={`https://x.com/${viewingContact.x.replace(/\/+$/, '')}/`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="contact-link-plain"
+                                                    >
+                                                        https://x.com/{viewingContact.x.replace(/\/+$/, '')}/
+                                                    </a>
+                                                    {viewingContact.preferred === 'x' && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                            {viewingContact.linkedin && (
+                                                <div className={`info-value-plain ${viewingContact.preferred === 'linkedin' ? 'preferred' : ''}`}>
+                                                    <strong>LinkedIn: </strong>
+                                                    <a
+                                                        href={`https://www.linkedin.com/in/${viewingContact.linkedin.replace(/\/+$/, '')}/`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="contact-link-plain"
+                                                    >
+                                                        https://www.linkedin.com/in/{viewingContact.linkedin.replace(/\/+$/, '')}/
+                                                    </a>
+                                                    {viewingContact.preferred === 'linkedin' && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
+                                            {viewingContact.other && (
                                                 <div className={`info-value-plain ${viewingContact.preferred === 'other' ? 'preferred' : ''}`}>
-                                                    {viewingContact.other ? (
-                                                        <>
-                                                            <strong>Other: </strong>
-
-                                                            <a href={viewingContact.other.startsWith('http') ? viewingContact.other : `https://${viewingContact.other}`}
+                                                    <strong>Other: </strong>
+                                                    {viewingContact.other.match(/^(https?:\/\/|www\.)/i) ? (
+                                                        <a
+                                                            href={viewingContact.other.startsWith('http') ? viewingContact.other : `https://${viewingContact.other}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="contact-link-plain"
-                >
+                                                        >
                                                             {viewingContact.other}
                                                         </a>
-                                                </>
-                                            ) : (
-                                            ''
-        )}
-                                            {viewingContact.preferred === 'other' && viewingContact.other && <span className="preferred-badge">Preferred</span>}
+                                                    ) : (
+                                                        <span className="contact-link-plain">{viewingContact.other}</span>
+                                                    )}
+                                                    {viewingContact.preferred === 'other' && <span className="preferred-badge">Preferred</span>}
+                                                </div>
+                                            )}
                                         </div>
-)}
-                                    </div>
+                                    ) : (
+                                        <div className="info-value-plain">—</div>
+                                    )}
                                 </div>
                             )}
                         </div>
+                        )}
                     </div>
 
                     {isOwnProfile && (
@@ -2570,8 +1126,14 @@ const Profile = () => {
                                         ref={imageRef}
                                         src={selectedImage}
                                         alt="Preview"
+                                        onLoad={(e) => {
+                                            const img = e.currentTarget;
+                                            const circleSize = previewRef.current?.offsetWidth || 300;
+                                            const scale = Math.max(circleSize / img.naturalWidth, circleSize / img.naturalHeight);
+                                            setBaseScale(scale);
+                                        }}
                                         style={{
-                                            transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
+                                            transform: `scale(${zoom * baseScale}) translate(${position.x / (zoom * baseScale)}px, ${position.y / (zoom * baseScale)}px)`,
                                             maxWidth: 'none',
                                             maxHeight: 'none',
                                             userSelect: 'none',
@@ -2626,6 +1188,7 @@ const Profile = () => {
                 )}
             </div>
         </div>
+        </>
     );
 };
 

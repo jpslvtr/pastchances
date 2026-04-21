@@ -1,11 +1,40 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { hashName } from '../utils/hashName';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
-import type { UserData } from '../types';
+import type { UserData, MatchInfo } from '../types';
 import UserPhoto from './shared/UserPhoto';
+
+const toDate = (ts: any): Date | null => {
+    if (!ts) return null;
+    if (typeof ts.toDate === 'function') return ts.toDate();
+    if (ts.seconds !== undefined) return new Date(ts.seconds * 1000);
+    if (ts._seconds !== undefined) return new Date(ts._seconds * 1000);
+    if (ts instanceof Date) return ts;
+    return null;
+};
+
+const formatRelativeTime = (date: Date): string => {
+    const diffMs = Date.now() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    const diffWeeks = Math.floor(diffDays / 7);
+    const diffMonths = Math.floor(diffDays / 30);
+    const diffYears = Math.floor(diffDays / 365);
+
+    if (diffSecs < 60) return 'just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    if (diffWeeks < 5) return `${diffWeeks} week${diffWeeks !== 1 ? 's' : ''} ago`;
+    if (diffMonths < 12) return `${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`;
+    return `${diffYears} year${diffYears !== 1 ? 's' : ''} ago`;
+};
 
 const SaveIcon = () => (
     <svg
@@ -36,16 +65,6 @@ interface UserDashboardProps {
     handleUpdatePreferences: () => void;
 }
 
-const hashName = (name: string): string => {
-    let hash = 0;
-    const normalized = name.toLowerCase().trim();
-    for (let i = 0; i < normalized.length; i++) {
-        const char = normalized.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-    }
-    return Math.abs(hash).toString(36);
-};
 
 const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boolean; score: number } => {
     if (!searchTerm.trim()) return { matches: true, score: 0 };
@@ -111,6 +130,11 @@ const matchesSearchTerm = (fullName: string, searchTerm: string): { matches: boo
     return { matches: false, score: 0 };
 };
 
+const ITEM_HEIGHT = 48;
+const BUFFER_SIZE = 5;
+const computeVisibleItems = () =>
+    Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
+
 const UserDashboard: React.FC<UserDashboardProps> = ({
     userData,
     searchTerm,
@@ -125,6 +149,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 }) => {
     const navigate = useNavigate();
     const [virtualStart, setVirtualStart] = React.useState(0);
+    const [visibleItems, setVisibleItems] = React.useState(computeVisibleItems);
     const searchInputRef = React.useRef<HTMLInputElement>(null);
     const [photoCache, setPhotoCache] = React.useState<Map<string, string | null>>(new Map());
 
@@ -141,39 +166,29 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const classDisplayName = userData?.userClass === 'gsb' ? 'GSB MBA' : 'Undergraduate';
 
     React.useEffect(() => {
-        let mounted = true;
+        const handleResize = () => setVisibleItems(computeVisibleItems());
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
-        const loadAllPhotos = async () => {
-            try {
-                const usersRef = collection(db, 'users');
-                const q = query(
-                    usersRef,
-                    where('userClass', '==', userData.userClass)
-                );
+    React.useEffect(() => {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('userClass', '==', userData.userClass));
 
-                const snapshot = await getDocs(q);
-                const photoMap = new Map<string, string | null>();
-
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    if (data.name && data.customPhotoURL) {
-                        photoMap.set(data.name, data.customPhotoURL);
-                    }
-                });
-
-                if (mounted) {
-                    setPhotoCache(photoMap);
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const photoMap = new Map<string, string | null>();
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.name && data.customPhotoURL) {
+                    photoMap.set(data.name, data.customPhotoURL);
                 }
-            } catch (error) {
-                console.error('Error loading photos:', error);
-            }
-        };
+            });
+            setPhotoCache(photoMap);
+        }, (error) => {
+            console.error('Error loading photos:', error);
+        });
 
-        loadAllPhotos();
-
-        return () => {
-            mounted = false;
-        };
+        return () => unsubscribe();
     }, [userData.userClass]);
 
     const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,12 +219,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         return matchedNames;
     }, [safeSelectedNames, searchTerm, userData?.name, classNames]);
 
-    const ITEM_HEIGHT = 48;
-    const VISIBLE_ITEMS = Math.min(15, Math.max(8, Math.floor(window.innerHeight * 0.4 / ITEM_HEIGHT)));
-    const BUFFER_SIZE = 5;
-
     const startIndex = Math.max(0, virtualStart - BUFFER_SIZE);
-    const endIndex = Math.min(filteredAvailableNames.length, virtualStart + VISIBLE_ITEMS + BUFFER_SIZE);
+    const endIndex = Math.min(filteredAvailableNames.length, virtualStart + visibleItems + BUFFER_SIZE);
     const visibleNames = filteredAvailableNames.slice(startIndex, endIndex);
 
     const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -219,7 +230,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         if (Math.abs(newStart - virtualStart) > 2) {
             setVirtualStart(newStart);
         }
-    }, [virtualStart]);
+    }, [virtualStart, visibleItems]);
 
     const clearSearch = React.useCallback(() => {
         setSearchTerm('');
@@ -229,8 +240,19 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         }
     }, [setSearchTerm]);
 
-    const highlightMatch = React.useCallback((name: string, _searchTerm: string) => {
-        return name;
+    const highlightMatch = React.useCallback((name: string, term: string): React.ReactNode => {
+        if (!term.trim()) return name;
+        const lowerName = name.toLowerCase();
+        const lowerTerm = term.toLowerCase().trim();
+        const idx = lowerName.indexOf(lowerTerm);
+        if (idx === -1) return name;
+        return (
+            <>
+                {name.slice(0, idx)}
+                <strong style={{ color: '#8C1515' }}>{name.slice(idx, idx + lowerTerm.length)}</strong>
+                {name.slice(idx + lowerTerm.length)}
+            </>
+        );
     }, []);
 
     const matchedNames = new Set(matches.map((m: { name: string; email: string }) => m.name));
@@ -240,7 +262,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
         navigate(`/profile/${nameHash}`);
     }, [navigate]);
 
-    const handleMatchClick = React.useCallback((match: { name: string; email: string }) => {
+    const handleMatchClick = React.useCallback((match: MatchInfo) => {
         const nameHash = hashName(match.name);
         navigate(`/profile/${nameHash}`);
     }, [navigate]);
@@ -257,24 +279,37 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 <div className="matches-section">
                     <h2>🎉 You have {userData.matches.length} match{userData.matches.length > 1 ? 'es' : ''}!</h2>
                     <div className="matches-list">
-                        {userData.matches.map((match: { name: string; email: string }, index: number) => (
-                            <div
-                                key={index}
-                                className="match-item clickable"
-                                onClick={() => handleMatchClick(match)}
-                                style={{ cursor: 'pointer' }}
-                            >
-                                <UserPhoto
-                                    name={match.name}
-                                    userClass={userData.userClass}
-                                    size="medium"
-                                    photoUrl={photoCache.get(match.name)}
-                                />
-                                <div className="match-details">
-                                    <div className="match-name">{match.name}</div>
+                        {userData.matches.map((match: MatchInfo, index: number) => {
+                            const matchDate = toDate(match.matchedAt);
+                            return (
+                                <div
+                                    key={index}
+                                    className="match-item clickable"
+                                    onClick={() => handleMatchClick(match)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <UserPhoto
+                                        name={match.name}
+                                        userClass={userData.userClass}
+                                        size="medium"
+                                        photoUrl={photoCache.get(match.name)}
+                                    />
+                                    <div className="match-details">
+                                        <div className="match-name">{match.name}</div>
+                                        {matchDate && (
+                                            <div className="match-date">
+                                                Matched {formatRelativeTime(matchDate)}
+                                                <span className="match-date-absolute">
+                                                    {matchDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                                    {' at '}
+                                                    {matchDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -348,11 +383,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                         </div>
 
                                         {isLocked ? (
-                                            <span
-                                                className="lock-btn"
-                                                title={matchedNames.has(name) ? "Matched!" : "Locked"}
-                                            >
-                                                🔒
+                                            <span className={`lock-label ${matchedNames.has(name) ? 'lock-label-matched' : 'lock-label-locked'}`}>
+                                                {matchedNames.has(name) ? '✓ Matched' : '♥ Mutual'}
                                             </span>
                                         ) : (
                                             <button
@@ -373,7 +405,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         </div>
                     </div>
                 );
-            }, [safeSelectedNames, lockedCrushes, hasUnsavedChanges, updating, handleUpdatePreferences, handleRemoveSelected, photoCache, userData.userClass, matchedNames, ITEM_HEIGHT, handleNavigateToProfile])}
+            }, [safeSelectedNames, lockedCrushes, hasUnsavedChanges, updating, handleUpdatePreferences, handleRemoveSelected, photoCache, userData.userClass, matchedNames, handleNavigateToProfile])}
 
             <div className="search-section">
                 <div className="search-input-container">
@@ -396,9 +428,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                         </button>
                     )}
                 </div>
-                {searchTerm && filteredAvailableNames.length > 0 && (
+                {searchTerm && filteredAvailableNames.length > 0 && searchTerm.trim().split(/\s+/).length === 1 && (
                     <div className="search-hint">
-                        💡 {filteredAvailableNames.length} results found. Try "first last" for best results.
+                        💡 {filteredAvailableNames.length} result{filteredAvailableNames.length !== 1 ? 's' : ''}. Try "first last" for best results.
                     </div>
                 )}
             </div>
@@ -414,7 +446,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 <div
                     className="names-simple-list"
                     onScroll={handleScroll}
-                    style={{ height: `${VISIBLE_ITEMS * ITEM_HEIGHT}px` }}
+                    style={{ height: `${visibleItems * ITEM_HEIGHT}px` }}
                 >
                     {startIndex > 0 && (
                         <div style={{ height: `${startIndex * ITEM_HEIGHT}px` }} />
@@ -473,16 +505,27 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
 
                     {filteredAvailableNames.length === 0 && (
                         <div className="no-results">
-                            {searchTerm ? (
-                                <>
-                                    No names found matching "{searchTerm}".
-                                    <br />
-                                    <small>Try searching with just first and last name (e.g., "john smith")</small>
-                                    <button onClick={clearSearch} className="clear-search-link">
-                                        Clear search
-                                    </button>
-                                </>
-                            ) : (
+                            {searchTerm ? (() => {
+                                const alreadySelected = safeSelectedNames.find(n => matchesSearchTerm(n, searchTerm).matches);
+                                return alreadySelected ? (
+                                    <>
+                                        <strong>{alreadySelected}</strong> is already in your selections.
+                                        <br />
+                                        <button onClick={clearSearch} className="clear-search-link">
+                                            Clear search
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        No names found matching "{searchTerm}".
+                                        <br />
+                                        <small>Try searching with just first and last name (e.g., "john smith")</small>
+                                        <button onClick={clearSearch} className="clear-search-link">
+                                            Clear search
+                                        </button>
+                                    </>
+                                );
+                            })() : (
                                 'All classmates have been selected!'
                             )}
                         </div>
