@@ -18,7 +18,7 @@ const Terms: React.FC = () => {
 
                 <div className="legal-content">
                     <h1>Terms of Service</h1>
-                    <p className="last-updated">Last updated: December 19, 2024</p>
+                    <p className="last-updated">Last updated: April 21, 2026</p>
 
                     <section>
                         <h2>Acceptance of Terms</h2>

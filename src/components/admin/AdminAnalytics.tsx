@@ -31,14 +31,6 @@ interface AdminAnalyticsProps {
     allUsers: any[];
 }
 
-// Helper function to check if a match should have a timestamp (consistent with backend logic)
-const shouldMatchHaveTimestamp = (user1Name: string, user2Name: string): boolean => {
-    const isUser1JamesPark = user1Name === 'James Park';
-    const isUser2JamesPark = user2Name === 'James Park';
-
-    return !(isUser1JamesPark || isUser2JamesPark);
-};
-
 const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplayName, allUsers }) => {
     if (!analytics) {
         return (
@@ -69,61 +61,28 @@ const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ analytics, classDisplay
             }
         });
 
-        // Sort matches: those with timestamps first (by most recent), then those without
+        // Sort: timestamped matches first (most recent), then untimstamped (alphabetical)
         return matches.sort((a, b) => {
-            const aHasTimestamp = shouldMatchHaveTimestamp(a.users[0], a.users[1]) && !!a.timestamp;
-            const bHasTimestamp = shouldMatchHaveTimestamp(b.users[0], b.users[1]) && !!b.timestamp;
+            const aHasTimestamp = !!a.timestamp;
+            const bHasTimestamp = !!b.timestamp;
 
-            // James Park matches always go to the end
-            const aIsJamesPark = !shouldMatchHaveTimestamp(a.users[0], a.users[1]);
-            const bIsJamesPark = !shouldMatchHaveTimestamp(b.users[0], b.users[1]);
-
-            if (aIsJamesPark && !bIsJamesPark) return 1;
-            if (!aIsJamesPark && bIsJamesPark) return -1;
-
-            // If both are James Park matches, sort alphabetically
-            if (aIsJamesPark && bIsJamesPark) {
-                return a.pair.localeCompare(b.pair);
-            }
-
-            // If one has timestamp and other doesn't, prioritize the one with timestamp
             if (aHasTimestamp && !bHasTimestamp) return -1;
             if (!aHasTimestamp && bHasTimestamp) return 1;
 
-            // If both have timestamps, sort by most recent first
             if (aHasTimestamp && bHasTimestamp) {
                 try {
-                    let dateA: Date, dateB: Date;
-
-                    // Handle different timestamp formats for sorting
-                    if (a.timestamp && a.timestamp.seconds) {
-                        dateA = new Date(a.timestamp.seconds * 1000);
-                    } else if (a.timestamp && a.timestamp._seconds) {
-                        dateA = new Date(a.timestamp._seconds * 1000);
-                    } else if (a.timestamp && typeof a.timestamp.toDate === 'function') {
-                        dateA = a.timestamp.toDate();
-                    } else {
-                        dateA = new Date(a.timestamp);
-                    }
-
-                    if (b.timestamp && b.timestamp.seconds) {
-                        dateB = new Date(b.timestamp.seconds * 1000);
-                    } else if (b.timestamp && b.timestamp._seconds) {
-                        dateB = new Date(b.timestamp._seconds * 1000);
-                    } else if (b.timestamp && typeof b.timestamp.toDate === 'function') {
-                        dateB = b.timestamp.toDate();
-                    } else {
-                        dateB = new Date(b.timestamp);
-                    }
-
-                    return dateB.getTime() - dateA.getTime();
-                } catch (error) {
-                    console.error('Error sorting timestamps:', error);
+                    const toDate = (ts: any): Date => {
+                        if (typeof ts.toDate === 'function') return ts.toDate();
+                        if (ts.seconds) return new Date(ts.seconds * 1000);
+                        if (ts._seconds) return new Date(ts._seconds * 1000);
+                        return new Date(ts);
+                    };
+                    return toDate(b.timestamp).getTime() - toDate(a.timestamp).getTime();
+                } catch {
                     return 0;
                 }
             }
 
-            // If neither has timestamp, sort alphabetically
             return a.pair.localeCompare(b.pair);
         });
     };
