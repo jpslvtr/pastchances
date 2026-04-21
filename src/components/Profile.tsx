@@ -9,7 +9,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { db, storage } from '../config/firebase';
 import { getUserDocumentId } from '../utils';
 import { hashName } from '../utils/hashName';
-import { COUNTRY_CODES } from '../data/countryCodes';
+import { COUNTRY_CODES } from '../config/countryCodes';
 import { GSB_CLASS_NAMES } from '../data/names';
 import { UNDERGRAD_CLASS_NAMES } from '../data/names-undergrad';
 import type { UserData, PublicContact } from '../types';
