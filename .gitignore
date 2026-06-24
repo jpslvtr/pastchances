@@ -37,3 +37,10 @@ repomix-output.txt
 
 # Agent instructions
 CLAUDE.md
+
+# Claude, scratch (wm), and repo-packing artifacts
+CLAUDE.local.md
+.claude/
+wm*
+repomix*
+repopack*
