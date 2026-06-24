@@ -1,32 +1,39 @@
-.gitignore
-
+# Dependencies
 node_modules/
 functions/node_modules/
 
+# Build output
 dist/
 functions/lib/
-public/
-src/data/
-src/assets/
+*.tsbuildinfo
 
-.firebase/
+# Environment & secrets
+.env*
+functions/src/serviceAccountKey.json
 firebase.json
 firestore.indexes.json
-scripts
 
-functions/src/serviceAccountKey.json
-.env*
-
+# Local tooling / caches
+.firebase/
 .vercel/
 scripts/.vercel/
-
 *.log
 *.cache
 *.map
 
+# Private class data (PII — names/emails). Only the two name lists the app
+# imports are committed; everything else under src/data stays local.
+src/data/*
+!src/data/names.ts
+!src/data/names-undergrad.ts
+scripts/data/
+
+# Tooling output
 repomix.config.json
 repomix-output.txt
-.vercel
-.env*.local
 
+# Editor / OS
+.DS_Store
+
+# Agent instructions
 CLAUDE.md

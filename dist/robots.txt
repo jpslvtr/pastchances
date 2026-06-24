@@ -1,7 +1,0 @@
-User-agent: *
-Allow: /
-Allow: /share.png
-Allow: /stanford.svg
-Allow: /stanford.png
-
-Sitemap: https://secondchances.app/sitemap.xml
